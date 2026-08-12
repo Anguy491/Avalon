@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/http.schema.json",
+  "title": "Avalon HTTP request and response bodies",
+  "$defs": {
+    "SessionBootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "protocolVersion",
+        "roomCode",
+        "playerId",
+        "sessionToken",
+        "sessionExpiresAt",
+        "realtimeUrl",
+        "roomView"
+      ],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "roomCode": { "$ref": "common.schema.json#/$defs/RoomCode" },
+        "playerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "sessionToken": { "$ref": "common.schema.json#/$defs/SessionToken" },
+        "sessionExpiresAt": { "type": "string", "format": "date-time" },
+        "realtimeUrl": { "type": "string", "format": "uri", "pattern": "^wss://" },
+        "roomView": { "$ref": "room-view.schema.json" }
+      }
+    },
+    "CreateRoomRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nickname", "config", "client"],
+      "properties": {
+        "nickname": { "$ref": "common.schema.json#/$defs/Nickname" },
+        "config": { "$ref": "room-config.schema.json#/$defs/RoomConfigInput" },
+        "client": { "$ref": "#/$defs/ClientCapabilities" }
+      }
+    },
+    "JoinRoomRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nickname", "client"],
+      "properties": {
+        "nickname": { "$ref": "common.schema.json#/$defs/Nickname" },
+        "client": { "$ref": "#/$defs/ClientCapabilities" }
+      }
+    },
+    "ClientCapabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "platform", "appVersion", "voicePackVersions"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "platform": { "type": "string", "enum": ["IOS", "ANDROID"] },
+        "appVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "voicePackVersions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^zh-CN-v[1-9][0-9]*$" }
+        }
+      }
+    },
+    "ResumeSessionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["client"],
+      "properties": {
+        "client": { "$ref": "#/$defs/ClientCapabilities" }
+      }
+    },
+    "ReadRoomViewResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "roomView"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "roomView": { "$ref": "room-view.schema.json" }
+      }
+    }
+  }
+}
+

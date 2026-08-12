@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/room-config.schema.json",
+  "title": "Avalon room configuration",
+  "$defs": {
+    "PresetRoleSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "presetId"],
+      "properties": {
+        "type": { "const": "PRESET" },
+        "presetId": {
+          "type": "string",
+          "enum": ["CLASSIC", "COMMON_ROLES"]
+        }
+      }
+    },
+    "CustomRoleSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "roleIds"],
+      "properties": {
+        "type": { "const": "CUSTOM" },
+        "roleIds": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 10,
+          "items": {
+            "$ref": "common.schema.json#/$defs/RoleId"
+          }
+        }
+      }
+    },
+    "RoomConfigInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rulesVersion", "playerCount", "roleSelection", "locale"],
+      "properties": {
+        "rulesVersion": {
+          "$ref": "common.schema.json#/$defs/RulesVersion"
+        },
+        "playerCount": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 10
+        },
+        "roleSelection": {
+          "oneOf": [
+            { "$ref": "#/$defs/PresetRoleSelection" },
+            { "$ref": "#/$defs/CustomRoleSelection" }
+          ]
+        },
+        "locale": { "const": "zh-CN" }
+      }
+    },
+    "RoomConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rulesVersion",
+        "playerCount",
+        "roleIds",
+        "locale",
+        "voicePackVersion"
+      ],
+      "properties": {
+        "rulesVersion": {
+          "$ref": "common.schema.json#/$defs/RulesVersion"
+        },
+        "playerCount": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 10
+        },
+        "roleIds": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 10,
+          "items": {
+            "$ref": "common.schema.json#/$defs/RoleId"
+          }
+        },
+        "locale": { "const": "zh-CN" },
+        "voicePackVersion": {
+          "type": "string",
+          "pattern": "^zh-CN-v[1-9][0-9]*$"
+        }
+      }
+    }
+  },
+  "$ref": "#/$defs/RoomConfigInput"
+}
+

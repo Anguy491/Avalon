@@ -1,0 +1,328 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/room-view.schema.json",
+  "title": "Avalon personalized room view",
+  "$defs": {
+    "PlayerSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "playerId",
+        "nickname",
+        "seat",
+        "isHost",
+        "ready",
+        "connected"
+      ],
+      "properties": {
+        "playerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "nickname": { "$ref": "common.schema.json#/$defs/Nickname" },
+        "seat": { "type": "integer", "minimum": 0, "maximum": 9 },
+        "isHost": { "type": "boolean" },
+        "ready": { "type": "boolean" },
+        "connected": { "type": "boolean" }
+      }
+    },
+    "SubmissionProgress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["submittedCount", "requiredCount"],
+      "properties": {
+        "submittedCount": { "type": "integer", "minimum": 0, "maximum": 10 },
+        "requiredCount": { "type": "integer", "minimum": 1, "maximum": 10 }
+      }
+    },
+    "TeamVoteRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "vote"],
+      "properties": {
+        "playerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "vote": { "$ref": "common.schema.json#/$defs/TeamVote" }
+      }
+    },
+    "ProposalRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "questIndex",
+        "proposalAttempt",
+        "leaderPlayerId",
+        "teamPlayerIds",
+        "votes",
+        "approved"
+      ],
+      "properties": {
+        "questIndex": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "proposalAttempt": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "leaderPlayerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "teamPlayerIds": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/Uuid" }
+        },
+        "votes": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/TeamVoteRecord" }
+        },
+        "approved": { "type": "boolean" }
+      }
+    },
+    "QuestRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "questIndex",
+        "leaderPlayerId",
+        "teamPlayerIds",
+        "successChoices",
+        "failChoices",
+        "requiredFails",
+        "result"
+      ],
+      "properties": {
+        "questIndex": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "leaderPlayerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "teamPlayerIds": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/Uuid" }
+        },
+        "successChoices": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "failChoices": { "type": "integer", "minimum": 0, "maximum": 5 },
+        "requiredFails": { "type": "integer", "minimum": 1, "maximum": 2 },
+        "result": { "$ref": "common.schema.json#/$defs/QuestResult" }
+      }
+    },
+    "AudioCueView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["audioCueId", "audioCueKey", "subtitleKey", "voicePackVersion"],
+      "properties": {
+        "audioCueId": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "audioCueKey": { "type": "string", "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$" },
+        "subtitleKey": { "type": "string", "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$" },
+        "voicePackVersion": { "type": "string", "pattern": "^zh-CN-v[1-9][0-9]*$" }
+      }
+    },
+    "GameOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["winner", "reason"],
+      "properties": {
+        "winner": { "$ref": "common.schema.json#/$defs/Winner" },
+        "reason": { "$ref": "common.schema.json#/$defs/GameOutcomeReason" },
+        "assassinationTargetPlayerId": {
+          "oneOf": [
+            { "$ref": "common.schema.json#/$defs/Uuid" },
+            { "type": "null" }
+          ]
+        }
+      }
+    },
+    "RevealedAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "roleId", "alignment"],
+      "properties": {
+        "playerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "roleId": { "$ref": "common.schema.json#/$defs/RoleId" },
+        "alignment": { "$ref": "common.schema.json#/$defs/Alignment" }
+      }
+    },
+    "PublicSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roomId",
+        "roomCode",
+        "stateVersion",
+        "rulesVersion",
+        "config",
+        "phase",
+        "phaseStage",
+        "players",
+        "proposalAttempt",
+        "proposedTeamPlayerIds",
+        "proposalHistory",
+        "questHistory",
+        "successCount",
+        "failureCount",
+        "pauseReasons"
+      ],
+      "properties": {
+        "roomId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "roomCode": { "$ref": "common.schema.json#/$defs/RoomCode" },
+        "stateVersion": { "type": "integer", "minimum": 0 },
+        "rulesVersion": { "$ref": "common.schema.json#/$defs/RulesVersion" },
+        "config": { "$ref": "room-config.schema.json#/$defs/RoomConfig" },
+        "phase": { "$ref": "common.schema.json#/$defs/GamePhase" },
+        "phaseStage": { "$ref": "common.schema.json#/$defs/PhaseStage" },
+        "players": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/PlayerSummary" }
+        },
+        "leaderPlayerId": {
+          "oneOf": [
+            { "$ref": "common.schema.json#/$defs/Uuid" },
+            { "type": "null" }
+          ]
+        },
+        "questIndex": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 5 },
+            { "type": "null" }
+          ]
+        },
+        "proposalAttempt": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "requiredTeamSize": {
+          "oneOf": [
+            { "type": "integer", "minimum": 2, "maximum": 5 },
+            { "type": "null" }
+          ]
+        },
+        "proposedTeamPlayerIds": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/Uuid" }
+        },
+        "submissionProgress": {
+          "oneOf": [
+            { "$ref": "#/$defs/SubmissionProgress" },
+            { "type": "null" }
+          ]
+        },
+        "proposalHistory": {
+          "type": "array",
+          "maxItems": 25,
+          "items": { "$ref": "#/$defs/ProposalRecord" }
+        },
+        "questHistory": {
+          "type": "array",
+          "maxItems": 5,
+          "items": { "$ref": "#/$defs/QuestRecord" }
+        },
+        "successCount": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "failureCount": { "type": "integer", "minimum": 0, "maximum": 3 },
+        "pauseReasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["MANUAL", "PLAYER_DISCONNECTED", "HOST_DISCONNECTED"]
+          }
+        },
+        "currentAudioCue": {
+          "oneOf": [
+            { "$ref": "#/$defs/AudioCueView" },
+            { "type": "null" }
+          ]
+        },
+        "gameOutcome": {
+          "oneOf": [
+            { "$ref": "#/$defs/GameOutcome" },
+            { "type": "null" }
+          ]
+        },
+        "revealedAssignments": {
+          "type": "array",
+          "maxItems": 10,
+          "items": { "$ref": "#/$defs/RevealedAssignment" }
+        }
+      }
+    },
+    "KnownPlayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["playerId", "knowledgeLabel"],
+      "properties": {
+        "playerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "knowledgeLabel": {
+          "type": "string",
+          "enum": ["EVIL_PLAYER", "MERLIN_CANDIDATE", "KNOWN_EVIL_ALLY"]
+        }
+      }
+    },
+    "AvailableAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commandType"],
+      "properties": {
+        "commandType": { "$ref": "common.schema.json#/$defs/CommandType" },
+        "allowedTeamVotes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/TeamVote" }
+        },
+        "allowedQuestChoices": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/QuestChoice" }
+        },
+        "eligibleTargetPlayerIds": {
+          "type": "array",
+          "maxItems": 9,
+          "uniqueItems": true,
+          "items": { "$ref": "common.schema.json#/$defs/Uuid" }
+        }
+      }
+    },
+    "PrivatePlayerProjection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "playerId",
+        "knownPlayers",
+        "availableActions",
+        "hasSubmitted",
+        "shouldPlayAudio",
+        "sessionExpiresAt"
+      ],
+      "properties": {
+        "playerId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "selfRole": {
+          "oneOf": [
+            { "$ref": "common.schema.json#/$defs/RoleId" },
+            { "type": "null" }
+          ]
+        },
+        "selfAlignment": {
+          "oneOf": [
+            { "$ref": "common.schema.json#/$defs/Alignment" },
+            { "type": "null" }
+          ]
+        },
+        "knownPlayers": {
+          "type": "array",
+          "maxItems": 9,
+          "items": { "$ref": "#/$defs/KnownPlayer" }
+        },
+        "availableActions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/AvailableAction" }
+        },
+        "hasSubmitted": { "type": "boolean" },
+        "shouldPlayAudio": { "type": "boolean" },
+        "sessionExpiresAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["public", "private"],
+  "properties": {
+    "public": { "$ref": "#/$defs/PublicSnapshot" },
+    "private": { "$ref": "#/$defs/PrivatePlayerProjection" }
+  }
+}
+

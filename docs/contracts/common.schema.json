@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/common.schema.json",
+  "title": "Avalon protocol v1 common types",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "RoomCode": {
+      "type": "string",
+      "pattern": "^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$"
+    },
+    "Nickname": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16
+    },
+    "SessionToken": {
+      "type": "string",
+      "minLength": 22,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "RulesVersion": {
+      "const": "CLASSIC_AVALON_V1"
+    },
+    "RoleId": {
+      "type": "string",
+      "enum": [
+        "MERLIN",
+        "LOYAL_SERVANT",
+        "PERCIVAL",
+        "ASSASSIN",
+        "MINION",
+        "MORGANA",
+        "MORDRED",
+        "OBERON"
+      ]
+    },
+    "Alignment": {
+      "type": "string",
+      "enum": ["GOOD", "EVIL"]
+    },
+    "GamePhase": {
+      "type": "string",
+      "enum": [
+        "LOBBY",
+        "ROLE_REVEAL",
+        "TEAM_PROPOSAL",
+        "TEAM_VOTE",
+        "QUEST_SUBMISSION",
+        "QUEST_RESOLUTION",
+        "ASSASSINATION",
+        "GAME_OVER",
+        "PAUSED"
+      ]
+    },
+    "PhaseStage": {
+      "type": "string",
+      "enum": ["HOST_HELD", "COLLECTING", "RESOLVED"]
+    },
+    "TeamVote": {
+      "type": "string",
+      "enum": ["APPROVE", "REJECT"]
+    },
+    "QuestChoice": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAIL"]
+    },
+    "QuestResult": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAILURE"]
+    },
+    "Winner": {
+      "type": "string",
+      "enum": ["GOOD", "EVIL", "NONE"]
+    },
+    "GameOutcomeReason": {
+      "type": "string",
+      "enum": [
+        "THREE_QUEST_FAILURES",
+        "FIVE_REJECTED_TEAMS",
+        "MERLIN_ASSASSINATED",
+        "MERLIN_SURVIVED",
+        "ABORTED"
+      ]
+    },
+    "CommandType": {
+      "type": "string",
+      "enum": [
+        "ConfigureRoom",
+        "ReorderSeats",
+        "SetReady",
+        "StartGame",
+        "ContinuePhase",
+        "AckRole",
+        "SubmitTeam",
+        "SubmitTeamVote",
+        "SubmitQuestChoice",
+        "SelectMerlinTarget",
+        "PauseGame",
+        "ResumeGame",
+        "ReplayAudioCue",
+        "LeaveLobby",
+        "KickLobbyPlayer",
+        "CloseRoom"
+      ]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "INVALID_ROOM_CODE",
+        "ROOM_FULL",
+        "ROOM_NOT_JOINABLE",
+        "ROOM_EXPIRED",
+        "SESSION_INVALID",
+        "NICKNAME_CONFLICT",
+        "INVALID_NICKNAME",
+        "NOT_HOST",
+        "NOT_LEADER",
+        "NOT_ASSASSIN",
+        "INVALID_PHASE",
+        "INVALID_PHASE_STAGE",
+        "PHASE_HELD",
+        "STALE_VERSION",
+        "DUPLICATE_COMMAND_CONFLICT",
+        "INVALID_CONFIG",
+        "INVALID_SEAT_ORDER",
+        "INVALID_TEAM_SIZE",
+        "INVALID_TEAM_MEMBER",
+        "INVALID_VOTE",
+        "INVALID_TARGET",
+        "PLAYER_NOT_ON_TEAM",
+        "GOOD_CANNOT_FAIL",
+        "ALREADY_SUBMITTED",
+        "HOST_CANNOT_LEAVE",
+        "PLAYERS_NOT_READY",
+        "PLAYERS_OFFLINE",
+        "AUDIO_CUE_NOT_FOUND",
+        "UPGRADE_REQUIRED",
+        "RATE_LIMITED",
+        "VALIDATION_ERROR",
+        "PAYLOAD_TOO_LARGE",
+        "UNAUTHORIZED",
+        "INTERNAL_ERROR"
+      ]
+    }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/error.schema.json",
+  "title": "Avalon stable error response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "diagnosticId", "retryable"],
+      "properties": {
+        "code": { "$ref": "common.schema.json#/$defs/ErrorCode" },
+        "diagnosticId": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 64
+        },
+        "retryable": { "type": "boolean" },
+        "retryAfterMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "currentStateVersion": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "fieldErrors": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "reason"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "REQUIRED",
+                  "INVALID_FORMAT",
+                  "OUT_OF_RANGE",
+                  "CONFLICT",
+                  "DEPENDENCY",
+                  "UNSUPPORTED"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

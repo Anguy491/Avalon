@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/transport.schema.json",
+  "title": "Avalon Socket.IO transport messages",
+  "$defs": {
+    "RealtimeAuth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "sessionToken", "lastStateVersion"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "sessionToken": { "$ref": "common.schema.json#/$defs/SessionToken" },
+        "lastStateVersion": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "SessionReady": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "delivery", "roomView"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "delivery": { "const": "RESYNC" },
+        "roomView": { "$ref": "room-view.schema.json" }
+      }
+    },
+    "RoomViewMessage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "delivery", "eventId", "roomView"],
+      "properties": {
+        "protocolVersion": { "const": 1 },
+        "delivery": { "type": "string", "enum": ["LIVE", "RESYNC"] },
+        "eventId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "roomView": { "$ref": "room-view.schema.json" }
+      }
+    },
+    "TerminalViewAck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["stateVersion"],
+      "properties": {
+        "stateVersion": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CommandAccepted": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commandId", "accepted", "stateVersion"],
+      "properties": {
+        "commandId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "accepted": { "const": true },
+        "stateVersion": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "CommandRejected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commandId", "accepted", "error"],
+      "properties": {
+        "commandId": { "$ref": "common.schema.json#/$defs/Uuid" },
+        "accepted": { "const": false },
+        "error": { "$ref": "error.schema.json#/properties/error" }
+      }
+    },
+    "CommandResult": {
+      "oneOf": [
+        { "$ref": "#/$defs/CommandAccepted" },
+        { "$ref": "#/$defs/CommandRejected" }
+      ]
+    }
+  }
+}
