@@ -16,16 +16,18 @@
 - [测试策略](./test-strategy.zh-CN.md)；
 - [安全威胁模型](./Avalon-threat-model.md)；
 - [MVP 实施路线图](./roadmap.zh-CN.md)；
+- [M0 本地开发、配置与验证](./development.zh-CN.md)；
+- [M0 本地原生验证证据](./verification/m0/README.md)；
 - [仓库协作规范](../AGENTS.md)。
 
 ## 状态
 
-| 文档 | 状态 | 变更方式 |
-| --- | --- | --- |
-| 游戏规则、状态机、FR/NFR | MVP 基线 | 产品规则变更，必须同步追踪表与测试 |
-| ADR-001–ADR-007 | 已接受 | 新 ADR 取代，不覆盖历史决定 |
-| 协议和 bootstrap Schema | P0 基线 | M0 后由 `packages/protocol` 导出并做快照校验 |
-| UX、测试、安全、Roadmap | P0 基线 | 随实现发现更新，但不得弱化上游要求 |
+| 文档                     | 状态      | 变更方式                                |
+| ------------------------ | --------- | --------------------------------------- |
+| 游戏规则、状态机、FR/NFR | MVP 基线  | 产品规则变更，必须同步追踪表与测试      |
+| ADR-001–ADR-007          | 已接受    | 新 ADR 取代，不覆盖历史决定             |
+| 协议 Schema              | M0 已生成 | 由 `packages/protocol` 导出并做快照校验 |
+| UX、测试、安全、Roadmap  | P0 基线   | 随实现发现更新，但不得弱化上游要求      |
 
 ## 追踪链
 

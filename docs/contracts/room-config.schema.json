@@ -1,61 +1,310 @@
 {
+  "additionalProperties": false,
+  "type": "object",
+  "required": [
+    "rulesVersion",
+    "playerCount",
+    "roleSelection",
+    "locale"
+  ],
+  "properties": {
+    "rulesVersion": {
+      "const": "CLASSIC_AVALON_V1",
+      "type": "string"
+    },
+    "playerCount": {
+      "minimum": 5,
+      "maximum": 10,
+      "type": "integer"
+    },
+    "roleSelection": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "type",
+            "presetId"
+          ],
+          "properties": {
+            "type": {
+              "const": "PRESET",
+              "type": "string"
+            },
+            "presetId": {
+              "anyOf": [
+                {
+                  "const": "CLASSIC",
+                  "type": "string"
+                },
+                {
+                  "const": "COMMON_ROLES",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "type",
+            "roleIds"
+          ],
+          "properties": {
+            "type": {
+              "const": "CUSTOM",
+              "type": "string"
+            },
+            "roleIds": {
+              "minItems": 5,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "anyOf": [
+                  {
+                    "const": "MERLIN",
+                    "type": "string"
+                  },
+                  {
+                    "const": "LOYAL_SERVANT",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PERCIVAL",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ASSASSIN",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MINION",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MORGANA",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MORDRED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "OBERON",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "locale": {
+      "const": "zh-CN",
+      "type": "string"
+    }
+  },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://avalon.example/schemas/v1/room-config.schema.json",
   "title": "Avalon room configuration",
   "$defs": {
     "PresetRoleSelection": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["type", "presetId"],
+      "type": "object",
+      "required": [
+        "type",
+        "presetId"
+      ],
       "properties": {
-        "type": { "const": "PRESET" },
+        "type": {
+          "const": "PRESET",
+          "type": "string"
+        },
         "presetId": {
-          "type": "string",
-          "enum": ["CLASSIC", "COMMON_ROLES"]
+          "anyOf": [
+            {
+              "const": "CLASSIC",
+              "type": "string"
+            },
+            {
+              "const": "COMMON_ROLES",
+              "type": "string"
+            }
+          ]
         }
       }
     },
     "CustomRoleSelection": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["type", "roleIds"],
+      "type": "object",
+      "required": [
+        "type",
+        "roleIds"
+      ],
       "properties": {
-        "type": { "const": "CUSTOM" },
+        "type": {
+          "const": "CUSTOM",
+          "type": "string"
+        },
         "roleIds": {
-          "type": "array",
           "minItems": 5,
           "maxItems": 10,
+          "type": "array",
           "items": {
-            "$ref": "common.schema.json#/$defs/RoleId"
+            "anyOf": [
+              {
+                "const": "MERLIN",
+                "type": "string"
+              },
+              {
+                "const": "LOYAL_SERVANT",
+                "type": "string"
+              },
+              {
+                "const": "PERCIVAL",
+                "type": "string"
+              },
+              {
+                "const": "ASSASSIN",
+                "type": "string"
+              },
+              {
+                "const": "MINION",
+                "type": "string"
+              },
+              {
+                "const": "MORGANA",
+                "type": "string"
+              },
+              {
+                "const": "MORDRED",
+                "type": "string"
+              },
+              {
+                "const": "OBERON",
+                "type": "string"
+              }
+            ]
           }
         }
       }
     },
     "RoomConfigInput": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["rulesVersion", "playerCount", "roleSelection", "locale"],
+      "type": "object",
+      "required": [
+        "rulesVersion",
+        "playerCount",
+        "roleSelection",
+        "locale"
+      ],
       "properties": {
         "rulesVersion": {
-          "$ref": "common.schema.json#/$defs/RulesVersion"
+          "const": "CLASSIC_AVALON_V1",
+          "type": "string"
         },
         "playerCount": {
-          "type": "integer",
           "minimum": 5,
-          "maximum": 10
+          "maximum": 10,
+          "type": "integer"
         },
         "roleSelection": {
-          "oneOf": [
-            { "$ref": "#/$defs/PresetRoleSelection" },
-            { "$ref": "#/$defs/CustomRoleSelection" }
+          "anyOf": [
+            {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "type",
+                "presetId"
+              ],
+              "properties": {
+                "type": {
+                  "const": "PRESET",
+                  "type": "string"
+                },
+                "presetId": {
+                  "anyOf": [
+                    {
+                      "const": "CLASSIC",
+                      "type": "string"
+                    },
+                    {
+                      "const": "COMMON_ROLES",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "type",
+                "roleIds"
+              ],
+              "properties": {
+                "type": {
+                  "const": "CUSTOM",
+                  "type": "string"
+                },
+                "roleIds": {
+                  "minItems": 5,
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "const": "MERLIN",
+                        "type": "string"
+                      },
+                      {
+                        "const": "LOYAL_SERVANT",
+                        "type": "string"
+                      },
+                      {
+                        "const": "PERCIVAL",
+                        "type": "string"
+                      },
+                      {
+                        "const": "ASSASSIN",
+                        "type": "string"
+                      },
+                      {
+                        "const": "MINION",
+                        "type": "string"
+                      },
+                      {
+                        "const": "MORGANA",
+                        "type": "string"
+                      },
+                      {
+                        "const": "MORDRED",
+                        "type": "string"
+                      },
+                      {
+                        "const": "OBERON",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
           ]
         },
-        "locale": { "const": "zh-CN" }
+        "locale": {
+          "const": "zh-CN",
+          "type": "string"
+        }
       }
     },
     "RoomConfig": {
-      "type": "object",
       "additionalProperties": false,
+      "type": "object",
       "required": [
         "rulesVersion",
         "playerCount",
@@ -65,29 +314,64 @@
       ],
       "properties": {
         "rulesVersion": {
-          "$ref": "common.schema.json#/$defs/RulesVersion"
+          "const": "CLASSIC_AVALON_V1",
+          "type": "string"
         },
         "playerCount": {
-          "type": "integer",
           "minimum": 5,
-          "maximum": 10
+          "maximum": 10,
+          "type": "integer"
         },
         "roleIds": {
-          "type": "array",
           "minItems": 5,
           "maxItems": 10,
+          "type": "array",
           "items": {
-            "$ref": "common.schema.json#/$defs/RoleId"
+            "anyOf": [
+              {
+                "const": "MERLIN",
+                "type": "string"
+              },
+              {
+                "const": "LOYAL_SERVANT",
+                "type": "string"
+              },
+              {
+                "const": "PERCIVAL",
+                "type": "string"
+              },
+              {
+                "const": "ASSASSIN",
+                "type": "string"
+              },
+              {
+                "const": "MINION",
+                "type": "string"
+              },
+              {
+                "const": "MORGANA",
+                "type": "string"
+              },
+              {
+                "const": "MORDRED",
+                "type": "string"
+              },
+              {
+                "const": "OBERON",
+                "type": "string"
+              }
+            ]
           }
         },
-        "locale": { "const": "zh-CN" },
+        "locale": {
+          "const": "zh-CN",
+          "type": "string"
+        },
         "voicePackVersion": {
-          "type": "string",
-          "pattern": "^zh-CN-v[1-9][0-9]*$"
+          "pattern": "^zh-CN-v[1-9][0-9]*$",
+          "type": "string"
         }
       }
     }
-  },
-  "$ref": "#/$defs/RoomConfigInput"
+  }
 }
-

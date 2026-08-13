@@ -1,0 +1,29 @@
+{
+  "compilerOptions": {
+    "allowJs": false,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "exactOptionalPropertyTypes": true,
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmitOnError": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@avalon/game-engine": ["packages/game-engine/src/index.ts"],
+      "@avalon/protocol": ["packages/protocol/src/index.ts"],
+      "@avalon/test-fixtures": ["packages/test-fixtures/src/index.ts"]
+    },
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2023",
+    "useUnknownInCatchVariables": true,
+    "verbatimModuleSyntax": true
+  }
+}

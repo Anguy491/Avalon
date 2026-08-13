@@ -1,0 +1,17 @@
+export const FIXTURE_PLAYER_IDS = [
+  '10000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000003',
+  '10000000-0000-4000-8000-000000000004',
+  '10000000-0000-4000-8000-000000000005',
+] as const;
+
+export const FIXTURE_NICKNAMES = [
+  'Arthur',
+  'Guinevere',
+  'Gawain',
+  'Lancelot',
+  'Galahad',
+] as const;
+
+export const FIXTURE_CLOCK_ISO = '2026-08-13T10:00:00.000Z' as const;

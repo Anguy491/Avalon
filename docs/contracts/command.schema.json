@@ -1,197 +1,610 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/command.schema.json",
-  "title": "Avalon realtime command envelope",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "commandId",
-    "roomId",
-    "expectedStateVersion",
-    "type",
-    "payload",
-    "sentAt"
-  ],
-  "properties": {
-    "commandId": { "$ref": "common.schema.json#/$defs/Uuid" },
-    "roomId": { "$ref": "common.schema.json#/$defs/Uuid" },
-    "expectedStateVersion": {
-      "type": "integer",
-      "minimum": 0
-    },
-    "type": { "$ref": "common.schema.json#/$defs/CommandType" },
-    "payload": { "type": "object" },
-    "sentAt": { "type": "string", "format": "date-time" }
-  },
-  "oneOf": [
+  "allOf": [
     {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "commandId",
+        "roomId",
+        "expectedStateVersion",
+        "type",
+        "payload",
+        "sentAt"
+      ],
       "properties": {
-        "type": { "const": "ConfigureRoom" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["config"],
-          "properties": {
-            "config": {
-              "$ref": "room-config.schema.json#/$defs/RoomConfigInput"
-            }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "ReorderSeats" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["playerIds"],
-          "properties": {
-            "playerIds": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 10,
-              "uniqueItems": true,
-              "items": { "$ref": "common.schema.json#/$defs/Uuid" }
-            }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "SetReady" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["ready"],
-          "properties": { "ready": { "type": "boolean" } }
-        }
-      }
-    },
-    {
-      "properties": {
+        "commandId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "roomId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "expectedStateVersion": {
+          "minimum": 0,
+          "type": "integer"
+        },
         "type": {
-          "enum": [
-            "StartGame",
-            "ContinuePhase",
-            "AckRole",
-            "ResumeGame",
-            "LeaveLobby",
-            "CloseRoom"
+          "anyOf": [
+            {
+              "const": "ConfigureRoom",
+              "type": "string"
+            },
+            {
+              "const": "ReorderSeats",
+              "type": "string"
+            },
+            {
+              "const": "SetReady",
+              "type": "string"
+            },
+            {
+              "const": "StartGame",
+              "type": "string"
+            },
+            {
+              "const": "ContinuePhase",
+              "type": "string"
+            },
+            {
+              "const": "AckRole",
+              "type": "string"
+            },
+            {
+              "const": "SubmitTeam",
+              "type": "string"
+            },
+            {
+              "const": "SubmitTeamVote",
+              "type": "string"
+            },
+            {
+              "const": "SubmitQuestChoice",
+              "type": "string"
+            },
+            {
+              "const": "SelectMerlinTarget",
+              "type": "string"
+            },
+            {
+              "const": "PauseGame",
+              "type": "string"
+            },
+            {
+              "const": "ResumeGame",
+              "type": "string"
+            },
+            {
+              "const": "ReplayAudioCue",
+              "type": "string"
+            },
+            {
+              "const": "LeaveLobby",
+              "type": "string"
+            },
+            {
+              "const": "KickLobbyPlayer",
+              "type": "string"
+            },
+            {
+              "const": "CloseRoom",
+              "type": "string"
+            }
           ]
         },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "maxProperties": 0
+        "payload": {},
+        "sentAt": {
+          "format": "date-time",
+          "type": "string"
         }
       }
     },
     {
-      "properties": {
-        "type": { "const": "SubmitTeam" },
-        "payload": {
+      "anyOf": [
+        {
           "type": "object",
-          "additionalProperties": false,
-          "required": ["teamPlayerIds"],
+          "required": [
+            "type",
+            "payload"
+          ],
           "properties": {
-            "teamPlayerIds": {
-              "type": "array",
-              "minItems": 2,
-              "maxItems": 5,
-              "uniqueItems": true,
-              "items": { "$ref": "common.schema.json#/$defs/Uuid" }
+            "type": {
+              "const": "ConfigureRoom",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "config"
+              ],
+              "properties": {
+                "config": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "rulesVersion",
+                    "playerCount",
+                    "roleSelection",
+                    "locale"
+                  ],
+                  "properties": {
+                    "rulesVersion": {
+                      "const": "CLASSIC_AVALON_V1",
+                      "type": "string"
+                    },
+                    "playerCount": {
+                      "minimum": 5,
+                      "maximum": 10,
+                      "type": "integer"
+                    },
+                    "roleSelection": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "type",
+                            "presetId"
+                          ],
+                          "properties": {
+                            "type": {
+                              "const": "PRESET",
+                              "type": "string"
+                            },
+                            "presetId": {
+                              "anyOf": [
+                                {
+                                  "const": "CLASSIC",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "COMMON_ROLES",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "type",
+                            "roleIds"
+                          ],
+                          "properties": {
+                            "type": {
+                              "const": "CUSTOM",
+                              "type": "string"
+                            },
+                            "roleIds": {
+                              "minItems": 5,
+                              "maxItems": 10,
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "const": "MERLIN",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "LOYAL_SERVANT",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "PERCIVAL",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ASSASSIN",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "MINION",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "MORGANA",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "MORDRED",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "OBERON",
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    "locale": {
+                      "const": "zh-CN",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "ReorderSeats",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "playerIds"
+              ],
+              "properties": {
+                "playerIds": {
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "uniqueItems": true,
+                  "type": "array",
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "SetReady",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "ready"
+              ],
+              "properties": {
+                "ready": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "StartGame",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "ContinuePhase",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "AckRole",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "ResumeGame",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "LeaveLobby",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "CloseRoom",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "SubmitTeam",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "teamPlayerIds"
+              ],
+              "properties": {
+                "teamPlayerIds": {
+                  "minItems": 2,
+                  "maxItems": 5,
+                  "uniqueItems": true,
+                  "type": "array",
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "SubmitTeamVote",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "vote"
+              ],
+              "properties": {
+                "vote": {
+                  "anyOf": [
+                    {
+                      "const": "APPROVE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "REJECT",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "SubmitQuestChoice",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "choice"
+              ],
+              "properties": {
+                "choice": {
+                  "anyOf": [
+                    {
+                      "const": "SUCCESS",
+                      "type": "string"
+                    },
+                    {
+                      "const": "FAIL",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "SelectMerlinTarget",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "targetPlayerId"
+              ],
+              "properties": {
+                "targetPlayerId": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "PauseGame",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {
+                "reason": {
+                  "minLength": 1,
+                  "maxLength": 80,
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "ReplayAudioCue",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "audioCueId"
+              ],
+              "properties": {
+                "audioCueId": {
+                  "minLength": 1,
+                  "maxLength": 80,
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "KickLobbyPlayer",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "targetPlayerId"
+              ],
+              "properties": {
+                "targetPlayerId": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              }
             }
           }
         }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "SubmitTeamVote" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["vote"],
-          "properties": {
-            "vote": { "$ref": "common.schema.json#/$defs/TeamVote" }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "SubmitQuestChoice" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["choice"],
-          "properties": {
-            "choice": { "$ref": "common.schema.json#/$defs/QuestChoice" }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "SelectMerlinTarget" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["targetPlayerId"],
-          "properties": {
-            "targetPlayerId": { "$ref": "common.schema.json#/$defs/Uuid" }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "PauseGame" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "reason": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "ReplayAudioCue" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["audioCueId"],
-          "properties": {
-            "audioCueId": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 80
-            }
-          }
-        }
-      }
-    },
-    {
-      "properties": {
-        "type": { "const": "KickLobbyPlayer" },
-        "payload": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["targetPlayerId"],
-          "properties": {
-            "targetPlayerId": { "$ref": "common.schema.json#/$defs/Uuid" }
-          }
-        }
-      }
+      ]
     }
-  ]
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://avalon.example/schemas/v1/command.schema.json",
+  "title": "Avalon realtime command envelope"
 }
-

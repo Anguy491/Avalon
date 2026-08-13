@@ -4,145 +4,413 @@
   "title": "Avalon protocol v1 common types",
   "$defs": {
     "Uuid": {
-      "type": "string",
-      "format": "uuid"
+      "format": "uuid",
+      "type": "string"
     },
     "RoomCode": {
-      "type": "string",
-      "pattern": "^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$"
+      "pattern": "^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$",
+      "type": "string"
     },
     "Nickname": {
-      "type": "string",
       "minLength": 1,
-      "maxLength": 16
+      "maxLength": 16,
+      "type": "string"
     },
     "SessionToken": {
-      "type": "string",
       "minLength": 22,
-      "pattern": "^[A-Za-z0-9_-]+$"
+      "pattern": "^[A-Za-z0-9_-]+$",
+      "type": "string"
     },
     "RulesVersion": {
-      "const": "CLASSIC_AVALON_V1"
+      "const": "CLASSIC_AVALON_V1",
+      "type": "string"
     },
     "RoleId": {
-      "type": "string",
-      "enum": [
-        "MERLIN",
-        "LOYAL_SERVANT",
-        "PERCIVAL",
-        "ASSASSIN",
-        "MINION",
-        "MORGANA",
-        "MORDRED",
-        "OBERON"
+      "anyOf": [
+        {
+          "const": "MERLIN",
+          "type": "string"
+        },
+        {
+          "const": "LOYAL_SERVANT",
+          "type": "string"
+        },
+        {
+          "const": "PERCIVAL",
+          "type": "string"
+        },
+        {
+          "const": "ASSASSIN",
+          "type": "string"
+        },
+        {
+          "const": "MINION",
+          "type": "string"
+        },
+        {
+          "const": "MORGANA",
+          "type": "string"
+        },
+        {
+          "const": "MORDRED",
+          "type": "string"
+        },
+        {
+          "const": "OBERON",
+          "type": "string"
+        }
       ]
     },
     "Alignment": {
-      "type": "string",
-      "enum": ["GOOD", "EVIL"]
+      "anyOf": [
+        {
+          "const": "GOOD",
+          "type": "string"
+        },
+        {
+          "const": "EVIL",
+          "type": "string"
+        }
+      ]
     },
     "GamePhase": {
-      "type": "string",
-      "enum": [
-        "LOBBY",
-        "ROLE_REVEAL",
-        "TEAM_PROPOSAL",
-        "TEAM_VOTE",
-        "QUEST_SUBMISSION",
-        "QUEST_RESOLUTION",
-        "ASSASSINATION",
-        "GAME_OVER",
-        "PAUSED"
+      "anyOf": [
+        {
+          "const": "LOBBY",
+          "type": "string"
+        },
+        {
+          "const": "ROLE_REVEAL",
+          "type": "string"
+        },
+        {
+          "const": "TEAM_PROPOSAL",
+          "type": "string"
+        },
+        {
+          "const": "TEAM_VOTE",
+          "type": "string"
+        },
+        {
+          "const": "QUEST_SUBMISSION",
+          "type": "string"
+        },
+        {
+          "const": "QUEST_RESOLUTION",
+          "type": "string"
+        },
+        {
+          "const": "ASSASSINATION",
+          "type": "string"
+        },
+        {
+          "const": "GAME_OVER",
+          "type": "string"
+        },
+        {
+          "const": "PAUSED",
+          "type": "string"
+        }
       ]
     },
     "PhaseStage": {
-      "type": "string",
-      "enum": ["HOST_HELD", "COLLECTING", "RESOLVED"]
+      "anyOf": [
+        {
+          "const": "HOST_HELD",
+          "type": "string"
+        },
+        {
+          "const": "COLLECTING",
+          "type": "string"
+        },
+        {
+          "const": "RESOLVED",
+          "type": "string"
+        }
+      ]
     },
     "TeamVote": {
-      "type": "string",
-      "enum": ["APPROVE", "REJECT"]
+      "anyOf": [
+        {
+          "const": "APPROVE",
+          "type": "string"
+        },
+        {
+          "const": "REJECT",
+          "type": "string"
+        }
+      ]
     },
     "QuestChoice": {
-      "type": "string",
-      "enum": ["SUCCESS", "FAIL"]
+      "anyOf": [
+        {
+          "const": "SUCCESS",
+          "type": "string"
+        },
+        {
+          "const": "FAIL",
+          "type": "string"
+        }
+      ]
     },
     "QuestResult": {
-      "type": "string",
-      "enum": ["SUCCESS", "FAILURE"]
+      "anyOf": [
+        {
+          "const": "SUCCESS",
+          "type": "string"
+        },
+        {
+          "const": "FAILURE",
+          "type": "string"
+        }
+      ]
     },
     "Winner": {
-      "type": "string",
-      "enum": ["GOOD", "EVIL", "NONE"]
+      "anyOf": [
+        {
+          "const": "GOOD",
+          "type": "string"
+        },
+        {
+          "const": "EVIL",
+          "type": "string"
+        },
+        {
+          "const": "NONE",
+          "type": "string"
+        }
+      ]
     },
     "GameOutcomeReason": {
-      "type": "string",
-      "enum": [
-        "THREE_QUEST_FAILURES",
-        "FIVE_REJECTED_TEAMS",
-        "MERLIN_ASSASSINATED",
-        "MERLIN_SURVIVED",
-        "ABORTED"
+      "anyOf": [
+        {
+          "const": "THREE_QUEST_FAILURES",
+          "type": "string"
+        },
+        {
+          "const": "FIVE_REJECTED_TEAMS",
+          "type": "string"
+        },
+        {
+          "const": "MERLIN_ASSASSINATED",
+          "type": "string"
+        },
+        {
+          "const": "MERLIN_SURVIVED",
+          "type": "string"
+        },
+        {
+          "const": "ABORTED",
+          "type": "string"
+        }
       ]
     },
     "CommandType": {
-      "type": "string",
-      "enum": [
-        "ConfigureRoom",
-        "ReorderSeats",
-        "SetReady",
-        "StartGame",
-        "ContinuePhase",
-        "AckRole",
-        "SubmitTeam",
-        "SubmitTeamVote",
-        "SubmitQuestChoice",
-        "SelectMerlinTarget",
-        "PauseGame",
-        "ResumeGame",
-        "ReplayAudioCue",
-        "LeaveLobby",
-        "KickLobbyPlayer",
-        "CloseRoom"
+      "anyOf": [
+        {
+          "const": "ConfigureRoom",
+          "type": "string"
+        },
+        {
+          "const": "ReorderSeats",
+          "type": "string"
+        },
+        {
+          "const": "SetReady",
+          "type": "string"
+        },
+        {
+          "const": "StartGame",
+          "type": "string"
+        },
+        {
+          "const": "ContinuePhase",
+          "type": "string"
+        },
+        {
+          "const": "AckRole",
+          "type": "string"
+        },
+        {
+          "const": "SubmitTeam",
+          "type": "string"
+        },
+        {
+          "const": "SubmitTeamVote",
+          "type": "string"
+        },
+        {
+          "const": "SubmitQuestChoice",
+          "type": "string"
+        },
+        {
+          "const": "SelectMerlinTarget",
+          "type": "string"
+        },
+        {
+          "const": "PauseGame",
+          "type": "string"
+        },
+        {
+          "const": "ResumeGame",
+          "type": "string"
+        },
+        {
+          "const": "ReplayAudioCue",
+          "type": "string"
+        },
+        {
+          "const": "LeaveLobby",
+          "type": "string"
+        },
+        {
+          "const": "KickLobbyPlayer",
+          "type": "string"
+        },
+        {
+          "const": "CloseRoom",
+          "type": "string"
+        }
       ]
     },
     "ErrorCode": {
-      "type": "string",
-      "enum": [
-        "INVALID_ROOM_CODE",
-        "ROOM_FULL",
-        "ROOM_NOT_JOINABLE",
-        "ROOM_EXPIRED",
-        "SESSION_INVALID",
-        "NICKNAME_CONFLICT",
-        "INVALID_NICKNAME",
-        "NOT_HOST",
-        "NOT_LEADER",
-        "NOT_ASSASSIN",
-        "INVALID_PHASE",
-        "INVALID_PHASE_STAGE",
-        "PHASE_HELD",
-        "STALE_VERSION",
-        "DUPLICATE_COMMAND_CONFLICT",
-        "INVALID_CONFIG",
-        "INVALID_SEAT_ORDER",
-        "INVALID_TEAM_SIZE",
-        "INVALID_TEAM_MEMBER",
-        "INVALID_VOTE",
-        "INVALID_TARGET",
-        "PLAYER_NOT_ON_TEAM",
-        "GOOD_CANNOT_FAIL",
-        "ALREADY_SUBMITTED",
-        "HOST_CANNOT_LEAVE",
-        "PLAYERS_NOT_READY",
-        "PLAYERS_OFFLINE",
-        "AUDIO_CUE_NOT_FOUND",
-        "UPGRADE_REQUIRED",
-        "RATE_LIMITED",
-        "VALIDATION_ERROR",
-        "PAYLOAD_TOO_LARGE",
-        "UNAUTHORIZED",
-        "INTERNAL_ERROR"
+      "anyOf": [
+        {
+          "const": "INVALID_ROOM_CODE",
+          "type": "string"
+        },
+        {
+          "const": "ROOM_FULL",
+          "type": "string"
+        },
+        {
+          "const": "ROOM_NOT_JOINABLE",
+          "type": "string"
+        },
+        {
+          "const": "ROOM_EXPIRED",
+          "type": "string"
+        },
+        {
+          "const": "SESSION_INVALID",
+          "type": "string"
+        },
+        {
+          "const": "NICKNAME_CONFLICT",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_NICKNAME",
+          "type": "string"
+        },
+        {
+          "const": "NOT_HOST",
+          "type": "string"
+        },
+        {
+          "const": "NOT_LEADER",
+          "type": "string"
+        },
+        {
+          "const": "NOT_ASSASSIN",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_PHASE",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_PHASE_STAGE",
+          "type": "string"
+        },
+        {
+          "const": "PHASE_HELD",
+          "type": "string"
+        },
+        {
+          "const": "STALE_VERSION",
+          "type": "string"
+        },
+        {
+          "const": "DUPLICATE_COMMAND_CONFLICT",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_CONFIG",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_SEAT_ORDER",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_TEAM_SIZE",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_TEAM_MEMBER",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_VOTE",
+          "type": "string"
+        },
+        {
+          "const": "INVALID_TARGET",
+          "type": "string"
+        },
+        {
+          "const": "PLAYER_NOT_ON_TEAM",
+          "type": "string"
+        },
+        {
+          "const": "GOOD_CANNOT_FAIL",
+          "type": "string"
+        },
+        {
+          "const": "ALREADY_SUBMITTED",
+          "type": "string"
+        },
+        {
+          "const": "HOST_CANNOT_LEAVE",
+          "type": "string"
+        },
+        {
+          "const": "PLAYERS_NOT_READY",
+          "type": "string"
+        },
+        {
+          "const": "PLAYERS_OFFLINE",
+          "type": "string"
+        },
+        {
+          "const": "AUDIO_CUE_NOT_FOUND",
+          "type": "string"
+        },
+        {
+          "const": "UPGRADE_REQUIRED",
+          "type": "string"
+        },
+        {
+          "const": "RATE_LIMITED",
+          "type": "string"
+        },
+        {
+          "const": "VALIDATION_ERROR",
+          "type": "string"
+        },
+        {
+          "const": "PAYLOAD_TOO_LARGE",
+          "type": "string"
+        },
+        {
+          "const": "UNAUTHORIZED",
+          "type": "string"
+        },
+        {
+          "const": "INTERNAL_ERROR",
+          "type": "string"
+        }
       ]
     }
   }

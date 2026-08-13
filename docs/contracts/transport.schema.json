@@ -4,68 +4,3789 @@
   "title": "Avalon Socket.IO transport messages",
   "$defs": {
     "RealtimeAuth": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "sessionToken", "lastStateVersion"],
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "sessionToken",
+        "lastStateVersion"
+      ],
       "properties": {
-        "protocolVersion": { "const": 1 },
-        "sessionToken": { "$ref": "common.schema.json#/$defs/SessionToken" },
-        "lastStateVersion": { "type": "integer", "minimum": 0 }
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "sessionToken": {
+          "minLength": 22,
+          "pattern": "^[A-Za-z0-9_-]+$",
+          "type": "string"
+        },
+        "lastStateVersion": {
+          "minimum": 0,
+          "type": "integer"
+        }
       }
     },
     "SessionReady": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "delivery", "roomView"],
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "delivery",
+        "roomView"
+      ],
       "properties": {
-        "protocolVersion": { "const": 1 },
-        "delivery": { "const": "RESYNC" },
-        "roomView": { "$ref": "room-view.schema.json" }
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "delivery": {
+          "const": "RESYNC",
+          "type": "string"
+        },
+        "roomView": {
+          "type": "object",
+          "required": [
+            "public",
+            "private"
+          ],
+          "properties": {
+            "public": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "roomId",
+                "roomCode",
+                "stateVersion",
+                "rulesVersion",
+                "config",
+                "phase",
+                "phaseStage",
+                "players",
+                "proposalAttempt",
+                "proposedTeamPlayerIds",
+                "proposalHistory",
+                "questHistory",
+                "successCount",
+                "failureCount",
+                "pauseReasons"
+              ],
+              "properties": {
+                "roomId": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "roomCode": {
+                  "pattern": "^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$",
+                  "type": "string"
+                },
+                "stateVersion": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "rulesVersion": {
+                  "const": "CLASSIC_AVALON_V1",
+                  "type": "string"
+                },
+                "config": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "rulesVersion",
+                    "playerCount",
+                    "roleIds",
+                    "locale",
+                    "voicePackVersion"
+                  ],
+                  "properties": {
+                    "rulesVersion": {
+                      "const": "CLASSIC_AVALON_V1",
+                      "type": "string"
+                    },
+                    "playerCount": {
+                      "minimum": 5,
+                      "maximum": 10,
+                      "type": "integer"
+                    },
+                    "roleIds": {
+                      "minItems": 5,
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "const": "MERLIN",
+                            "type": "string"
+                          },
+                          {
+                            "const": "LOYAL_SERVANT",
+                            "type": "string"
+                          },
+                          {
+                            "const": "PERCIVAL",
+                            "type": "string"
+                          },
+                          {
+                            "const": "ASSASSIN",
+                            "type": "string"
+                          },
+                          {
+                            "const": "MINION",
+                            "type": "string"
+                          },
+                          {
+                            "const": "MORGANA",
+                            "type": "string"
+                          },
+                          {
+                            "const": "MORDRED",
+                            "type": "string"
+                          },
+                          {
+                            "const": "OBERON",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "locale": {
+                      "const": "zh-CN",
+                      "type": "string"
+                    },
+                    "voicePackVersion": {
+                      "pattern": "^zh-CN-v[1-9][0-9]*$",
+                      "type": "string"
+                    }
+                  }
+                },
+                "phase": {
+                  "anyOf": [
+                    {
+                      "const": "LOBBY",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ROLE_REVEAL",
+                      "type": "string"
+                    },
+                    {
+                      "const": "TEAM_PROPOSAL",
+                      "type": "string"
+                    },
+                    {
+                      "const": "TEAM_VOTE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "QUEST_SUBMISSION",
+                      "type": "string"
+                    },
+                    {
+                      "const": "QUEST_RESOLUTION",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ASSASSINATION",
+                      "type": "string"
+                    },
+                    {
+                      "const": "GAME_OVER",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PAUSED",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "phaseStage": {
+                  "anyOf": [
+                    {
+                      "const": "HOST_HELD",
+                      "type": "string"
+                    },
+                    {
+                      "const": "COLLECTING",
+                      "type": "string"
+                    },
+                    {
+                      "const": "RESOLVED",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "players": {
+                  "minItems": 1,
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "playerId",
+                      "nickname",
+                      "seat",
+                      "isHost",
+                      "ready",
+                      "connected"
+                    ],
+                    "properties": {
+                      "playerId": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "nickname": {
+                        "minLength": 1,
+                        "maxLength": 16,
+                        "type": "string"
+                      },
+                      "seat": {
+                        "minimum": 0,
+                        "maximum": 9,
+                        "type": "integer"
+                      },
+                      "isHost": {
+                        "type": "boolean"
+                      },
+                      "ready": {
+                        "type": "boolean"
+                      },
+                      "connected": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "leaderPlayerId": {
+                  "anyOf": [
+                    {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "questIndex": {
+                  "anyOf": [
+                    {
+                      "minimum": 1,
+                      "maximum": 5,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposalAttempt": {
+                  "minimum": 1,
+                  "maximum": 5,
+                  "type": "integer"
+                },
+                "requiredTeamSize": {
+                  "anyOf": [
+                    {
+                      "minimum": 2,
+                      "maximum": 5,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedTeamPlayerIds": {
+                  "maxItems": 5,
+                  "uniqueItems": true,
+                  "type": "array",
+                  "items": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "submissionProgress": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "submittedCount",
+                        "requiredCount"
+                      ],
+                      "properties": {
+                        "submittedCount": {
+                          "minimum": 0,
+                          "maximum": 10,
+                          "type": "integer"
+                        },
+                        "requiredCount": {
+                          "minimum": 1,
+                          "maximum": 10,
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposalHistory": {
+                  "maxItems": 25,
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "questIndex",
+                      "proposalAttempt",
+                      "leaderPlayerId",
+                      "teamPlayerIds",
+                      "votes",
+                      "approved"
+                    ],
+                    "properties": {
+                      "questIndex": {
+                        "minimum": 1,
+                        "maximum": 5,
+                        "type": "integer"
+                      },
+                      "proposalAttempt": {
+                        "minimum": 1,
+                        "maximum": 5,
+                        "type": "integer"
+                      },
+                      "leaderPlayerId": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "teamPlayerIds": {
+                        "minItems": 2,
+                        "maxItems": 5,
+                        "uniqueItems": true,
+                        "type": "array",
+                        "items": {
+                          "format": "uuid",
+                          "type": "string"
+                        }
+                      },
+                      "votes": {
+                        "minItems": 5,
+                        "maxItems": 10,
+                        "type": "array",
+                        "items": {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "playerId",
+                            "vote"
+                          ],
+                          "properties": {
+                            "playerId": {
+                              "format": "uuid",
+                              "type": "string"
+                            },
+                            "vote": {
+                              "anyOf": [
+                                {
+                                  "const": "APPROVE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "REJECT",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      },
+                      "approved": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "questHistory": {
+                  "maxItems": 5,
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "questIndex",
+                      "leaderPlayerId",
+                      "teamPlayerIds",
+                      "successChoices",
+                      "failChoices",
+                      "requiredFails",
+                      "result"
+                    ],
+                    "properties": {
+                      "questIndex": {
+                        "minimum": 1,
+                        "maximum": 5,
+                        "type": "integer"
+                      },
+                      "leaderPlayerId": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "teamPlayerIds": {
+                        "minItems": 2,
+                        "maxItems": 5,
+                        "uniqueItems": true,
+                        "type": "array",
+                        "items": {
+                          "format": "uuid",
+                          "type": "string"
+                        }
+                      },
+                      "successChoices": {
+                        "minimum": 0,
+                        "maximum": 5,
+                        "type": "integer"
+                      },
+                      "failChoices": {
+                        "minimum": 0,
+                        "maximum": 5,
+                        "type": "integer"
+                      },
+                      "requiredFails": {
+                        "minimum": 1,
+                        "maximum": 2,
+                        "type": "integer"
+                      },
+                      "result": {
+                        "anyOf": [
+                          {
+                            "const": "SUCCESS",
+                            "type": "string"
+                          },
+                          {
+                            "const": "FAILURE",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                "successCount": {
+                  "minimum": 0,
+                  "maximum": 3,
+                  "type": "integer"
+                },
+                "failureCount": {
+                  "minimum": 0,
+                  "maximum": 3,
+                  "type": "integer"
+                },
+                "pauseReasons": {
+                  "uniqueItems": true,
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      {
+                        "const": "MANUAL",
+                        "type": "string"
+                      },
+                      {
+                        "const": "PLAYER_DISCONNECTED",
+                        "type": "string"
+                      },
+                      {
+                        "const": "HOST_DISCONNECTED",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                },
+                "currentAudioCue": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "audioCueId",
+                        "audioCueKey",
+                        "subtitleKey",
+                        "voicePackVersion"
+                      ],
+                      "properties": {
+                        "audioCueId": {
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        "audioCueKey": {
+                          "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$",
+                          "type": "string"
+                        },
+                        "subtitleKey": {
+                          "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$",
+                          "type": "string"
+                        },
+                        "voicePackVersion": {
+                          "pattern": "^zh-CN-v[1-9][0-9]*$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "gameOutcome": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "winner",
+                        "reason"
+                      ],
+                      "properties": {
+                        "winner": {
+                          "anyOf": [
+                            {
+                              "const": "GOOD",
+                              "type": "string"
+                            },
+                            {
+                              "const": "EVIL",
+                              "type": "string"
+                            },
+                            {
+                              "const": "NONE",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "reason": {
+                          "anyOf": [
+                            {
+                              "const": "THREE_QUEST_FAILURES",
+                              "type": "string"
+                            },
+                            {
+                              "const": "FIVE_REJECTED_TEAMS",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MERLIN_ASSASSINATED",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MERLIN_SURVIVED",
+                              "type": "string"
+                            },
+                            {
+                              "const": "ABORTED",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        "assassinationTargetPlayerId": {
+                          "anyOf": [
+                            {
+                              "format": "uuid",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "revealedAssignments": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "playerId",
+                      "roleId",
+                      "alignment"
+                    ],
+                    "properties": {
+                      "playerId": {
+                        "format": "uuid",
+                        "type": "string"
+                      },
+                      "roleId": {
+                        "anyOf": [
+                          {
+                            "const": "MERLIN",
+                            "type": "string"
+                          },
+                          {
+                            "const": "LOYAL_SERVANT",
+                            "type": "string"
+                          },
+                          {
+                            "const": "PERCIVAL",
+                            "type": "string"
+                          },
+                          {
+                            "const": "ASSASSIN",
+                            "type": "string"
+                          },
+                          {
+                            "const": "MINION",
+                            "type": "string"
+                          },
+                          {
+                            "const": "MORGANA",
+                            "type": "string"
+                          },
+                          {
+                            "const": "MORDRED",
+                            "type": "string"
+                          },
+                          {
+                            "const": "OBERON",
+                            "type": "string"
+                          }
+                        ]
+                      },
+                      "alignment": {
+                        "anyOf": [
+                          {
+                            "const": "GOOD",
+                            "type": "string"
+                          },
+                          {
+                            "const": "EVIL",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "private": {
+              "type": "object",
+              "allOf": [
+                {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "playerId",
+                    "knownPlayers",
+                    "availableActions",
+                    "hasSubmitted",
+                    "shouldPlayAudio",
+                    "sessionExpiresAt"
+                  ],
+                  "properties": {
+                    "playerId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "selfRole": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "const": "MERLIN",
+                              "type": "string"
+                            },
+                            {
+                              "const": "LOYAL_SERVANT",
+                              "type": "string"
+                            },
+                            {
+                              "const": "PERCIVAL",
+                              "type": "string"
+                            },
+                            {
+                              "const": "ASSASSIN",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MINION",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MORGANA",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MORDRED",
+                              "type": "string"
+                            },
+                            {
+                              "const": "OBERON",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "selfAlignment": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "const": "GOOD",
+                              "type": "string"
+                            },
+                            {
+                              "const": "EVIL",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "knownPlayers": {
+                      "maxItems": 9,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "knowledgeLabel"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "knowledgeLabel": {
+                            "anyOf": [
+                              {
+                                "const": "EVIL_PLAYER",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MERLIN_CANDIDATE",
+                                "type": "string"
+                              },
+                              {
+                                "const": "KNOWN_EVIL_ALLY",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "availableActions": {
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "commandType"
+                        ],
+                        "properties": {
+                          "commandType": {
+                            "anyOf": [
+                              {
+                                "const": "ConfigureRoom",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ReorderSeats",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SetReady",
+                                "type": "string"
+                              },
+                              {
+                                "const": "StartGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ContinuePhase",
+                                "type": "string"
+                              },
+                              {
+                                "const": "AckRole",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitTeam",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitTeamVote",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitQuestChoice",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SelectMerlinTarget",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PauseGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ResumeGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ReplayAudioCue",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LeaveLobby",
+                                "type": "string"
+                              },
+                              {
+                                "const": "KickLobbyPlayer",
+                                "type": "string"
+                              },
+                              {
+                                "const": "CloseRoom",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "allowedTeamVotes": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "APPROVE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "REJECT",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "allowedQuestChoices": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "SUCCESS",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "FAIL",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "eligibleTargetPlayerIds": {
+                            "maxItems": 9,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "hasSubmitted": {
+                      "type": "boolean"
+                    },
+                    "shouldPlayAudio": {
+                      "type": "boolean"
+                    },
+                    "sessionExpiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "playerId",
+                    "knownPlayers",
+                    "availableActions",
+                    "hasSubmitted",
+                    "shouldPlayAudio",
+                    "sessionExpiresAt"
+                  ],
+                  "properties": {
+                    "playerId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "selfRole": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "const": "MERLIN",
+                              "type": "string"
+                            },
+                            {
+                              "const": "LOYAL_SERVANT",
+                              "type": "string"
+                            },
+                            {
+                              "const": "PERCIVAL",
+                              "type": "string"
+                            },
+                            {
+                              "const": "ASSASSIN",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MINION",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MORGANA",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MORDRED",
+                              "type": "string"
+                            },
+                            {
+                              "const": "OBERON",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "selfAlignment": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "const": "GOOD",
+                              "type": "string"
+                            },
+                            {
+                              "const": "EVIL",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "knownPlayers": {
+                      "maxItems": 9,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "knowledgeLabel"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "knowledgeLabel": {
+                            "anyOf": [
+                              {
+                                "const": "EVIL_PLAYER",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MERLIN_CANDIDATE",
+                                "type": "string"
+                              },
+                              {
+                                "const": "KNOWN_EVIL_ALLY",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "availableActions": {
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "commandType"
+                        ],
+                        "properties": {
+                          "commandType": {
+                            "anyOf": [
+                              {
+                                "const": "ConfigureRoom",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ReorderSeats",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SetReady",
+                                "type": "string"
+                              },
+                              {
+                                "const": "StartGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ContinuePhase",
+                                "type": "string"
+                              },
+                              {
+                                "const": "AckRole",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitTeam",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitTeamVote",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitQuestChoice",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SelectMerlinTarget",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PauseGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ResumeGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ReplayAudioCue",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LeaveLobby",
+                                "type": "string"
+                              },
+                              {
+                                "const": "KickLobbyPlayer",
+                                "type": "string"
+                              },
+                              {
+                                "const": "CloseRoom",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "allowedTeamVotes": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "APPROVE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "REJECT",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "allowedQuestChoices": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "SUCCESS",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "FAIL",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "eligibleTargetPlayerIds": {
+                            "maxItems": 9,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "hasSubmitted": {
+                      "type": "boolean"
+                    },
+                    "shouldPlayAudio": {
+                      "allOf": [
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "const": false,
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "sessionExpiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
       }
     },
     "RoomViewMessage": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["protocolVersion", "delivery", "eventId", "roomView"],
-      "properties": {
-        "protocolVersion": { "const": 1 },
-        "delivery": { "type": "string", "enum": ["LIVE", "RESYNC"] },
-        "eventId": { "$ref": "common.schema.json#/$defs/Uuid" },
-        "roomView": { "$ref": "room-view.schema.json" }
-      }
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "protocolVersion",
+            "delivery",
+            "eventId",
+            "roomView"
+          ],
+          "properties": {
+            "protocolVersion": {
+              "const": 1,
+              "type": "number"
+            },
+            "delivery": {
+              "const": "LIVE",
+              "type": "string"
+            },
+            "eventId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "roomView": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "public",
+                "private"
+              ],
+              "properties": {
+                "public": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "roomId",
+                    "roomCode",
+                    "stateVersion",
+                    "rulesVersion",
+                    "config",
+                    "phase",
+                    "phaseStage",
+                    "players",
+                    "proposalAttempt",
+                    "proposedTeamPlayerIds",
+                    "proposalHistory",
+                    "questHistory",
+                    "successCount",
+                    "failureCount",
+                    "pauseReasons"
+                  ],
+                  "properties": {
+                    "roomId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "roomCode": {
+                      "pattern": "^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$",
+                      "type": "string"
+                    },
+                    "stateVersion": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "rulesVersion": {
+                      "const": "CLASSIC_AVALON_V1",
+                      "type": "string"
+                    },
+                    "config": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "rulesVersion",
+                        "playerCount",
+                        "roleIds",
+                        "locale",
+                        "voicePackVersion"
+                      ],
+                      "properties": {
+                        "rulesVersion": {
+                          "const": "CLASSIC_AVALON_V1",
+                          "type": "string"
+                        },
+                        "playerCount": {
+                          "minimum": 5,
+                          "maximum": 10,
+                          "type": "integer"
+                        },
+                        "roleIds": {
+                          "minItems": 5,
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "const": "MERLIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LOYAL_SERVANT",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PERCIVAL",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ASSASSIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MINION",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORGANA",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORDRED",
+                                "type": "string"
+                              },
+                              {
+                                "const": "OBERON",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        },
+                        "locale": {
+                          "const": "zh-CN",
+                          "type": "string"
+                        },
+                        "voicePackVersion": {
+                          "pattern": "^zh-CN-v[1-9][0-9]*$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "phase": {
+                      "anyOf": [
+                        {
+                          "const": "LOBBY",
+                          "type": "string"
+                        },
+                        {
+                          "const": "ROLE_REVEAL",
+                          "type": "string"
+                        },
+                        {
+                          "const": "TEAM_PROPOSAL",
+                          "type": "string"
+                        },
+                        {
+                          "const": "TEAM_VOTE",
+                          "type": "string"
+                        },
+                        {
+                          "const": "QUEST_SUBMISSION",
+                          "type": "string"
+                        },
+                        {
+                          "const": "QUEST_RESOLUTION",
+                          "type": "string"
+                        },
+                        {
+                          "const": "ASSASSINATION",
+                          "type": "string"
+                        },
+                        {
+                          "const": "GAME_OVER",
+                          "type": "string"
+                        },
+                        {
+                          "const": "PAUSED",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "phaseStage": {
+                      "anyOf": [
+                        {
+                          "const": "HOST_HELD",
+                          "type": "string"
+                        },
+                        {
+                          "const": "COLLECTING",
+                          "type": "string"
+                        },
+                        {
+                          "const": "RESOLVED",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "players": {
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "nickname",
+                          "seat",
+                          "isHost",
+                          "ready",
+                          "connected"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "nickname": {
+                            "minLength": 1,
+                            "maxLength": 16,
+                            "type": "string"
+                          },
+                          "seat": {
+                            "minimum": 0,
+                            "maximum": 9,
+                            "type": "integer"
+                          },
+                          "isHost": {
+                            "type": "boolean"
+                          },
+                          "ready": {
+                            "type": "boolean"
+                          },
+                          "connected": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "leaderPlayerId": {
+                      "anyOf": [
+                        {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "questIndex": {
+                      "anyOf": [
+                        {
+                          "minimum": 1,
+                          "maximum": 5,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposalAttempt": {
+                      "minimum": 1,
+                      "maximum": 5,
+                      "type": "integer"
+                    },
+                    "requiredTeamSize": {
+                      "anyOf": [
+                        {
+                          "minimum": 2,
+                          "maximum": 5,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposedTeamPlayerIds": {
+                      "maxItems": 5,
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "format": "uuid",
+                        "type": "string"
+                      }
+                    },
+                    "submissionProgress": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "submittedCount",
+                            "requiredCount"
+                          ],
+                          "properties": {
+                            "submittedCount": {
+                              "minimum": 0,
+                              "maximum": 10,
+                              "type": "integer"
+                            },
+                            "requiredCount": {
+                              "minimum": 1,
+                              "maximum": 10,
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposalHistory": {
+                      "maxItems": 25,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "questIndex",
+                          "proposalAttempt",
+                          "leaderPlayerId",
+                          "teamPlayerIds",
+                          "votes",
+                          "approved"
+                        ],
+                        "properties": {
+                          "questIndex": {
+                            "minimum": 1,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "proposalAttempt": {
+                            "minimum": 1,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "leaderPlayerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "teamPlayerIds": {
+                            "minItems": 2,
+                            "maxItems": 5,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          },
+                          "votes": {
+                            "minItems": 5,
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "playerId",
+                                "vote"
+                              ],
+                              "properties": {
+                                "playerId": {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                "vote": {
+                                  "anyOf": [
+                                    {
+                                      "const": "APPROVE",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "REJECT",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "approved": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "questHistory": {
+                      "maxItems": 5,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "questIndex",
+                          "leaderPlayerId",
+                          "teamPlayerIds",
+                          "successChoices",
+                          "failChoices",
+                          "requiredFails",
+                          "result"
+                        ],
+                        "properties": {
+                          "questIndex": {
+                            "minimum": 1,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "leaderPlayerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "teamPlayerIds": {
+                            "minItems": 2,
+                            "maxItems": 5,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          },
+                          "successChoices": {
+                            "minimum": 0,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "failChoices": {
+                            "minimum": 0,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "requiredFails": {
+                            "minimum": 1,
+                            "maximum": 2,
+                            "type": "integer"
+                          },
+                          "result": {
+                            "anyOf": [
+                              {
+                                "const": "SUCCESS",
+                                "type": "string"
+                              },
+                              {
+                                "const": "FAILURE",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "successCount": {
+                      "minimum": 0,
+                      "maximum": 3,
+                      "type": "integer"
+                    },
+                    "failureCount": {
+                      "minimum": 0,
+                      "maximum": 3,
+                      "type": "integer"
+                    },
+                    "pauseReasons": {
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "const": "MANUAL",
+                            "type": "string"
+                          },
+                          {
+                            "const": "PLAYER_DISCONNECTED",
+                            "type": "string"
+                          },
+                          {
+                            "const": "HOST_DISCONNECTED",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "currentAudioCue": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "audioCueId",
+                            "audioCueKey",
+                            "subtitleKey",
+                            "voicePackVersion"
+                          ],
+                          "properties": {
+                            "audioCueId": {
+                              "minLength": 1,
+                              "maxLength": 80,
+                              "type": "string"
+                            },
+                            "audioCueKey": {
+                              "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "subtitleKey": {
+                              "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "voicePackVersion": {
+                              "pattern": "^zh-CN-v[1-9][0-9]*$",
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "gameOutcome": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "winner",
+                            "reason"
+                          ],
+                          "properties": {
+                            "winner": {
+                              "anyOf": [
+                                {
+                                  "const": "GOOD",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "EVIL",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "NONE",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "const": "THREE_QUEST_FAILURES",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "FIVE_REJECTED_TEAMS",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MERLIN_ASSASSINATED",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MERLIN_SURVIVED",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "ABORTED",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "assassinationTargetPlayerId": {
+                              "anyOf": [
+                                {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "revealedAssignments": {
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "roleId",
+                          "alignment"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "roleId": {
+                            "anyOf": [
+                              {
+                                "const": "MERLIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LOYAL_SERVANT",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PERCIVAL",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ASSASSIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MINION",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORGANA",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORDRED",
+                                "type": "string"
+                              },
+                              {
+                                "const": "OBERON",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "alignment": {
+                            "anyOf": [
+                              {
+                                "const": "GOOD",
+                                "type": "string"
+                              },
+                              {
+                                "const": "EVIL",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "private": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "playerId",
+                    "knownPlayers",
+                    "availableActions",
+                    "hasSubmitted",
+                    "shouldPlayAudio",
+                    "sessionExpiresAt"
+                  ],
+                  "properties": {
+                    "playerId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "selfRole": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "const": "MERLIN",
+                              "type": "string"
+                            },
+                            {
+                              "const": "LOYAL_SERVANT",
+                              "type": "string"
+                            },
+                            {
+                              "const": "PERCIVAL",
+                              "type": "string"
+                            },
+                            {
+                              "const": "ASSASSIN",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MINION",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MORGANA",
+                              "type": "string"
+                            },
+                            {
+                              "const": "MORDRED",
+                              "type": "string"
+                            },
+                            {
+                              "const": "OBERON",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "selfAlignment": {
+                      "anyOf": [
+                        {
+                          "anyOf": [
+                            {
+                              "const": "GOOD",
+                              "type": "string"
+                            },
+                            {
+                              "const": "EVIL",
+                              "type": "string"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "knownPlayers": {
+                      "maxItems": 9,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "knowledgeLabel"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "knowledgeLabel": {
+                            "anyOf": [
+                              {
+                                "const": "EVIL_PLAYER",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MERLIN_CANDIDATE",
+                                "type": "string"
+                              },
+                              {
+                                "const": "KNOWN_EVIL_ALLY",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "availableActions": {
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "commandType"
+                        ],
+                        "properties": {
+                          "commandType": {
+                            "anyOf": [
+                              {
+                                "const": "ConfigureRoom",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ReorderSeats",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SetReady",
+                                "type": "string"
+                              },
+                              {
+                                "const": "StartGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ContinuePhase",
+                                "type": "string"
+                              },
+                              {
+                                "const": "AckRole",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitTeam",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitTeamVote",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitQuestChoice",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SelectMerlinTarget",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PauseGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ResumeGame",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ReplayAudioCue",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LeaveLobby",
+                                "type": "string"
+                              },
+                              {
+                                "const": "KickLobbyPlayer",
+                                "type": "string"
+                              },
+                              {
+                                "const": "CloseRoom",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "allowedTeamVotes": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "APPROVE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "REJECT",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "allowedQuestChoices": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "SUCCESS",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "FAIL",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
+                          "eligibleTargetPlayerIds": {
+                            "maxItems": 9,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "hasSubmitted": {
+                      "type": "boolean"
+                    },
+                    "shouldPlayAudio": {
+                      "type": "boolean"
+                    },
+                    "sessionExpiresAt": {
+                      "format": "date-time",
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "protocolVersion",
+            "delivery",
+            "eventId",
+            "roomView"
+          ],
+          "properties": {
+            "protocolVersion": {
+              "const": 1,
+              "type": "number"
+            },
+            "delivery": {
+              "const": "RESYNC",
+              "type": "string"
+            },
+            "eventId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "roomView": {
+              "type": "object",
+              "required": [
+                "public",
+                "private"
+              ],
+              "properties": {
+                "public": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "roomId",
+                    "roomCode",
+                    "stateVersion",
+                    "rulesVersion",
+                    "config",
+                    "phase",
+                    "phaseStage",
+                    "players",
+                    "proposalAttempt",
+                    "proposedTeamPlayerIds",
+                    "proposalHistory",
+                    "questHistory",
+                    "successCount",
+                    "failureCount",
+                    "pauseReasons"
+                  ],
+                  "properties": {
+                    "roomId": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "roomCode": {
+                      "pattern": "^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$",
+                      "type": "string"
+                    },
+                    "stateVersion": {
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "rulesVersion": {
+                      "const": "CLASSIC_AVALON_V1",
+                      "type": "string"
+                    },
+                    "config": {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "rulesVersion",
+                        "playerCount",
+                        "roleIds",
+                        "locale",
+                        "voicePackVersion"
+                      ],
+                      "properties": {
+                        "rulesVersion": {
+                          "const": "CLASSIC_AVALON_V1",
+                          "type": "string"
+                        },
+                        "playerCount": {
+                          "minimum": 5,
+                          "maximum": 10,
+                          "type": "integer"
+                        },
+                        "roleIds": {
+                          "minItems": 5,
+                          "maxItems": 10,
+                          "type": "array",
+                          "items": {
+                            "anyOf": [
+                              {
+                                "const": "MERLIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LOYAL_SERVANT",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PERCIVAL",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ASSASSIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MINION",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORGANA",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORDRED",
+                                "type": "string"
+                              },
+                              {
+                                "const": "OBERON",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        },
+                        "locale": {
+                          "const": "zh-CN",
+                          "type": "string"
+                        },
+                        "voicePackVersion": {
+                          "pattern": "^zh-CN-v[1-9][0-9]*$",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "phase": {
+                      "anyOf": [
+                        {
+                          "const": "LOBBY",
+                          "type": "string"
+                        },
+                        {
+                          "const": "ROLE_REVEAL",
+                          "type": "string"
+                        },
+                        {
+                          "const": "TEAM_PROPOSAL",
+                          "type": "string"
+                        },
+                        {
+                          "const": "TEAM_VOTE",
+                          "type": "string"
+                        },
+                        {
+                          "const": "QUEST_SUBMISSION",
+                          "type": "string"
+                        },
+                        {
+                          "const": "QUEST_RESOLUTION",
+                          "type": "string"
+                        },
+                        {
+                          "const": "ASSASSINATION",
+                          "type": "string"
+                        },
+                        {
+                          "const": "GAME_OVER",
+                          "type": "string"
+                        },
+                        {
+                          "const": "PAUSED",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "phaseStage": {
+                      "anyOf": [
+                        {
+                          "const": "HOST_HELD",
+                          "type": "string"
+                        },
+                        {
+                          "const": "COLLECTING",
+                          "type": "string"
+                        },
+                        {
+                          "const": "RESOLVED",
+                          "type": "string"
+                        }
+                      ]
+                    },
+                    "players": {
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "nickname",
+                          "seat",
+                          "isHost",
+                          "ready",
+                          "connected"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "nickname": {
+                            "minLength": 1,
+                            "maxLength": 16,
+                            "type": "string"
+                          },
+                          "seat": {
+                            "minimum": 0,
+                            "maximum": 9,
+                            "type": "integer"
+                          },
+                          "isHost": {
+                            "type": "boolean"
+                          },
+                          "ready": {
+                            "type": "boolean"
+                          },
+                          "connected": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "leaderPlayerId": {
+                      "anyOf": [
+                        {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "questIndex": {
+                      "anyOf": [
+                        {
+                          "minimum": 1,
+                          "maximum": 5,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposalAttempt": {
+                      "minimum": 1,
+                      "maximum": 5,
+                      "type": "integer"
+                    },
+                    "requiredTeamSize": {
+                      "anyOf": [
+                        {
+                          "minimum": 2,
+                          "maximum": 5,
+                          "type": "integer"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposedTeamPlayerIds": {
+                      "maxItems": 5,
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "format": "uuid",
+                        "type": "string"
+                      }
+                    },
+                    "submissionProgress": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "submittedCount",
+                            "requiredCount"
+                          ],
+                          "properties": {
+                            "submittedCount": {
+                              "minimum": 0,
+                              "maximum": 10,
+                              "type": "integer"
+                            },
+                            "requiredCount": {
+                              "minimum": 1,
+                              "maximum": 10,
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "proposalHistory": {
+                      "maxItems": 25,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "questIndex",
+                          "proposalAttempt",
+                          "leaderPlayerId",
+                          "teamPlayerIds",
+                          "votes",
+                          "approved"
+                        ],
+                        "properties": {
+                          "questIndex": {
+                            "minimum": 1,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "proposalAttempt": {
+                            "minimum": 1,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "leaderPlayerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "teamPlayerIds": {
+                            "minItems": 2,
+                            "maxItems": 5,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          },
+                          "votes": {
+                            "minItems": 5,
+                            "maxItems": 10,
+                            "type": "array",
+                            "items": {
+                              "additionalProperties": false,
+                              "type": "object",
+                              "required": [
+                                "playerId",
+                                "vote"
+                              ],
+                              "properties": {
+                                "playerId": {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                "vote": {
+                                  "anyOf": [
+                                    {
+                                      "const": "APPROVE",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "REJECT",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "approved": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "questHistory": {
+                      "maxItems": 5,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "questIndex",
+                          "leaderPlayerId",
+                          "teamPlayerIds",
+                          "successChoices",
+                          "failChoices",
+                          "requiredFails",
+                          "result"
+                        ],
+                        "properties": {
+                          "questIndex": {
+                            "minimum": 1,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "leaderPlayerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "teamPlayerIds": {
+                            "minItems": 2,
+                            "maxItems": 5,
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "format": "uuid",
+                              "type": "string"
+                            }
+                          },
+                          "successChoices": {
+                            "minimum": 0,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "failChoices": {
+                            "minimum": 0,
+                            "maximum": 5,
+                            "type": "integer"
+                          },
+                          "requiredFails": {
+                            "minimum": 1,
+                            "maximum": 2,
+                            "type": "integer"
+                          },
+                          "result": {
+                            "anyOf": [
+                              {
+                                "const": "SUCCESS",
+                                "type": "string"
+                              },
+                              {
+                                "const": "FAILURE",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "successCount": {
+                      "minimum": 0,
+                      "maximum": 3,
+                      "type": "integer"
+                    },
+                    "failureCount": {
+                      "minimum": 0,
+                      "maximum": 3,
+                      "type": "integer"
+                    },
+                    "pauseReasons": {
+                      "uniqueItems": true,
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "const": "MANUAL",
+                            "type": "string"
+                          },
+                          {
+                            "const": "PLAYER_DISCONNECTED",
+                            "type": "string"
+                          },
+                          {
+                            "const": "HOST_DISCONNECTED",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    },
+                    "currentAudioCue": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "audioCueId",
+                            "audioCueKey",
+                            "subtitleKey",
+                            "voicePackVersion"
+                          ],
+                          "properties": {
+                            "audioCueId": {
+                              "minLength": 1,
+                              "maxLength": 80,
+                              "type": "string"
+                            },
+                            "audioCueKey": {
+                              "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "subtitleKey": {
+                              "pattern": "^[a-z0-9]+(?:[.][a-z0-9]+)*$",
+                              "type": "string"
+                            },
+                            "voicePackVersion": {
+                              "pattern": "^zh-CN-v[1-9][0-9]*$",
+                              "type": "string"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "gameOutcome": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "winner",
+                            "reason"
+                          ],
+                          "properties": {
+                            "winner": {
+                              "anyOf": [
+                                {
+                                  "const": "GOOD",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "EVIL",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "NONE",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "reason": {
+                              "anyOf": [
+                                {
+                                  "const": "THREE_QUEST_FAILURES",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "FIVE_REJECTED_TEAMS",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MERLIN_ASSASSINATED",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MERLIN_SURVIVED",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "ABORTED",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            "assassinationTargetPlayerId": {
+                              "anyOf": [
+                                {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "revealedAssignments": {
+                      "maxItems": 10,
+                      "type": "array",
+                      "items": {
+                        "additionalProperties": false,
+                        "type": "object",
+                        "required": [
+                          "playerId",
+                          "roleId",
+                          "alignment"
+                        ],
+                        "properties": {
+                          "playerId": {
+                            "format": "uuid",
+                            "type": "string"
+                          },
+                          "roleId": {
+                            "anyOf": [
+                              {
+                                "const": "MERLIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "LOYAL_SERVANT",
+                                "type": "string"
+                              },
+                              {
+                                "const": "PERCIVAL",
+                                "type": "string"
+                              },
+                              {
+                                "const": "ASSASSIN",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MINION",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORGANA",
+                                "type": "string"
+                              },
+                              {
+                                "const": "MORDRED",
+                                "type": "string"
+                              },
+                              {
+                                "const": "OBERON",
+                                "type": "string"
+                              }
+                            ]
+                          },
+                          "alignment": {
+                            "anyOf": [
+                              {
+                                "const": "GOOD",
+                                "type": "string"
+                              },
+                              {
+                                "const": "EVIL",
+                                "type": "string"
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "private": {
+                  "type": "object",
+                  "allOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "playerId",
+                        "knownPlayers",
+                        "availableActions",
+                        "hasSubmitted",
+                        "shouldPlayAudio",
+                        "sessionExpiresAt"
+                      ],
+                      "properties": {
+                        "playerId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "selfRole": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "const": "MERLIN",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "LOYAL_SERVANT",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "PERCIVAL",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "ASSASSIN",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MINION",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MORGANA",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MORDRED",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "OBERON",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "selfAlignment": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "const": "GOOD",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "EVIL",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "knownPlayers": {
+                          "maxItems": 9,
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "playerId",
+                              "knowledgeLabel"
+                            ],
+                            "properties": {
+                              "playerId": {
+                                "format": "uuid",
+                                "type": "string"
+                              },
+                              "knowledgeLabel": {
+                                "anyOf": [
+                                  {
+                                    "const": "EVIL_PLAYER",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "MERLIN_CANDIDATE",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "KNOWN_EVIL_ALLY",
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "availableActions": {
+                          "uniqueItems": true,
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "commandType"
+                            ],
+                            "properties": {
+                              "commandType": {
+                                "anyOf": [
+                                  {
+                                    "const": "ConfigureRoom",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ReorderSeats",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SetReady",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "StartGame",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ContinuePhase",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "AckRole",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitTeam",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitTeamVote",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitQuestChoice",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SelectMerlinTarget",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "PauseGame",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ResumeGame",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ReplayAudioCue",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "LeaveLobby",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "KickLobbyPlayer",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "CloseRoom",
+                                    "type": "string"
+                                  }
+                                ]
+                              },
+                              "allowedTeamVotes": {
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "const": "APPROVE",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "REJECT",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
+                              "allowedQuestChoices": {
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "const": "SUCCESS",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "FAIL",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
+                              "eligibleTargetPlayerIds": {
+                                "maxItems": 9,
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "format": "uuid",
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "hasSubmitted": {
+                          "type": "boolean"
+                        },
+                        "shouldPlayAudio": {
+                          "type": "boolean"
+                        },
+                        "sessionExpiresAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "playerId",
+                        "knownPlayers",
+                        "availableActions",
+                        "hasSubmitted",
+                        "shouldPlayAudio",
+                        "sessionExpiresAt"
+                      ],
+                      "properties": {
+                        "playerId": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "selfRole": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "const": "MERLIN",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "LOYAL_SERVANT",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "PERCIVAL",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "ASSASSIN",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MINION",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MORGANA",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "MORDRED",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "OBERON",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "selfAlignment": {
+                          "anyOf": [
+                            {
+                              "anyOf": [
+                                {
+                                  "const": "GOOD",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "EVIL",
+                                  "type": "string"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "knownPlayers": {
+                          "maxItems": 9,
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "playerId",
+                              "knowledgeLabel"
+                            ],
+                            "properties": {
+                              "playerId": {
+                                "format": "uuid",
+                                "type": "string"
+                              },
+                              "knowledgeLabel": {
+                                "anyOf": [
+                                  {
+                                    "const": "EVIL_PLAYER",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "MERLIN_CANDIDATE",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "KNOWN_EVIL_ALLY",
+                                    "type": "string"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "availableActions": {
+                          "uniqueItems": true,
+                          "type": "array",
+                          "items": {
+                            "additionalProperties": false,
+                            "type": "object",
+                            "required": [
+                              "commandType"
+                            ],
+                            "properties": {
+                              "commandType": {
+                                "anyOf": [
+                                  {
+                                    "const": "ConfigureRoom",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ReorderSeats",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SetReady",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "StartGame",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ContinuePhase",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "AckRole",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitTeam",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitTeamVote",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitQuestChoice",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SelectMerlinTarget",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "PauseGame",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ResumeGame",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "ReplayAudioCue",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "LeaveLobby",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "KickLobbyPlayer",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "CloseRoom",
+                                    "type": "string"
+                                  }
+                                ]
+                              },
+                              "allowedTeamVotes": {
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "const": "APPROVE",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "REJECT",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
+                              "allowedQuestChoices": {
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "const": "SUCCESS",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "FAIL",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
+                              "eligibleTargetPlayerIds": {
+                                "maxItems": 9,
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "format": "uuid",
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        "hasSubmitted": {
+                          "type": "boolean"
+                        },
+                        "shouldPlayAudio": {
+                          "allOf": [
+                            {
+                              "type": "boolean"
+                            },
+                            {
+                              "const": false,
+                              "type": "boolean"
+                            }
+                          ]
+                        },
+                        "sessionExpiresAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     "TerminalViewAck": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["stateVersion"],
+      "type": "object",
+      "required": [
+        "stateVersion"
+      ],
       "properties": {
-        "stateVersion": { "type": "integer", "minimum": 0 }
+        "stateVersion": {
+          "minimum": 0,
+          "type": "integer"
+        }
       }
     },
     "CommandAccepted": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["commandId", "accepted", "stateVersion"],
+      "type": "object",
+      "required": [
+        "commandId",
+        "accepted",
+        "stateVersion"
+      ],
       "properties": {
-        "commandId": { "$ref": "common.schema.json#/$defs/Uuid" },
-        "accepted": { "const": true },
-        "stateVersion": { "type": "integer", "minimum": 0 }
+        "commandId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "accepted": {
+          "const": true,
+          "type": "boolean"
+        },
+        "stateVersion": {
+          "minimum": 0,
+          "type": "integer"
+        }
       }
     },
     "CommandRejected": {
-      "type": "object",
       "additionalProperties": false,
-      "required": ["commandId", "accepted", "error"],
+      "type": "object",
+      "required": [
+        "commandId",
+        "accepted",
+        "error"
+      ],
       "properties": {
-        "commandId": { "$ref": "common.schema.json#/$defs/Uuid" },
-        "accepted": { "const": false },
-        "error": { "$ref": "error.schema.json#/properties/error" }
+        "commandId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "accepted": {
+          "const": false,
+          "type": "boolean"
+        },
+        "error": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "code",
+            "diagnosticId",
+            "retryable"
+          ],
+          "properties": {
+            "code": {
+              "anyOf": [
+                {
+                  "const": "INVALID_ROOM_CODE",
+                  "type": "string"
+                },
+                {
+                  "const": "ROOM_FULL",
+                  "type": "string"
+                },
+                {
+                  "const": "ROOM_NOT_JOINABLE",
+                  "type": "string"
+                },
+                {
+                  "const": "ROOM_EXPIRED",
+                  "type": "string"
+                },
+                {
+                  "const": "SESSION_INVALID",
+                  "type": "string"
+                },
+                {
+                  "const": "NICKNAME_CONFLICT",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_NICKNAME",
+                  "type": "string"
+                },
+                {
+                  "const": "NOT_HOST",
+                  "type": "string"
+                },
+                {
+                  "const": "NOT_LEADER",
+                  "type": "string"
+                },
+                {
+                  "const": "NOT_ASSASSIN",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_PHASE",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_PHASE_STAGE",
+                  "type": "string"
+                },
+                {
+                  "const": "PHASE_HELD",
+                  "type": "string"
+                },
+                {
+                  "const": "STALE_VERSION",
+                  "type": "string"
+                },
+                {
+                  "const": "DUPLICATE_COMMAND_CONFLICT",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_CONFIG",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_SEAT_ORDER",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_TEAM_SIZE",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_TEAM_MEMBER",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_VOTE",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_TARGET",
+                  "type": "string"
+                },
+                {
+                  "const": "PLAYER_NOT_ON_TEAM",
+                  "type": "string"
+                },
+                {
+                  "const": "GOOD_CANNOT_FAIL",
+                  "type": "string"
+                },
+                {
+                  "const": "ALREADY_SUBMITTED",
+                  "type": "string"
+                },
+                {
+                  "const": "HOST_CANNOT_LEAVE",
+                  "type": "string"
+                },
+                {
+                  "const": "PLAYERS_NOT_READY",
+                  "type": "string"
+                },
+                {
+                  "const": "PLAYERS_OFFLINE",
+                  "type": "string"
+                },
+                {
+                  "const": "AUDIO_CUE_NOT_FOUND",
+                  "type": "string"
+                },
+                {
+                  "const": "UPGRADE_REQUIRED",
+                  "type": "string"
+                },
+                {
+                  "const": "RATE_LIMITED",
+                  "type": "string"
+                },
+                {
+                  "const": "VALIDATION_ERROR",
+                  "type": "string"
+                },
+                {
+                  "const": "PAYLOAD_TOO_LARGE",
+                  "type": "string"
+                },
+                {
+                  "const": "UNAUTHORIZED",
+                  "type": "string"
+                },
+                {
+                  "const": "INTERNAL_ERROR",
+                  "type": "string"
+                }
+              ]
+            },
+            "diagnosticId": {
+              "minLength": 8,
+              "maxLength": 64,
+              "type": "string"
+            },
+            "retryable": {
+              "type": "boolean"
+            },
+            "retryAfterMs": {
+              "minimum": 0,
+              "maximum": 3600000,
+              "type": "integer"
+            },
+            "currentStateVersion": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fieldErrors": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "additionalProperties": false,
+                "type": "object",
+                "required": [
+                  "path",
+                  "reason"
+                ],
+                "properties": {
+                  "path": {
+                    "minLength": 1,
+                    "maxLength": 120,
+                    "type": "string"
+                  },
+                  "reason": {
+                    "anyOf": [
+                      {
+                        "const": "REQUIRED",
+                        "type": "string"
+                      },
+                      {
+                        "const": "INVALID_FORMAT",
+                        "type": "string"
+                      },
+                      {
+                        "const": "OUT_OF_RANGE",
+                        "type": "string"
+                      },
+                      {
+                        "const": "CONFLICT",
+                        "type": "string"
+                      },
+                      {
+                        "const": "DEPENDENCY",
+                        "type": "string"
+                      },
+                      {
+                        "const": "UNSUPPORTED",
+                        "type": "string"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "CommandResult": {
-      "oneOf": [
-        { "$ref": "#/$defs/CommandAccepted" },
-        { "$ref": "#/$defs/CommandRejected" }
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "commandId",
+            "accepted",
+            "stateVersion"
+          ],
+          "properties": {
+            "commandId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "accepted": {
+              "const": true,
+              "type": "boolean"
+            },
+            "stateVersion": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        },
+        {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "commandId",
+            "accepted",
+            "error"
+          ],
+          "properties": {
+            "commandId": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "accepted": {
+              "const": false,
+              "type": "boolean"
+            },
+            "error": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "code",
+                "diagnosticId",
+                "retryable"
+              ],
+              "properties": {
+                "code": {
+                  "anyOf": [
+                    {
+                      "const": "INVALID_ROOM_CODE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ROOM_FULL",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ROOM_NOT_JOINABLE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ROOM_EXPIRED",
+                      "type": "string"
+                    },
+                    {
+                      "const": "SESSION_INVALID",
+                      "type": "string"
+                    },
+                    {
+                      "const": "NICKNAME_CONFLICT",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_NICKNAME",
+                      "type": "string"
+                    },
+                    {
+                      "const": "NOT_HOST",
+                      "type": "string"
+                    },
+                    {
+                      "const": "NOT_LEADER",
+                      "type": "string"
+                    },
+                    {
+                      "const": "NOT_ASSASSIN",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_PHASE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_PHASE_STAGE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PHASE_HELD",
+                      "type": "string"
+                    },
+                    {
+                      "const": "STALE_VERSION",
+                      "type": "string"
+                    },
+                    {
+                      "const": "DUPLICATE_COMMAND_CONFLICT",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_CONFIG",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_SEAT_ORDER",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_TEAM_SIZE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_TEAM_MEMBER",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_VOTE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_TARGET",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PLAYER_NOT_ON_TEAM",
+                      "type": "string"
+                    },
+                    {
+                      "const": "GOOD_CANNOT_FAIL",
+                      "type": "string"
+                    },
+                    {
+                      "const": "ALREADY_SUBMITTED",
+                      "type": "string"
+                    },
+                    {
+                      "const": "HOST_CANNOT_LEAVE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PLAYERS_NOT_READY",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PLAYERS_OFFLINE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "AUDIO_CUE_NOT_FOUND",
+                      "type": "string"
+                    },
+                    {
+                      "const": "UPGRADE_REQUIRED",
+                      "type": "string"
+                    },
+                    {
+                      "const": "RATE_LIMITED",
+                      "type": "string"
+                    },
+                    {
+                      "const": "VALIDATION_ERROR",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PAYLOAD_TOO_LARGE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "UNAUTHORIZED",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INTERNAL_ERROR",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "diagnosticId": {
+                  "minLength": 8,
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "retryable": {
+                  "type": "boolean"
+                },
+                "retryAfterMs": {
+                  "minimum": 0,
+                  "maximum": 3600000,
+                  "type": "integer"
+                },
+                "currentStateVersion": {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "fieldErrors": {
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "additionalProperties": false,
+                    "type": "object",
+                    "required": [
+                      "path",
+                      "reason"
+                    ],
+                    "properties": {
+                      "path": {
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "type": "string"
+                      },
+                      "reason": {
+                        "anyOf": [
+                          {
+                            "const": "REQUIRED",
+                            "type": "string"
+                          },
+                          {
+                            "const": "INVALID_FORMAT",
+                            "type": "string"
+                          },
+                          {
+                            "const": "OUT_OF_RANGE",
+                            "type": "string"
+                          },
+                          {
+                            "const": "CONFLICT",
+                            "type": "string"
+                          },
+                          {
+                            "const": "DEPENDENCY",
+                            "type": "string"
+                          },
+                          {
+                            "const": "UNSUPPORTED",
+                            "type": "string"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       ]
     }
   }

@@ -1,0 +1,11 @@
+.expo
+expo-env.d.ts
+**/*.md
+.pnpm-store
+android
+coverage
+dist
+docs/contracts/*.schema.json
+ios
+node_modules
+pnpm-lock.yaml

@@ -1,0 +1,44 @@
+{
+  "name": "avalon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-authoritative Avalon mobile game monorepo",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.16.0",
+  "engines": {
+    "node": "24.19.0",
+    "pnpm": "11.16.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "dev": "pnpm --parallel --filter @avalon/server --filter @avalon/mobile dev",
+    "dev:deps": "docker-compose up -d --wait",
+    "dev:deps:down": "docker-compose down",
+    "docs:check": "pnpm protocol:check && node scripts/docs-check.mjs",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint . --max-warnings 0",
+    "protocol:check": "pnpm --filter @avalon/protocol generate:check",
+    "protocol:generate": "pnpm --filter @avalon/protocol generate",
+    "secret:scan": "secretlint --secretlintrc .secretlintrc.json --maskSecrets .",
+    "test": "pnpm -r --if-present test",
+    "test:contract": "pnpm --filter @avalon/protocol test:contract",
+    "test:e2e:mobile": "pnpm --filter @avalon/mobile test:e2e",
+    "test:integration": "pnpm --filter @avalon/server test:integration",
+    "test:load": "node scripts/load-smoke.mjs",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.1",
+    "@secretlint/secretlint-rule-preset-recommend": "13.0.4",
+    "@types/node": "24.10.1",
+    "eslint": "9.39.1",
+    "prettier": "3.7.4",
+    "secretlint": "13.0.4",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.50.1",
+    "vitest": "4.0.16"
+  }
+}

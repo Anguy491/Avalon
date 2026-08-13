@@ -1,0 +1,40 @@
+{
+  "name": "@avalon/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/main.js",
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "db:migrate": "node --env-file-if-exists=../../.env ./node_modules/node-pg-migrate/bin/node-pg-migrate.js --migrations-dir migrations up",
+    "db:rollback": "node --env-file-if-exists=../../.env ./node_modules/node-pg-migrate/bin/node-pg-migrate.js --migrations-dir migrations down",
+    "dev": "node --env-file-if-exists=../../.env --import tsx --watch src/main.ts",
+    "lint": "eslint . --max-warnings 0",
+    "start": "node --env-file-if-exists=../../.env dist/main.js",
+    "test": "vitest run --exclude 'src/**/*.integration.test.ts'",
+    "test:integration": "node scripts/run-integration-tests.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@avalon/protocol": "workspace:*",
+    "@fastify/rate-limit": "11.2.0",
+    "@sinclair/typebox": "0.34.52",
+    "fastify": "5.11.3",
+    "postgres": "3.4.9",
+    "redis": "6.2.1",
+    "socket.io": "4.8.3"
+  },
+  "devDependencies": {
+    "@testcontainers/postgresql": "12.1.0",
+    "@testcontainers/redis": "12.1.0",
+    "@types/node": "24.10.1",
+    "node-pg-migrate": "9.0.0",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vitest": "4.0.16"
+  }
+}
