@@ -14,8 +14,11 @@ import { AppState } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 
 import {
+  isCommandResult,
   isRoomViewMessage,
   isSessionReady,
+  type CommandResult,
+  type CommandType,
   type CreateRoomRequest,
   type RoomConfigInput,
   type RoomView,
@@ -23,6 +26,7 @@ import {
 } from '@avalon/protocol/mobile';
 
 import {
+  ApiError,
   clientCapabilities,
   createRoom as createRoomRequest,
   joinRoom as joinRoomRequest,
@@ -32,6 +36,14 @@ import {
 import { isInvalidSession, userFacingError } from '@/api/errors';
 
 import { expoSecureStore } from './expo-secure-store-driver';
+import {
+  CommandAckTimeoutError,
+  InvalidCommandAckError,
+  RoomCommandAttempts,
+  shouldResyncAfterRejection,
+  submitCommandWithAck,
+  type M3CommandInput,
+} from './command-submission';
 import { IdempotencyKeys } from './idempotency';
 import { acceptNewerRoomView } from './room-view-state';
 import {
@@ -62,6 +74,7 @@ interface SessionContextValue {
   readonly summary?: SessionSummary;
   readonly roomView?: RoomView;
   readonly error?: string;
+  readonly pendingCommandType?: CommandType;
   readonly createRoom: (
     nickname: string,
     config: RoomConfigInput,
@@ -69,6 +82,7 @@ interface SessionContextValue {
   readonly joinRoom: (nickname: string, roomCode: string) => Promise<void>;
   readonly recover: () => Promise<void>;
   readonly refreshView: () => Promise<void>;
+  readonly submitCommand: (command: M3CommandInput) => Promise<CommandResult>;
   readonly forgetSession: () => Promise<void>;
   readonly dismissError: () => void;
 }
@@ -93,17 +107,24 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const recovery = useRef<Promise<void> | undefined>(undefined);
   const createKeys = useRef(new IdempotencyKeys());
   const joinKeys = useRef(new IdempotencyKeys());
+  const commandAttempts = useRef(new RoomCommandAttempts());
+  const commandInFlight = useRef(false);
   const installationId = useRef<Promise<string> | undefined>(undefined);
   const [status, setStatus] = useState<SessionStatus>('LOADING');
   const [summary, setSummary] = useState<SessionSummary>();
   const [error, setError] = useState<string>();
+  const [pendingCommandType, setPendingCommandType] = useState<CommandType>();
 
   const roomViewQuery = useQuery<RoomView>({
     queryKey: ROOM_VIEW_KEY,
     queryFn: async () => {
       const token = sessionToken.current;
       if (token === undefined) throw new Error('No active session');
-      return (await readCurrentRoomView(token)).roomView;
+      const incoming = (await readCurrentRoomView(token)).roomView;
+      return acceptNewerRoomView(
+        queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY),
+        incoming,
+      );
     },
     enabled: false,
     gcTime: Number.POSITIVE_INFINITY,
@@ -133,6 +154,18 @@ export function SessionProvider({ children }: PropsWithChildren) {
     },
     [queryClient],
   );
+
+  const forgetSession = useCallback(async () => {
+    stopSocket();
+    sessionRecord.current = undefined;
+    sessionToken.current = undefined;
+    setSummary(undefined);
+    setError(undefined);
+    setPendingCommandType(undefined);
+    queryClient.removeQueries({ queryKey: ROOM_VIEW_KEY, exact: true });
+    await clearStoredSession(expoSecureStore);
+    setStatus('ANONYMOUS');
+  }, [queryClient, stopSocket]);
 
   const connectSocket = useCallback(
     (record: StoredSession) => {
@@ -168,8 +201,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
         if (!isRoomViewMessage(payload)) return;
         acceptRoomView(payload.roomView);
       });
+      nextSocket.on('session.revoked', () => {
+        void forgetSession().then(() => {
+          setError('本机会话已失效，请返回首页重新加入。');
+        });
+      });
     },
-    [acceptRoomView, queryClient, stopSocket],
+    [acceptRoomView, forgetSession, queryClient, stopSocket],
   );
 
   const installBootstrap = useCallback(
@@ -185,17 +223,6 @@ export function SessionProvider({ children }: PropsWithChildren) {
     },
     [acceptRoomView, connectSocket],
   );
-
-  const forgetSession = useCallback(async () => {
-    stopSocket();
-    sessionRecord.current = undefined;
-    sessionToken.current = undefined;
-    setSummary(undefined);
-    setError(undefined);
-    queryClient.removeQueries({ queryKey: ROOM_VIEW_KEY, exact: true });
-    await clearStoredSession(expoSecureStore);
-    setStatus('ANONYMOUS');
-  }, [queryClient, stopSocket]);
 
   const runRecovery = useCallback(async () => {
     let record =
@@ -319,6 +346,98 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }
   }, [forgetSession, roomViewQuery]);
 
+  const submitCommand = useCallback(
+    async (input: M3CommandInput): Promise<CommandResult> => {
+      if (commandInFlight.current) {
+        const busyError = new ApiError(
+          {
+            code: 'RATE_LIMITED',
+            diagnosticId: 'client_command_pending',
+            retryable: true,
+          },
+          0,
+        );
+        setError('上一项操作仍在等待服务器确认。');
+        throw busyError;
+      }
+      const roomView = queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY);
+      const activeSocket = socket.current;
+      if (roomView === undefined || activeSocket?.connected !== true) {
+        const offlineError = new ApiError(
+          {
+            code: 'INTERNAL_ERROR',
+            diagnosticId: 'client_command_offline',
+            retryable: true,
+          },
+          0,
+        );
+        setError(userFacingError(offlineError));
+        throw offlineError;
+      }
+
+      const command = commandAttempts.current.acquire(
+        roomView,
+        input,
+        randomUUID,
+        () => new Date(),
+      );
+      commandInFlight.current = true;
+      setPendingCommandType(input.type);
+      setError(undefined);
+      try {
+        const result = await submitCommandWithAck(
+          (payload, acknowledge) => {
+            activeSocket.emit('command.submit', payload, acknowledge);
+          },
+          command,
+          isCommandResult,
+        );
+        commandAttempts.current.complete(command.commandId);
+
+        if (!result.accepted) {
+          const rejection = new ApiError(result.error, 0);
+          if (isInvalidSession(rejection)) {
+            await forgetSession();
+          } else if (shouldResyncAfterRejection(result)) {
+            await refreshView();
+          }
+          setError(userFacingError(rejection));
+          throw rejection;
+        }
+
+        if (input.type === 'LeaveLobby' || input.type === 'CloseRoom') {
+          await forgetSession();
+          return result;
+        }
+
+        try {
+          await refreshView();
+        } catch {
+          // A committed command still converges through room.view when the
+          // opportunistic HTTP resync is unavailable.
+        }
+        return result;
+      } catch (caught) {
+        if (caught instanceof ApiError) throw caught;
+        if (caught instanceof CommandAckTimeoutError) {
+          setError(
+            '未收到服务器确认。请检查网络后重试；相同操作会沿用原命令编号。',
+          );
+        } else if (caught instanceof InvalidCommandAckError) {
+          await refreshView();
+          setError('服务器确认格式异常，请刷新大厅后重试。');
+        } else {
+          setError(userFacingError(caught));
+        }
+        throw caught;
+      } finally {
+        commandInFlight.current = false;
+        setPendingCommandType(undefined);
+      }
+    },
+    [forgetSession, queryClient, refreshView],
+  );
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
@@ -327,10 +446,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
         ? {}
         : { roomView: roomViewQuery.data }),
       ...(error === undefined ? {} : { error }),
+      ...(pendingCommandType === undefined ? {} : { pendingCommandType }),
       createRoom,
       joinRoom,
       recover,
       refreshView,
+      submitCommand,
       forgetSession,
       dismissError: () => {
         setError(undefined);
@@ -341,10 +462,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
       error,
       forgetSession,
       joinRoom,
+      pendingCommandType,
       recover,
       refreshView,
       roomViewQuery.data,
       status,
+      submitCommand,
       summary,
     ],
   );

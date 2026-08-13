@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { schemaDocuments } from '../src/schemas/index.js';
 import {
+  CommandResultSchema,
   ErrorResponseSchema,
   ReadRoomViewResponseSchema,
   RoomViewMessageSchema,
@@ -26,6 +27,7 @@ const mobileContracts = {
   roomViewMessage: RoomViewMessageSchema,
   sessionBootstrap: SessionBootstrapSchema,
   sessionReady: SessionReadySchema,
+  commandResult: CommandResultSchema,
 };
 
 for (const [filename, schema] of Object.entries(schemaDocuments)) {

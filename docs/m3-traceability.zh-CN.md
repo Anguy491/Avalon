@@ -9,8 +9,9 @@
 | 切片一 | `packages/game-engine`：ConfigureRoom/ReorderSeats/SetReady/LeaveLobby/KickLobbyPlayer/CloseRoom 的类型、handler、不变量与单元/性质测试 | ✅ 完成 | 2026-08-13 |
 | 切片二 | `apps/server`：命令持久化、session 撤销、Outbox 单播、幂等与并发集成测试 | ✅ 完成 | 2026-08-14 |
 | 切片三 | `packages/protocol`：`availableActions`/错误码/RoomView 投影审计与契约测试回归 | ✅ 完成 | 2026-08-14 |
-| 切片四 | `apps/mobile`：命令提交、ack、重同步、纯逻辑 reducer/hook 与大厅 UI | 待开始 | — |
-| 切片五 | 身份揭示、AckRole、后台遮罩与知识矩阵测试 | 待开始 | — |
+| 切片三.1（增量） | `apps/server`：`room-service.ts` 实现 `availableActions` 真实投影填充（LOBBY + ROLE_REVEAL），补齐切片三遗留的已知限制 | ✅ 完成 | 2026-08-14 |
+| 切片四 | `apps/mobile`：命令提交、ack、重同步、纯逻辑 reducer/hook 与大厅 UI | ✅ 完成 | 2026-08-14 |
+| 切片五 | 身份揭示、AckRole、后台遮罩与知识矩阵测试 | ✅ 完成 | 2026-08-14 |
 | 切片六 | 完整命令矩阵、性质测试收尾、M3 追踪文档定稿、多房间负载场景 | 待开始 | — |
 
 ## 切片一详情：game-engine 大厅命令
@@ -217,7 +218,189 @@
 
 ### 已知限制（记录以避免遗忘，非本切片阻塞项）
 
-- `apps/server/src/room-service.ts` 中 `projectRoom` 的 `availableActions: []` **仍未实现真实填充**——本切片只验证了目标 Schema 形状可行，真正把大厅命令按房主/非房主角色写入 `PrivatePlayerProjection.availableActions` 的服务端改动尚未进行。若切片四（移动端）需要依赖真实的 `availableActions` 驱动 UI 可用状态，需要在开始切片四之前或作为切片四的第一步，先在 `apps/server` 补齐这一实现（并相应更新 `room-service.test.ts`/集成测试）。
+- ~~`apps/server/src/room-service.ts` 中 `projectRoom` 的 `availableActions: []` 仍未实现真实填充~~ → **已在切片三.1 中解决，见下文。**
 - `CommandTypeSchema`/`ErrorCodeSchema` 与引擎权威列表的一致性检查是**硬编码字面量数组的手工同步**，不是自动从 `packages/game-engine` 源码提取（因两包不允许互相依赖）；若后续新增命令类型或错误码，需要同时更新三处：`packages/game-engine/src/types.ts`、`packages/protocol/src/schemas/common.ts`、`packages/protocol/src/protocol.contract.test.ts` 中的硬编码列表。此限制已在测试文件内联注释中明确标注。
 - 移动端尚未消费这些命令与 Schema——切片四范围。
 
+## 切片三.1（增量）：`apps/server` 的 `availableActions` 真实投影
+
+### 范围
+
+补齐切片三报告中记录的已知限制：在 `apps/server/src/room-service.ts` 中实现 `PrivatePlayerProjection.availableActions` 的真实计算，替换此前的占位空数组，覆盖 M3 里程碑命名范围内的两个阶段：
+
+- **`LOBBY`**：`SetReady`（所有玩家）；房主额外获得 `ConfigureRoom`、`ReorderSeats`、`KickLobbyPlayer`（含 `eligibleTargetPlayerIds`）、`CloseRoom`，以及满足人数与全员 `ready`+`connected` 时的 `StartGame`；非房主额外获得 `LeaveLobby`。
+- **`ROLE_REVEAL`**（身份揭示，M3 命名范围的一部分）：`phaseStage === 'COLLECTING'` 且本人尚未 `AckRole` 时提供 `AckRole`。
+
+### 关键设计决策
+
+1. **投影职责边界，不复制引擎裁决逻辑**：新增的 `computeAvailableActions()` 只做"UI 可用性提示"，其判定条件（房主身份、阶段、`phaseStage`、是否已提交）全部直接读取已经存在于 `GameState`/`PrivatePlayerState` 的公开或本人私有字段（`state.hostPlayerId`、`state.phase`、`state.phaseStage`、`privateGame.hasSubmitted`、`player.ready`/`player.connected`），不重新实现或旁路引擎的秘密计算、投票计票或任务结算逻辑。真正的裁决仍完全由 `packages/game-engine` 的 `executeCommand` 在命令提交时权威执行——`availableActions` 失真（例如网络延迟导致的过期投影）不会导致错误命令被接受，客户端提交的任何命令都会重新走一遍引擎校验。
+2. **`StartGame` 就绪判断复用已公开字段**：`state.players.length === state.config.playerCount && state.players.every(p => p.ready && p.connected)` 与引擎 `startGame` handler 中的前两个前置条件同构，但这两个条件本身就是 `PublicSnapshot.players`/`config.playerCount` 已经暴露的公开信息的直接布尔组合，不涉及任何秘密派生，因此不构成"重复领域逻辑"的违规。
+3. **范围止于 M3 命名边界**：`TEAM_PROPOSAL` 及之后的阶段（`SubmitTeam`/`SubmitTeamVote`/`SubmitQuestChoice`/`SelectMerlinTarget` 等）的 `availableActions` 填充故意未在本增量中实现，留给覆盖对局玩法 UI 的后续里程碑；`computeAvailableActions()` 对这些阶段返回空数组，与此前行为一致，不引入回归。
+4. **测试策略**：不新增独立单元测试文件（`room-service.ts` 此前也没有专门的单元测试文件，只通过集成测试驱动），而是在既有的 `apps/server/src/m3-lobby.integration.test.ts` 中新增一个集成测试，通过真实的 `RoomService.readCurrentView()` 断言房主/非房主视角、`eligibleTargetPlayerIds`、`StartGame` 在未就绪/全员就绪两种状态下的出现与否；同时修正了 `m2.integration.test.ts` 中一处因新增非空 `availableActions` 而失效的旧断言（该断言原先预期非房主玩家的 `availableActions` 为空数组）。
+
+### 新增/变更文件
+
+- `apps/server/src/room-service.ts`：新增私有函数 `computeAvailableActions()`；`projectRoom()` 中 `availableActions` 从固定空数组改为调用该函数。
+- `apps/server/src/m3-lobby.integration.test.ts`：新增测试 `'projects availableActions by role, gates StartGame on readiness, and lists eligible kick targets'`。
+- `apps/server/src/m2.integration.test.ts`：修正一处因 `availableActions` 不再恒为空而过时的断言（现在断言非房主玩家在两人大厅中看到 `SetReady`+`LeaveLobby`）。
+
+### 覆盖的规范编号
+
+- `docs/server-state-machine.zh-CN.md` §6.2：`availableActions` "当前阶段本人可以执行的命令及合法静态选项"。
+- `SM-004`〜`SM-006`、`SM-017`〜`SM-019`（大厅命令可用性）、`AckRole`（身份揭示可用性）的 UI 投影落地。
+
+### 本次验证命令与结果（2026-08-14 实测）
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --filter @avalon/server typecheck` | ✅ 通过 |
+| `pnpm --filter @avalon/server lint` | ✅ 通过（0 警告） |
+| `pnpm --filter @avalon/server test` | ✅ 10/10 通过 |
+| `pnpm --filter @avalon/server test:integration` | ✅ 20/20 通过（新增 1 个 availableActions 测试，m2 既有断言已修正） |
+| `pnpm typecheck`（全仓库） | ✅ 通过 |
+| `pnpm lint`（全仓库） | ✅ 通过 |
+| `pnpm test`（全仓库单元测试） | ✅ 全部通过 |
+| `pnpm test:contract` | ✅ 61/61 通过（未改动协议 Schema，不受影响） |
+| `pnpm docs:check` | ✅ 通过 |
+| `pnpm secret:scan` | ✅ 通过 |
+| `pnpm build`（全仓库） | ✅ 通过（含移动端 Expo 导出） |
+| `pnpm format:check`（全仓库） | ✅ 通过（已用 Prettier 自动修正新增测试文件格式） |
+
+### 已知限制（记录以避免遗忘，留给后续切片）
+
+- `TEAM_PROPOSAL`/`TEAM_VOTE`/`QUEST_SUBMISSION`/`ASSASSINATION` 等对局阶段的 `availableActions` 仍返回空数组，尚未实现（超出 M3 命名范围：大厅、配置、身份揭示）。
+- `room-service.ts` 目前没有独立的单元测试文件，`computeAvailableActions()` 的行为完全由集成测试驱动验证；如果未来该函数复杂度显著上升，建议拆分为可独立单元测试的纯函数模块。
+
+## 切片四详情：`apps/mobile` 大厅命令、ack、重同步与 UI
+
+### 范围
+
+在既有 M2 会话恢复、SecureStore、Socket.IO 和 `RoomView` Query cache 基础上，完成六个大厅命令的移动端纵向消费：
+
+- `ConfigureRoom`：房主可编辑 5–10 人目标、经典/常用角色预设或自定义公开角色列表；提交完整 `RoomConfigInput`，服务端成功后关闭编辑页并提示全员重新准备。
+- `ReorderSeats`：房主通过可访问的“上移/下移”调整投影中的玩家顺序，一次提交完整 `playerIds` 排列；不在客户端判断排列是否合法。
+- `SetReady`：本人根据服务端投影中的当前准备状态提交相反布尔值；等待 ack 时按钮进入 busy/disabled 状态。
+- `LeaveLobby`、`KickLobbyPlayer`、`CloseRoom`：均提供包含昵称/影响说明且不显示内部 ID 的确认对话框；本人离开或房主关闭成功后清除安全存储中的会话并返回首页。
+- `command.submit` 通道：每条命令携带新的 `commandId`、当前 `RoomView.public.stateVersion` 作为 `expectedStateVersion` 及 `sentAt`；ack 通过协议层 `isCommandResult` 守卫校验。
+- 重同步：`STALE_VERSION`、权限/阶段变化和重复提交类拒绝会通过已有 HTTP 当前投影接口刷新；Socket `room.view` 与 HTTP 刷新都按 `stateVersion` 收敛，较旧响应不能覆盖较新投影。
+
+### 关键设计决策
+
+1. **可执行动作只消费 `availableActions`**：`deriveLobbyUiState()` 只排序公开座次、定位本人并把 `availableActions` 转成 UI 控件集合；`KickLobbyPlayer` 的目标严格取自服务端提供的 `eligibleTargetPlayerIds`。客户端不根据房主标记、人数、ready 数量或阶段自行推导命令权限，也不复制座次/角色配置裁决。
+2. **ack 超时复用完整命令信封**：`RoomCommandAttempts` 按 `roomId + expectedStateVersion + input` 保存待确认命令；Socket ack 4 秒超时后自动做一次有界重试，两次发送复用同一对象，因此 `commandId`、载荷、版本和 `sentAt` 均完全相同。若仍无 ack，保留该信封供用户再次确认同一操作时重用；收到明确接受/拒绝后才释放。
+3. **ack 与投影独立收敛**：接受 ack 后进行一次机会式 HTTP 重同步，同时继续接受可能先到或后到的 Socket 投影；两条路径统一使用 `acceptNewerRoomView()`。成功 UI 仍以投影为准，不对本地玩家列表、ready 或配置做乐观写入。
+4. **稳定错误码本地化，不暴露内部载荷**：命令拒绝转换为既有 `ApiError` 并复用 `userFacingError()` 的完整 `ErrorCode` 映射；UI 只显示本地化文案，不渲染原始请求、堆栈、会话令牌或服务端内部主键。ack 协议异常和网络超时使用固定客户端文案。
+5. **自定义配置只做协议结构编辑**：自定义角色 UI 支持同一普通角色出现多次，并只检查协议规定的 5–10 个数组边界；梅林/刺客、阵营数量、特殊角色依赖等规则仍由 `packages/game-engine` 在服务端统一裁决，避免在移动端复制领域算法。
+6. **生命周期命令显式清理本人会话**：`LeaveLobby`/`CloseRoom` 接受后立即调用既有 `clearStoredSession()`；同时监听协议声明的 `session.revoked` 事件，为被移除/关闭的客户端提供安全清理路径。其他玩家的私密投影从未写入本地持久化。
+7. **切片边界停在大厅六命令**：虽然服务端可能在 `availableActions` 中投影 `StartGame`，本切片不渲染或提交它；`StartGame`、身份页路由和 `AckRole` 与后台遮罩一起留给切片五，避免开放尚未具备隐私门的角色流程。
+
+### 新增/变更文件
+
+- `apps/mobile/src/session/command-submission.ts`（新增）：六种大厅命令输入类型、完整命令信封复用、ack 超时/协议异常、Socket 有界重试和拒绝后重同步分类。
+- `apps/mobile/src/session/command-submission.test.ts`（新增）：6 个单元测试，覆盖信封复用、版本变化换新 ID、超时同信封重试、超时终止、畸形 ack 拒绝和重同步分类。
+- `apps/mobile/src/session/session-provider.tsx`：接入 `command.submit`、pending 命令状态、ack Schema 守卫、拒绝本地化、HTTP 重同步、`session.revoked` 清理及离开/关闭后的本机会话清除。
+- `apps/mobile/src/features/rooms/lobby-state.ts`（新增）：`RoomView` → 大厅 UI 状态的纯派生函数，以及座次/配置草稿 reducer；仅处理展示和协议结构，不做领域裁决。
+- `apps/mobile/src/features/rooms/lobby-state.test.ts`（新增）：4 个单元测试，覆盖服务端动作驱动、踢人目标、座次完整排列草稿和配置结构草稿。
+- `apps/mobile/src/features/rooms/use-lobby-commands.ts`（新增）：六命令 hook，统一成功提示，并在本人离开/关闭房间后返回首页。
+- `apps/mobile/src/features/rooms/lobby-editors.tsx`（新增）：可滚动的配置与座次编辑 modal，含动态字体友好的布局、44pt 触控目标、读屏标签和 busy 状态。
+- `apps/mobile/src/features/rooms/lobby-screen.tsx`：移除 M2 占位提示，接入玩家/公开配置、准备、移除、退出、关闭、配置和座次 UI；保留房间号复制与公开 QR。
+
+### 覆盖的规范编号
+
+- 状态机：`SM-004 ConfigureRoom`、`SM-005 ReorderSeats`、`SM-006 SetReady`、`SM-017 LeaveLobby`、`SM-018 KickLobbyPlayer`、`SM-019 CloseRoom`；`docs/server-state-machine.zh-CN.md` §4.2 幂等/版本语义与 §6.2 `availableActions`。
+- 移动端：`FR-003`、`FR-007`〜`FR-014`、`FR-046`、`FR-047`；`UX-006` 大厅、`UX-016` 错误与重同步、UX §6 确认/反馈、`NFR-019`、`NFR-022`。
+- 验收关联：`AC-001` 的大厅配置/座次/准备客户端路径（服务端规则合法性已由前序切片覆盖）、`AC-009` 的同命令重试客户端语义；本切片新增单测名称和本节均保留对应 `SM`/`FR` 追踪。
+
+### 本切片验证命令与结果（2026-08-14 实测）
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --filter @avalon/mobile typecheck` | ✅ 通过 |
+| `pnpm --filter @avalon/mobile lint` | ✅ 通过（0 警告） |
+| `pnpm --filter @avalon/mobile test` | ✅ 22/22 通过（8 个测试文件；本切片新增 10 个测试） |
+| `pnpm format:check`（全仓库） | ✅ 通过 |
+| `pnpm lint`（全仓库） | ✅ 通过（0 警告） |
+| `pnpm typecheck`（全仓库） | ✅ 通过（5 个工作区项目） |
+| `pnpm test`（全仓库单元测试） | ✅ 全部通过（game-engine 138、protocol 3、mobile 22、test-fixtures 3、server 10） |
+| `pnpm test:contract` | ✅ 61/61 通过 |
+| `pnpm secret:scan` | ✅ 通过（无秘密泄漏） |
+| `pnpm build`（全仓库） | ✅ 通过（含 Expo web/iOS/Android 导出） |
+| `pnpm docs:check` | ✅ 通过（27 个 Markdown 文件 + 协议生成快照检查） |
+
+### 已知限制（按纵向切片留给后续）
+
+- `StartGame`、身份揭示路由、`AckRole`、后台遮罩与角色知识矩阵明确属于切片五，本切片未开放 `StartGame` 控件。
+- 自定义角色编辑器不在客户端复制引擎硬校验，因此 `FR-012` 要求的完整即时角色组合错误目前仍由提交后的 `INVALID_CONFIG` 表达；若后续需要提交前完整提示，应新增不改变权威性的共享验证端口/协议，而不是在 `apps/mobile` 复制规则。
+- `FR-016` 的“测试主持语音”仍受 `M3-GATE-01` 音频内容/授权门槛约束，本切片没有新增权属不明的音频或第三方 SDK；固定占位音频与字幕接入尚未完成。
+- 按本轮明确范围未新增/运行模拟器、Maestro E2E、截图或录屏。因而原生确认对话框、最大动态字体、VoiceOver/TalkBack 和视觉状态仍需用户手工验收；本切片只完成静态可访问性属性、单元检查与 Expo 三平台构建证据。
+- 本切片未改动 `apps/server`，未重跑 Docker 集成测试；切片三.1 已记录的 20/20 服务端集成测试结果保持不变。
+
+## 切片五详情：身份揭示、`AckRole`、后台遮罩与知识矩阵
+
+### 范围
+
+完成从大厅开局到身份确认结束的 M3 纵向路径，并把私密信息边界落实到移动端展示、服务端投影和日志防御三层：
+
+- 大厅房主根据服务端 `availableActions` 看到并提交 `StartGame`；确认对话说明开局后配置和座次冻结。成功后房主进入 `/(game)/role`，其他玩家随 `RoomView` 阶段投影自动进入同一路由。
+- `ROLE_REVEAL/HOST_HELD` 时仅房主获得 `ContinuePhase`；所有玩家可先通过隐私门查看自己的角色。房主继续后进入 `COLLECTING`，未确认玩家才获得 `AckRole`。
+- 身份页只消费本人 `PrivatePlayerProjection`：角色、阵营、能力说明及服务端提供的 `knownPlayers[].knowledgeLabel`；客户端只把语义标签映射为中文，不计算梅林、派西维尔或邪恶互认知识。
+- 隐私门默认遮蔽；持续按住 600ms 才揭示且松手立即遮蔽，同时提供读屏和行动不便用户可用的点按揭示/隐藏模式。只有主动揭示后才把无障碍焦点移到角色标题。
+- `AppState` 离开 `active` 时立即回到中性遮罩，回到前台不会自动重新展示；确认 `AckRole` 前有二次确认，提交动作先本地遮蔽，服务端投影确认后保持中性等待页。
+- 公开区域只展示 `submittedCount / requiredCount`，不展示尚未确认者；全员确认后由服务端权威自动推进到 `TEAM_PROPOSAL/HOST_HELD`。
+- 新增 10 人特殊角色知识矩阵集成测试，逐会话核验本人角色/阵营/知识及 StartGame Outbox 个性化单播；同时扩充服务端日志脱敏字段，覆盖角色、阵营、知识和任务私密选项。
+
+### 关键设计决策
+
+1. **路由只表达位置，动作仍由投影授权**：移动端不根据房主身份、阶段或本人确认状态推导 `StartGame`/`ContinuePhase`/`AckRole` 权限。按钮的出现和启用只读取 `PrivatePlayerProjection.availableActions`；服务端 `computeAvailableActions()` 补齐 `ROLE_REVEAL/HOST_HELD` 的房主 `ContinuePhase`，引擎仍在每次提交时重新裁决。
+2. **私密知识不在客户端重建**：`deriveRoleRevealUiState()` 仅把 `knownPlayers` 的玩家 ID 连接到公开昵称，并翻译协议稳定语义标签。角色能力文案是公开说明；实际知识名单完全来自本人投影，移动端没有梅林排除莫德雷德、派西维尔候选或邪恶排除奥伯伦的算法副本。
+3. **按住揭示的事件节点保持稳定**：私密面板在遮蔽/揭示切换时复用同一个 `Pressable` 手势节点，避免长按触发后因子树替换丢失 `onPressOut`；`HOLD` 模式松手必回到 `MASKED`。点按模式是显式等价替代，不会在回到前台时自动恢复。
+4. **确认采用“先遮蔽、后提交、以投影收敛”**：用户二次确认后先派发本地 `conceal`，再通过切片四的同一幂等命令通道提交 `AckRole`。ack 超时仍复用同一 `commandId`；拒绝按错误码本地化并重同步；客户端不乐观增加公开确认计数。
+5. **不持久化角色投影**：`RoomView` 只存在于 React Query 内存缓存；SecureStore 继续只保存本人会话令牌和恢复所需公开元数据。身份页不提供复制、分享、导出或可选择文本入口，也不把角色内容写入通知、日志或分析事件。
+6. **矩阵测试独立断言规则而非自证实现**：服务端集成测试使用包含全部特殊角色的合法 10 人牌组，从持久化角色分配独立构造各视角期望集合，逐一核验梅林排除莫德雷德、派西维尔候选不可区分、邪恶互认排除奥伯伦、奥伯伦无同伴知识；并按 StartGame 对应 Outbox `eventId` 精确检查 10 条会话绑定投递。
+
+### 新增/变更文件
+
+- `apps/mobile/src/features/roles/role-reveal-state.ts`（新增）：八种角色公开展示文案、`RoomView` 纯派生函数与隐私门 reducer。
+- `apps/mobile/src/features/roles/role-reveal-state.test.ts`（新增）：语义知识映射、八角色展示覆盖、按住/松手、后台遮蔽和确认归零测试。
+- `apps/mobile/src/features/roles/use-role-commands.ts`（新增）：`ContinuePhase`/`AckRole` 命令 hook。
+- `apps/mobile/src/features/roles/role-reveal-screen.tsx`（新增）：身份隐私门、揭示、确认进度、后台遮罩、无障碍焦点和中性等待 UI。
+- `apps/mobile/src/app/(game)/role.tsx`（新增）：`UX-008` 身份路由。
+- `apps/mobile/src/app/(game)/_layout.tsx`、`apps/mobile/src/app/(public)/index.tsx`：游戏栈主题与会话恢复阶段路由。
+- `apps/mobile/src/features/rooms/lobby-screen.tsx`、`apps/mobile/src/features/rooms/use-lobby-commands.ts`：房主 `StartGame` 确认、提交和身份页导航。
+- `apps/mobile/src/session/command-submission.ts`、`apps/mobile/src/session/session-provider.tsx`：既有幂等通道扩展到 `StartGame`、`ContinuePhase`、`AckRole`，统一命名为 `submitCommand`。
+- `apps/server/src/room-service.ts`：`ROLE_REVEAL/HOST_HELD` 为房主投影 `ContinuePhase`；`COLLECTING` 保持按本人提交状态投影 `AckRole`。
+- `apps/server/src/m3-lobby.integration.test.ts`：新增完整身份阶段门和 10 人特殊角色知识/Outbox 单播矩阵测试。
+- `apps/server/src/observability.ts`、`apps/server/src/server.test.ts`：扩充私密角色字段日志脱敏防线及回归断言。
+
+### 覆盖的规范编号
+
+- 规则与状态机：`RULE-004`、`RULE-006`、`RULE-007`；`SM-007 StartGame`、`SM-008 ContinuePhase`、`SM-009 AckRole`，以及 §6.2 `availableActions`。
+- 移动端与交互：`FR-015`、`FR-017`〜`FR-020`；`UX-008`；`NFR-014`、`NFR-019`、`NFR-022`。
+- 验收关联：`AC-008`（全部特殊角色个人知识投影）、`AC-015`（公开投影/实时单播/日志中不出现越权角色或令牌）。
+
+### 本切片验证命令与结果（2026-08-14 实测）
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --filter @avalon/mobile typecheck` | ✅ 通过 |
+| `pnpm --filter @avalon/mobile lint` | ✅ 通过（0 警告） |
+| `pnpm --filter @avalon/mobile test` | ✅ 27/27 通过（9 个测试文件；本切片新增 5 个身份纯逻辑测试） |
+| `pnpm --filter @avalon/server typecheck` | ✅ 通过 |
+| `pnpm --filter @avalon/server lint` | ✅ 通过（0 警告） |
+| `pnpm --filter @avalon/server test` | ✅ 10/10 通过 |
+| `pnpm --filter @avalon/server test:integration`（PostgreSQL + Redis Testcontainers） | ✅ 22/22 通过（3 个测试文件；M3 文件新增 2 个身份测试） |
+| `pnpm format:check`（全仓库） | ✅ 通过 |
+| `pnpm lint`（全仓库） | ✅ 通过（0 警告） |
+| `pnpm typecheck`（全仓库） | ✅ 通过（5 个工作区项目） |
+| `pnpm test`（全仓库单元测试） | ✅ 全部通过（game-engine 138、protocol 3、mobile 27、test-fixtures 3、server 10） |
+| `pnpm test:contract` | ✅ 61/61 通过 |
+| `pnpm docs:check` | ✅ 通过（27 个 Markdown 文件 + 协议生成快照检查） |
+| `pnpm secret:scan` | ✅ 通过（无秘密泄漏） |
+| `pnpm build`（全仓库） | ✅ 通过（含 Expo web/iOS/Android 导出） |
+
+### 已知限制（按纵向切片边界记录）
+
+- 按本轮明确范围未新增/运行模拟器、Maestro E2E、截图或录屏；因此 AppState 遮罩在 iOS/Android 应用切换器抓帧时序、长按 600ms 手感、最大动态字体和 VoiceOver/TalkBack 焦点仍需用户手工验收。本切片已完成 reducer 测试、静态无障碍属性和 Expo 三平台构建验证。
+- 当前实现使用 `AppState` 在退后台/失活时切换中性遮罩，并明确提示系统无法绝对阻止主动拍摄；未新增平台专用的截屏阻止或录屏状态侦测原生模块。若邀请测试要求 Android `FLAG_SECURE` 或录屏事件联动，应作为纵深防御单独评估，不能把它当作角色保密的唯一边界。
+- `TEAM_PROPOSAL` 及之后的实际对局 UI/`availableActions` 仍超出 M3“大厅、配置与身份揭示”范围；全员 `AckRole` 后先进入既有公共游戏占位路由，后续里程碑再实现组队、投票、任务与刺杀交互。
+- `FR-016` 的测试主持语音及 StartGame 生成的开场音频仍受 `M3-GATE-01` 内容授权门槛约束；本切片没有引入权属不明音频、运行时 TTS 或新的第三方数据采集 SDK。

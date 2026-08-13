@@ -151,6 +151,59 @@ function proposalHistory(state: GameState): PublicSnapshot['proposalHistory'] {
   }));
 }
 
+type AvailableAction = PrivatePlayerProjection['availableActions'][number];
+
+// Computes which commands the requesting player may currently submit, for UI
+// affordance only. This mirrors *eligibility gates* already enforced by
+// packages/game-engine (host-only, phase, phaseStage, already-submitted) so
+// clients can disable/enable controls without guessing — it deliberately does
+// NOT re-derive any secret or vote-counting logic; the engine remains the
+// sole source of truth and re-validates every command on submission.
+// M3 covers LOBBY and ROLE_REVEAL (identity reveal); later gameplay phases
+// (TEAM_PROPOSAL onward) are left as an explicit follow-up for a later slice.
+function computeAvailableActions(
+  state: GameState,
+  playerId: string,
+  hasSubmitted: boolean,
+): readonly AvailableAction[] {
+  const isHost = state.hostPlayerId === playerId;
+
+  if (state.phase === 'LOBBY') {
+    const actions: AvailableAction[] = [{ commandType: 'SetReady' }];
+    if (isHost) {
+      actions.push(
+        { commandType: 'ConfigureRoom' },
+        { commandType: 'ReorderSeats' },
+      );
+      const canStart =
+        state.players.length === state.config.playerCount &&
+        state.players.every((player) => player.ready && player.connected);
+      if (canStart) actions.push({ commandType: 'StartGame' });
+      actions.push({
+        commandType: 'KickLobbyPlayer',
+        eligibleTargetPlayerIds: state.players
+          .filter((player) => player.playerId !== playerId)
+          .map((player) => player.playerId),
+      });
+      actions.push({ commandType: 'CloseRoom' });
+    } else {
+      actions.push({ commandType: 'LeaveLobby' });
+    }
+    return actions;
+  }
+
+  if (state.phase === 'ROLE_REVEAL') {
+    if (state.phaseStage === 'HOST_HELD') {
+      return isHost ? [{ commandType: 'ContinuePhase' }] : [];
+    }
+    if (state.phaseStage === 'COLLECTING' && !hasSubmitted) {
+      return [{ commandType: 'AckRole' }];
+    }
+  }
+
+  return [];
+}
+
 function projectRoom(
   roomId: string,
   roomCode: string,
@@ -200,8 +253,9 @@ function projectRoom(
     selfRole: privateGame.selfRole ?? null,
     selfAlignment: privateGame.selfAlignment ?? null,
     knownPlayers: [...privateGame.knownPlayers],
-    // M2 deliberately does not expose M3+ gameplay actions.
-    availableActions: [],
+    availableActions: [
+      ...computeAvailableActions(state, playerId, privateGame.hasSubmitted),
+    ],
     hasSubmitted: privateGame.hasSubmitted,
     shouldPlayAudio: delivery === 'LIVE' && false,
     sessionExpiresAt: sessionExpiresAt.toISOString(),

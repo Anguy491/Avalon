@@ -18,7 +18,10 @@ export default function HomeScreen() {
   const session = useSession();
 
   useEffect(() => {
-    if (session.roomView?.public.phase === 'LOBBY') router.replace('/lobby');
+    const phase = session.roomView?.public.phase;
+    if (phase === 'LOBBY') router.replace('/lobby');
+    else if (phase === 'ROLE_REVEAL') router.replace('/role');
+    else if (phase !== undefined) router.replace('/game');
   }, [session.roomView]);
 
   return (

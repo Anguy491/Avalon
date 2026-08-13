@@ -5272,5 +5272,266 @@
         }
       }
     }
+  },
+  "commandResult": {
+    "anyOf": [
+      {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "commandId",
+          "accepted",
+          "stateVersion"
+        ],
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "accepted": {
+            "const": true,
+            "type": "boolean"
+          },
+          "stateVersion": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        }
+      },
+      {
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "commandId",
+          "accepted",
+          "error"
+        ],
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "accepted": {
+            "const": false,
+            "type": "boolean"
+          },
+          "error": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "code",
+              "diagnosticId",
+              "retryable"
+            ],
+            "properties": {
+              "code": {
+                "anyOf": [
+                  {
+                    "const": "INVALID_ROOM_CODE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ROOM_FULL",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ROOM_NOT_JOINABLE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ROOM_EXPIRED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "SESSION_INVALID",
+                    "type": "string"
+                  },
+                  {
+                    "const": "NICKNAME_CONFLICT",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_NICKNAME",
+                    "type": "string"
+                  },
+                  {
+                    "const": "NOT_HOST",
+                    "type": "string"
+                  },
+                  {
+                    "const": "NOT_LEADER",
+                    "type": "string"
+                  },
+                  {
+                    "const": "NOT_ASSASSIN",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_PHASE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_PHASE_STAGE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PHASE_HELD",
+                    "type": "string"
+                  },
+                  {
+                    "const": "STALE_VERSION",
+                    "type": "string"
+                  },
+                  {
+                    "const": "DUPLICATE_COMMAND_CONFLICT",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_CONFIG",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_SEAT_ORDER",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_TEAM_SIZE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_TEAM_MEMBER",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_VOTE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INVALID_TARGET",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PLAYER_NOT_ON_TEAM",
+                    "type": "string"
+                  },
+                  {
+                    "const": "GOOD_CANNOT_FAIL",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ALREADY_SUBMITTED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "HOST_CANNOT_LEAVE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PLAYERS_NOT_READY",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PLAYERS_OFFLINE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "AUDIO_CUE_NOT_FOUND",
+                    "type": "string"
+                  },
+                  {
+                    "const": "UPGRADE_REQUIRED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "RATE_LIMITED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "VALIDATION_ERROR",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PAYLOAD_TOO_LARGE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "UNAUTHORIZED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "INTERNAL_ERROR",
+                    "type": "string"
+                  }
+                ]
+              },
+              "diagnosticId": {
+                "minLength": 8,
+                "maxLength": 64,
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "retryAfterMs": {
+                "minimum": 0,
+                "maximum": 3600000,
+                "type": "integer"
+              },
+              "currentStateVersion": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "fieldErrors": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "additionalProperties": false,
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "reason"
+                  ],
+                  "properties": {
+                    "path": {
+                      "minLength": 1,
+                      "maxLength": 120,
+                      "type": "string"
+                    },
+                    "reason": {
+                      "anyOf": [
+                        {
+                          "const": "REQUIRED",
+                          "type": "string"
+                        },
+                        {
+                          "const": "INVALID_FORMAT",
+                          "type": "string"
+                        },
+                        {
+                          "const": "OUT_OF_RANGE",
+                          "type": "string"
+                        },
+                        {
+                          "const": "CONFLICT",
+                          "type": "string"
+                        },
+                        {
+                          "const": "DEPENDENCY",
+                          "type": "string"
+                        },
+                        {
+                          "const": "UNSUPPORTED",
+                          "type": "string"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
   }
 }

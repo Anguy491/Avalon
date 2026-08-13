@@ -209,6 +209,7 @@ export const RoomViewSchemaDocument = schemaDocument(
 
 export type PlayerSummary = Static<typeof PlayerSummarySchema>;
 export type PublicSnapshot = Static<typeof PublicSnapshotSchema>;
+export type AvailableAction = Static<typeof AvailableActionSchema>;
 export type PrivatePlayerProjection = Static<
   typeof PrivatePlayerProjectionSchema
 >;

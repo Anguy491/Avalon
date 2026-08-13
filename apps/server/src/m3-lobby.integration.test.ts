@@ -7,7 +7,7 @@ import postgres from 'postgres';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import type { Command, CreateRoomRequest } from '@avalon/protocol';
-import type { GameState } from '@avalon/game-engine';
+import type { GameState, RoleId } from '@avalon/game-engine';
 
 import { CommandService } from './command-service.js';
 import type { ServerConfig } from './config.js';
@@ -58,13 +58,17 @@ function createTestPorts(): TestPorts {
 function createRequest(
   nickname = 'Arthur',
   playerCount = 5,
+  roleSelection: CreateRoomRequest['config']['roleSelection'] = {
+    type: 'PRESET',
+    presetId: 'CLASSIC',
+  },
 ): CreateRoomRequest {
   return {
     nickname,
     config: {
       rulesVersion: 'CLASSIC_AVALON_V1',
       playerCount,
-      roleSelection: { type: 'PRESET', presetId: 'CLASSIC' },
+      roleSelection,
       locale: 'zh-CN',
     },
     client: {
@@ -135,10 +139,11 @@ async function prepareLobbyRoster(
   service: RoomService,
   playerCount: number,
   commandIdBase: number,
+  roleSelection?: CreateRoomRequest['config']['roleSelection'],
 ): Promise<Roster> {
   const created = await service.createRoom(
     id(commandIdBase),
-    createRequest('HostArthur', playerCount),
+    createRequest('HostArthur', playerCount, roleSelection),
   );
   const members: RosterMember[] = [
     {
@@ -189,7 +194,13 @@ function lobbyCommand(
         readonly type: 'KickLobbyPlayer';
         readonly payload: { readonly targetPlayerId: string };
       }
-    | { readonly type: 'CloseRoom'; readonly payload: Record<string, never> },
+    | { readonly type: 'CloseRoom'; readonly payload: Record<string, never> }
+    | { readonly type: 'StartGame'; readonly payload: Record<string, never> }
+    | {
+        readonly type: 'ContinuePhase';
+        readonly payload: Record<string, never>;
+      }
+    | { readonly type: 'AckRole'; readonly payload: Record<string, never> },
 ): Command {
   return {
     commandId,
@@ -198,6 +209,49 @@ function lobbyCommand(
     sentAt: '2026-08-13T10:00:00.000Z',
     ...body,
   } as Command;
+}
+
+async function readyRosterAndStart(
+  roomService: RoomService,
+  commands: CommandService,
+  roster: Roster,
+  commandIdBase: number,
+): Promise<{
+  readonly contexts: readonly Awaited<
+    ReturnType<RoomService['authenticate']>
+  >[];
+  readonly stateVersion: number;
+}> {
+  const contexts = await Promise.all(
+    roster.members.map((current) =>
+      roomService.authenticate(current.sessionToken),
+    ),
+  );
+  let stateVersion = roster.stateVersion;
+  for (const [index, context] of contexts.entries()) {
+    const ready = await commands.submit(
+      context,
+      lobbyCommand(id(commandIdBase + index), roster.roomId, stateVersion, {
+        type: 'SetReady',
+        payload: { ready: true },
+      }),
+    );
+    if (!ready.accepted) throw new Error('expected SetReady to succeed');
+    stateVersion = ready.stateVersion;
+  }
+  const host = contexts[0];
+  if (host === undefined) throw new Error('Missing host context');
+  const started = await commands.submit(
+    host,
+    lobbyCommand(
+      id(commandIdBase + contexts.length),
+      roster.roomId,
+      stateVersion,
+      { type: 'StartGame', payload: {} },
+    ),
+  );
+  if (!started.accepted) throw new Error('expected StartGame to succeed');
+  return { contexts, stateVersion: started.stateVersion };
 }
 
 describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, and concurrency', () => {
@@ -338,6 +392,311 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
         .map((p) => p.playerId)
         .sort(),
     ).toEqual([player0.playerId, player1.playerId].sort());
+  });
+
+  it('projects availableActions by role, gates StartGame on readiness, and lists eligible kick targets', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commands = new CommandService(sql, config, testPorts.ports);
+    const roster = await prepareLobbyRoster(roomService, 5, 220);
+    const host = member(roster, 0);
+    const guest = member(roster, 1);
+
+    const hostView = (await roomService.readCurrentView(host.sessionToken))
+      .roomView;
+    expect(
+      hostView.private.availableActions.map((a) => a.commandType).sort(),
+    ).toEqual(
+      [
+        'ConfigureRoom',
+        'ReorderSeats',
+        'KickLobbyPlayer',
+        'CloseRoom',
+        'SetReady',
+      ].sort(),
+    );
+    const kickAction = hostView.private.availableActions.find(
+      (a) => a.commandType === 'KickLobbyPlayer',
+    );
+    expect(kickAction?.eligibleTargetPlayerIds?.sort()).toEqual(
+      roster.members
+        .slice(1)
+        .map((m) => m.playerId)
+        .sort(),
+    );
+    // Not yet all-ready: StartGame must not be offered.
+    expect(
+      hostView.private.availableActions.some(
+        (a) => a.commandType === 'StartGame',
+      ),
+    ).toBe(false);
+
+    const guestView = (await roomService.readCurrentView(guest.sessionToken))
+      .roomView;
+    expect(
+      guestView.private.availableActions.map((a) => a.commandType).sort(),
+    ).toEqual(['SetReady', 'LeaveLobby'].sort());
+
+    // Bring everyone to ready; then the host should see StartGame appear.
+    let version = roster.stateVersion;
+    for (const [index, current] of roster.members.entries()) {
+      const context = await roomService.authenticate(current.sessionToken);
+      const result = await commands.submit(
+        context,
+        lobbyCommand(id(221 + index), roster.roomId, version, {
+          type: 'SetReady',
+          payload: { ready: true },
+        }),
+      );
+      if (!result.accepted) throw new Error('expected SetReady to succeed');
+      version = result.stateVersion;
+    }
+    const hostViewReady = (await roomService.readCurrentView(host.sessionToken))
+      .roomView;
+    expect(
+      hostViewReady.private.availableActions.some(
+        (a) => a.commandType === 'StartGame',
+      ),
+    ).toBe(true);
+  });
+
+  it('SM-007–SM-009 projects ContinuePhase/AckRole through the complete role-reveal gate without exposing who is pending', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commands = new CommandService(sql, config, testPorts.ports);
+    const roster = await prepareLobbyRoster(roomService, 5, 370);
+    const { contexts, stateVersion: startedVersion } =
+      await readyRosterAndStart(roomService, commands, roster, 380);
+    const host = contexts[0];
+    const guest = contexts[1];
+    if (host === undefined || guest === undefined) {
+      throw new Error('Expected host and guest contexts');
+    }
+
+    const hostHeld = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    const guestHeld = await roomService.readCurrentView(
+      member(roster, 1).sessionToken,
+    );
+    expect(hostHeld.roomView.public).toMatchObject({
+      phase: 'ROLE_REVEAL',
+      phaseStage: 'HOST_HELD',
+      submissionProgress: { submittedCount: 0, requiredCount: 5 },
+    });
+    expect(
+      hostHeld.roomView.private.availableActions.map(
+        (action) => action.commandType,
+      ),
+    ).toEqual(['ContinuePhase']);
+    expect(guestHeld.roomView.private.availableActions).toEqual([]);
+
+    const continued = await commands.submit(
+      host,
+      lobbyCommand(id(390), roster.roomId, startedVersion, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!continued.accepted) throw new Error('expected ContinuePhase to pass');
+
+    for (const current of roster.members) {
+      const collecting = await roomService.readCurrentView(
+        current.sessionToken,
+      );
+      expect(collecting.roomView.public.phaseStage).toBe('COLLECTING');
+      expect(
+        collecting.roomView.private.availableActions.map(
+          (action) => action.commandType,
+        ),
+      ).toEqual(['AckRole']);
+    }
+
+    const firstAck = await commands.submit(
+      guest,
+      lobbyCommand(id(391), roster.roomId, continued.stateVersion, {
+        type: 'AckRole',
+        payload: {},
+      }),
+    );
+    if (!firstAck.accepted) throw new Error('expected AckRole to pass');
+    const guestAfterAck = await roomService.readCurrentView(
+      member(roster, 1).sessionToken,
+    );
+    expect(guestAfterAck.roomView.private).toMatchObject({
+      hasSubmitted: true,
+      availableActions: [],
+    });
+    expect(guestAfterAck.roomView.public.submissionProgress).toEqual({
+      submittedCount: 1,
+      requiredCount: 5,
+    });
+    expect(guestAfterAck.roomView.public).not.toHaveProperty(
+      'submittedPlayerIds',
+    );
+
+    let version = firstAck.stateVersion;
+    for (const [index, context] of contexts.entries()) {
+      if (index === 1) continue;
+      const acknowledgement = await commands.submit(
+        context,
+        lobbyCommand(id(392 + index), roster.roomId, version, {
+          type: 'AckRole',
+          payload: {},
+        }),
+      );
+      if (!acknowledgement.accepted) {
+        throw new Error('expected remaining AckRole to pass');
+      }
+      version = acknowledgement.stateVersion;
+    }
+    const afterAll = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    expect(afterAll.roomView.public).toMatchObject({
+      phase: 'TEAM_PROPOSAL',
+      phaseStage: 'HOST_HELD',
+    });
+    expect(afterAll.roomView.private.selfRole).not.toBeNull();
+  });
+
+  it('RULE-006–RULE-007 / AC-008 sends each 10-player special-role knowledge projection only to its bound session', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commands = new CommandService(sql, config, testPorts.ports);
+    const roleIds: RoleId[] = [
+      'MERLIN',
+      'PERCIVAL',
+      'LOYAL_SERVANT',
+      'LOYAL_SERVANT',
+      'LOYAL_SERVANT',
+      'LOYAL_SERVANT',
+      'ASSASSIN',
+      'MORGANA',
+      'MORDRED',
+      'OBERON',
+    ];
+    const roster = await prepareLobbyRoster(roomService, 10, 410, {
+      type: 'CUSTOM',
+      roleIds,
+    });
+    const { stateVersion } = await readyRosterAndStart(
+      roomService,
+      commands,
+      roster,
+      430,
+    );
+    const [row] = await sql<{ readonly aggregate: unknown }[]>`
+      select aggregate from avalon_runtime.rooms where room_id = ${roster.roomId}
+    `;
+    const state =
+      typeof row?.aggregate === 'string'
+        ? (JSON.parse(row.aggregate) as GameState)
+        : (row?.aggregate as GameState);
+    const roleFor = (playerId: string) => {
+      const roleId = state.roleAssignments[playerId];
+      if (roleId === undefined) throw new Error('Missing role assignment');
+      return roleId;
+    };
+    const evilRoles = new Set<RoleId>([
+      'ASSASSIN',
+      'MINION',
+      'MORGANA',
+      'MORDRED',
+      'OBERON',
+    ]);
+    const isEvil = (roleId: RoleId) => evilRoles.has(roleId);
+    const expectedKnowledge = (viewerId: string) => {
+      const viewerRole = roleFor(viewerId);
+      if (viewerRole === 'MERLIN') {
+        return state.players
+          .filter((player) => {
+            const roleId = roleFor(player.playerId);
+            return isEvil(roleId) && roleId !== 'MORDRED';
+          })
+          .map((player) => ({
+            playerId: player.playerId,
+            knowledgeLabel: 'EVIL_PLAYER' as const,
+          }));
+      }
+      if (viewerRole === 'PERCIVAL') {
+        return state.players
+          .filter((player) => {
+            const roleId = roleFor(player.playerId);
+            return roleId === 'MERLIN' || roleId === 'MORGANA';
+          })
+          .map((player) => ({
+            playerId: player.playerId,
+            knowledgeLabel: 'MERLIN_CANDIDATE' as const,
+          }));
+      }
+      if (isEvil(viewerRole) && viewerRole !== 'OBERON') {
+        return state.players
+          .filter((player) => {
+            const roleId = roleFor(player.playerId);
+            return (
+              player.playerId !== viewerId &&
+              isEvil(roleId) &&
+              roleId !== 'OBERON'
+            );
+          })
+          .map((player) => ({
+            playerId: player.playerId,
+            knowledgeLabel: 'KNOWN_EVIL_ALLY' as const,
+          }));
+      }
+      return [];
+    };
+
+    const views = await Promise.all(
+      roster.members.map(async (current) => ({
+        playerId: current.playerId,
+        sessionToken: current.sessionToken,
+        roomView: (await roomService.readCurrentView(current.sessionToken))
+          .roomView,
+      })),
+    );
+    for (const { playerId, sessionToken, roomView } of views) {
+      const ownRole = roleFor(playerId);
+      expect(roomView.private).toMatchObject({
+        playerId,
+        selfRole: ownRole,
+        selfAlignment: isEvil(ownRole) ? 'EVIL' : 'GOOD',
+        knownPlayers: expectedKnowledge(playerId),
+      });
+      expect(roomView.public.revealedAssignments).toEqual([]);
+      expect(roomView.public).not.toHaveProperty('roleAssignments');
+      expect(roomView.public).not.toHaveProperty('privateKnowledge');
+      expect(JSON.stringify(roomView)).not.toContain(sessionToken);
+    }
+
+    const [startEvent] = await sql<{ readonly event_id: string }[]>`
+      select event_id
+        from avalon_runtime.outbox
+       where room_id = ${roster.roomId}
+         and state_version = ${stateVersion}
+    `;
+    if (startEvent === undefined)
+      throw new Error('Missing StartGame outbox row');
+    const publisher = new MemoryPublisher();
+    const worker = new OutboxWorker(sql, publisher, testPorts.ports, {
+      workerId: id(450),
+      batchSize: 500,
+    });
+    await worker.drainOnce();
+    const startDeliveries = publisher.deliveries.filter(
+      (delivery) =>
+        delivery.message.roomView.public.roomId === roster.roomId &&
+        delivery.eventId === startEvent.event_id,
+    );
+    expect(startDeliveries).toHaveLength(10);
+    for (const delivery of startDeliveries) {
+      expect(delivery.message.roomView.private).toMatchObject({
+        playerId: delivery.playerId,
+        selfRole: roleFor(delivery.playerId),
+        knownPlayers: expectedKnowledge(delivery.playerId),
+      });
+    }
   });
 
   it('SM-004 ConfigureRoom resets readiness for every player and rejects illegal actors/configs', async () => {

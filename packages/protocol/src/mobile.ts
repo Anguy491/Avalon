@@ -1,5 +1,6 @@
 import generatedContracts from './generated/mobile-contracts.json' with { type: 'json' };
 import type {
+  CommandResult,
   ErrorResponse,
   ReadRoomViewResponse,
   RoomViewMessage,
@@ -40,6 +41,7 @@ interface MobileContracts {
   readonly roomViewMessage: JsonSchema;
   readonly sessionBootstrap: JsonSchema;
   readonly sessionReady: JsonSchema;
+  readonly commandResult: JsonSchema;
 }
 
 const contracts = generatedContracts as unknown as MobileContracts;
@@ -214,8 +216,15 @@ export function isSessionReady(value: unknown): value is SessionReady {
   return matchesSchema(contracts.sessionReady, value);
 }
 
+export function isCommandResult(value: unknown): value is CommandResult {
+  return matchesSchema(contracts.commandResult, value);
+}
+
 export type {
   ClientCapabilities,
+  Command,
+  CommandResult,
+  CommandType,
   CreateRoomRequest,
   ErrorCode,
   ErrorDetail,

@@ -725,7 +725,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
         selfRole: null,
         selfAlignment: null,
         knownPlayers: [],
-        availableActions: [],
+        availableActions: [
+          { commandType: 'SetReady' },
+          { commandType: 'LeaveLobby' },
+        ],
         hasSubmitted: false,
         shouldPlayAudio: false,
       });
