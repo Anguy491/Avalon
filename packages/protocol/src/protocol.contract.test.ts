@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   commandFixtures,
+  lobbyRoomView,
   roomViewForRole,
   UUIDS,
 } from './contract-fixtures.js';
 import {
   CommandSchemaDocument,
+  CommandTypeSchema,
+  ErrorCodeSchema,
   ErrorSchemaDocument,
   HttpSchemaDocument,
   RoomConfigSchemaDocument,
@@ -93,6 +96,203 @@ describe('TEST-contract / M0-005 command schemas', () => {
         payload: { teamPlayerIds: [UUIDS.players[0], UUIDS.players[0]] },
       }),
     ).toBe(false);
+  });
+});
+
+describe('TEST-contract / M3 lobby command and error code drift guard', () => {
+  // These literal lists mirror the authoritative unions declared in
+  // packages/game-engine/src/types.ts (`GameCommand`, `EngineErrorCode`).
+  // game-engine intentionally does not depend on packages/protocol (and vice
+  // versa, per ADR-007), so this list is kept in manual sync and this test
+  // is the regression guard: if either side gains/loses a member without the
+  // other being updated, one of the two assertions below fails.
+  const engineCommandTypes = [
+    'ConfigureRoom',
+    'ReorderSeats',
+    'SetReady',
+    'StartGame',
+    'ContinuePhase',
+    'AckRole',
+    'SubmitTeam',
+    'SubmitTeamVote',
+    'SubmitQuestChoice',
+    'SelectMerlinTarget',
+    'PauseGame',
+    'ResumeGame',
+    'ReplayAudioCue',
+    'LeaveLobby',
+    'KickLobbyPlayer',
+    'CloseRoom',
+  ] as const;
+
+  // Subset of ErrorCodeSchema produced by the game engine itself; the
+  // remaining ErrorCodeSchema members are transport/session/HTTP-boundary
+  // codes raised outside the engine (apps/server, Fastify validation, etc.).
+  const engineErrorCodes = [
+    'STALE_VERSION',
+    'DUPLICATE_COMMAND_CONFLICT',
+    'NOT_HOST',
+    'NOT_LEADER',
+    'NOT_ASSASSIN',
+    'INVALID_PHASE',
+    'INVALID_PHASE_STAGE',
+    'PLAYERS_NOT_READY',
+    'PLAYERS_OFFLINE',
+    'INVALID_CONFIG',
+    'INVALID_SEAT_ORDER',
+    'INVALID_TEAM_SIZE',
+    'INVALID_TEAM_MEMBER',
+    'INVALID_TARGET',
+    'PLAYER_NOT_ON_TEAM',
+    'GOOD_CANNOT_FAIL',
+    'ALREADY_SUBMITTED',
+    'HOST_CANNOT_LEAVE',
+    'AUDIO_CUE_NOT_FOUND',
+  ] as const;
+
+  function literalsOf(schema: unknown): string[] {
+    const anyOf = (schema as { anyOf?: readonly { const?: unknown }[] }).anyOf;
+    if (!anyOf) throw new Error('expected a TypeBox literal union schema');
+    return anyOf.map((member) => {
+      if (typeof member.const !== 'string') {
+        throw new Error('expected a string const literal');
+      }
+      return member.const;
+    });
+  }
+
+  it('CommandTypeSchema exactly matches the game-engine GameCommand union', () => {
+    expect(literalsOf(CommandTypeSchema).sort()).toEqual(
+      [...engineCommandTypes].sort(),
+    );
+  });
+
+  it('ErrorCodeSchema is a superset of the game-engine EngineErrorCode union', () => {
+    const declared = new Set(literalsOf(ErrorCodeSchema));
+    for (const code of engineErrorCodes) {
+      expect(declared.has(code), `missing ErrorCode literal: ${code}`).toBe(
+        true,
+      );
+    }
+  });
+
+  it('every lobby command fixture round-trips through CommandSchema', () => {
+    const lobbyTypes = new Set([
+      'ConfigureRoom',
+      'ReorderSeats',
+      'SetReady',
+      'LeaveLobby',
+      'KickLobbyPlayer',
+      'CloseRoom',
+    ]);
+    const covered = new Set(
+      commandFixtures
+        .filter((command) => lobbyTypes.has(command.type))
+        .map((command) => command.type),
+    );
+    expect(covered).toEqual(lobbyTypes);
+  });
+
+  it('rejects a ConfigureRoom with a CUSTOM roleSelection outside role-id bounds', () => {
+    const invalid = {
+      ...(commandFixtures.find(
+        (command) => command.type === 'ConfigureRoom',
+      ) as (typeof commandFixtures)[number]),
+      payload: {
+        config: {
+          rulesVersion: 'CLASSIC_AVALON_V1',
+          playerCount: 5,
+          roleSelection: { type: 'CUSTOM', roleIds: ['MERLIN'] },
+          locale: 'zh-CN',
+        },
+      },
+    };
+    expect(validateCommand(invalid)).toBe(false);
+  });
+
+  it('accepts a ConfigureRoom with a valid CUSTOM roleSelection', () => {
+    const valid = {
+      ...(commandFixtures.find(
+        (command) => command.type === 'ConfigureRoom',
+      ) as (typeof commandFixtures)[number]),
+      payload: {
+        config: {
+          rulesVersion: 'CLASSIC_AVALON_V1',
+          playerCount: 5,
+          roleSelection: {
+            type: 'CUSTOM',
+            roleIds: [
+              'MERLIN',
+              'LOYAL_SERVANT',
+              'LOYAL_SERVANT',
+              'ASSASSIN',
+              'MINION',
+            ],
+          },
+          locale: 'zh-CN',
+        },
+      },
+    };
+    expect(validateCommand(valid), JSON.stringify(validateCommand.errors)).toBe(
+      true,
+    );
+  });
+
+  it('rejects a ReorderSeats payload with duplicate playerIds', () => {
+    const invalid = {
+      ...(commandFixtures.find(
+        (command) => command.type === 'ReorderSeats',
+      ) as (typeof commandFixtures)[number]),
+      payload: { playerIds: [UUIDS.players[0], UUIDS.players[0]] },
+    };
+    expect(validateCommand(invalid)).toBe(false);
+  });
+
+  it('rejects a SetReady payload missing the ready flag', () => {
+    const invalid = {
+      ...(commandFixtures.find(
+        (command) => command.type === 'SetReady',
+      ) as (typeof commandFixtures)[number]),
+      payload: {},
+    };
+    expect(validateCommand(invalid)).toBe(false);
+  });
+
+  it('rejects LeaveLobby/CloseRoom payloads carrying unexpected fields', () => {
+    for (const type of ['LeaveLobby', 'CloseRoom'] as const) {
+      const fixture = commandFixtures.find(
+        (command) => command.type === type,
+      ) as (typeof commandFixtures)[number];
+      expect(validateCommand({ ...fixture, payload: { extra: 1 } })).toBe(
+        false,
+      );
+    }
+  });
+
+  it('accepts LOBBY-phase RoomView projections with populated availableActions', () => {
+    const hostView = lobbyRoomView(true);
+    expect(
+      validateRoomView(hostView),
+      JSON.stringify(validateRoomView.errors),
+    ).toBe(true);
+    expect(
+      hostView.private.availableActions.map((action) => action.commandType),
+    ).toEqual([
+      'ConfigureRoom',
+      'ReorderSeats',
+      'SetReady',
+      'KickLobbyPlayer',
+      'CloseRoom',
+    ]);
+
+    const guestView = lobbyRoomView(false);
+    expect(
+      validateRoomView(guestView),
+      JSON.stringify(validateRoomView.errors),
+    ).toBe(true);
+    expect(
+      guestView.private.availableActions.map((action) => action.commandType),
+    ).toEqual(['SetReady', 'LeaveLobby']);
   });
 });
 

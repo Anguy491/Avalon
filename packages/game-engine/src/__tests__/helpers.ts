@@ -11,6 +11,7 @@ import {
   type QuestChoice,
   type RoleId,
   type RoomConfig,
+  type RoomConfigInput,
   type TeamVote,
 } from '../index.js';
 
@@ -79,7 +80,13 @@ export type TestCommandBody =
   | { readonly type: 'SelectMerlinTarget'; readonly targetPlayerId: string }
   | { readonly type: 'PauseGame' }
   | { readonly type: 'ResumeGame' }
-  | { readonly type: 'ReplayAudioCue'; readonly audioCueId: string };
+  | { readonly type: 'ReplayAudioCue'; readonly audioCueId: string }
+  | { readonly type: 'ConfigureRoom'; readonly configInput: RoomConfigInput }
+  | { readonly type: 'ReorderSeats'; readonly playerIds: readonly string[] }
+  | { readonly type: 'SetReady'; readonly ready: boolean }
+  | { readonly type: 'LeaveLobby' }
+  | { readonly type: 'KickLobbyPlayer'; readonly targetPlayerId: string }
+  | { readonly type: 'CloseRoom' };
 
 export function command(
   state: GameState,
@@ -202,6 +209,22 @@ export function settleQuest(
     );
   }
   return next;
+}
+
+export function lobbyState(count: PlayerCount): GameState {
+  return createInitialGameState(config(count), players(count));
+}
+
+export function configInput(
+  playerCount: number,
+  presetId: 'CLASSIC' | 'COMMON_ROLES' = 'CLASSIC',
+): RoomConfigInput {
+  return {
+    rulesVersion: 'CLASSIC_AVALON_V1',
+    playerCount,
+    roleSelection: { type: 'PRESET', presetId },
+    locale: 'zh-CN',
+  };
 }
 
 export function teamForQuest(

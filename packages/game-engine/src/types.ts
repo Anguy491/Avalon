@@ -183,7 +183,30 @@ export interface AudioCueRequestedEffect {
   readonly cue: AudioCue;
 }
 
-export type DomainEffect = AudioCueRequestedEffect;
+/**
+ * Requests that the application layer revoke the named player's session(s).
+ * The engine never touches sessions, tokens, or transport concerns itself;
+ * it only declares that a lobby departure/removal occurred.
+ */
+export interface SessionRevokeRequestedEffect {
+  readonly type: 'SESSION_REVOKE_REQUESTED';
+  readonly playerId: string;
+}
+
+/**
+ * Requests that the application layer delete the room record, release the
+ * room code, and revoke every remaining session. The engine does not model a
+ * terminal "closed" phase because the persisted aggregate is deleted by the
+ * application layer in the same transaction that accepts this command.
+ */
+export interface RoomCloseRequestedEffect {
+  readonly type: 'ROOM_CLOSE_REQUESTED';
+}
+
+export type DomainEffect =
+  | AudioCueRequestedEffect
+  | SessionRevokeRequestedEffect
+  | RoomCloseRequestedEffect;
 
 export interface ResumePoint {
   readonly phase: ActiveGamePhase;
@@ -275,7 +298,25 @@ export type GameCommand =
   | (CommandEnvelope & {
       readonly type: 'ReplayAudioCue';
       readonly audioCueId: string;
-    });
+    })
+  | (CommandEnvelope & {
+      readonly type: 'ConfigureRoom';
+      readonly configInput: RoomConfigInput;
+    })
+  | (CommandEnvelope & {
+      readonly type: 'ReorderSeats';
+      readonly playerIds: readonly string[];
+    })
+  | (CommandEnvelope & {
+      readonly type: 'SetReady';
+      readonly ready: boolean;
+    })
+  | (CommandEnvelope & { readonly type: 'LeaveLobby' })
+  | (CommandEnvelope & {
+      readonly type: 'KickLobbyPlayer';
+      readonly targetPlayerId: string;
+    })
+  | (CommandEnvelope & { readonly type: 'CloseRoom' });
 
 export type EngineErrorCode =
   | 'STALE_VERSION'
@@ -288,12 +329,14 @@ export type EngineErrorCode =
   | 'PLAYERS_NOT_READY'
   | 'PLAYERS_OFFLINE'
   | 'INVALID_CONFIG'
+  | 'INVALID_SEAT_ORDER'
   | 'INVALID_TEAM_SIZE'
   | 'INVALID_TEAM_MEMBER'
   | 'INVALID_TARGET'
   | 'PLAYER_NOT_ON_TEAM'
   | 'GOOD_CANNOT_FAIL'
   | 'ALREADY_SUBMITTED'
+  | 'HOST_CANNOT_LEAVE'
   | 'AUDIO_CUE_NOT_FOUND';
 
 export interface AcceptedCommandResult {

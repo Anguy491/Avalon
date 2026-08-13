@@ -114,7 +114,7 @@ function chooseVoicePack(client: ClientCapabilities): string | undefined {
   return client.voicePackVersions.includes('zh-CN-v1') ? 'zh-CN-v1' : undefined;
 }
 
-function toEngineConfig(
+export function toEngineConfig(
   input: CreateRoomRequest['config'],
 ): EngineRoomConfigInput {
   return {

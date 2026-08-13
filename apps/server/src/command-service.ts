@@ -2,6 +2,7 @@ import type postgres from 'postgres';
 
 import {
   executeCommand,
+  type DomainEffect,
   type EnginePorts,
   type GameCommand,
   type GameState,
@@ -12,13 +13,14 @@ import {
   type Command,
   type CommandResult,
   type ErrorCode,
+  type RoomConfigInput,
 } from '@avalon/protocol';
 
 import type { ServerConfig } from './config.js';
 import type { RuntimePorts } from './runtime-ports.js';
 import { decryptJson, encryptJson, sha256Digest } from './security.js';
 import type { SessionContext } from './session-context.js';
-import { stateFrom } from './room-service.js';
+import { stateFrom, toEngineConfig } from './room-service.js';
 
 const SCHEMA = 'avalon_runtime';
 const SCOPE = 'SOCKET command.submit';
@@ -70,7 +72,7 @@ function toEngineCommand(
   command: Command,
   context: SessionContext,
   requestDigest: string,
-): GameCommand | undefined {
+): GameCommand {
   const envelope = {
     commandId: command.commandId,
     requestDigest,
@@ -120,13 +122,41 @@ function toEngineCommand(
         audioCueId: (command.payload as { readonly audioCueId: string })
           .audioCueId,
       };
-    case 'ConfigureRoom':
+    case 'ConfigureRoom': {
+      const payload = command.payload as { readonly config: RoomConfigInput };
+      return {
+        ...envelope,
+        type: command.type,
+        configInput: toEngineConfig(payload.config),
+      };
+    }
     case 'ReorderSeats':
+      return {
+        ...envelope,
+        type: command.type,
+        playerIds: (
+          command.payload as { readonly playerIds: readonly string[] }
+        ).playerIds,
+      };
     case 'SetReady':
+      return {
+        ...envelope,
+        type: command.type,
+        ready: (command.payload as { readonly ready: boolean }).ready,
+      };
     case 'LeaveLobby':
+      return { ...envelope, type: command.type };
     case 'KickLobbyPlayer':
+      return {
+        ...envelope,
+        type: command.type,
+        targetPlayerId: (command.payload as { readonly targetPlayerId: string })
+          .targetPlayerId,
+      };
     case 'CloseRoom':
-      return undefined;
+      return { ...envelope, type: command.type };
+    default:
+      throw new RangeError(`Unhandled command type: ${command.type}`);
   }
 }
 
@@ -207,14 +237,6 @@ export class CommandService {
       }
       const state = stateFrom(room.aggregate);
       const engineCommand = toEngineCommand(command, context, requestHash);
-      if (engineCommand === undefined) {
-        return rejected(
-          command.commandId,
-          'INVALID_PHASE',
-          state.stateVersion,
-          this.ports,
-        );
-      }
       const transition = executeCommand(
         state,
         engineCommand,
@@ -239,6 +261,23 @@ export class CommandService {
         accepted: true,
         stateVersion: transition.result.stateVersion,
       };
+
+      const closesRoom = transition.effects.some(
+        (effect) => effect.type === 'ROOM_CLOSE_REQUESTED',
+      );
+      if (closesRoom) {
+        // Deleting the room cascades to players, sessions, processed_commands,
+        // and outbox rows (see migration 000002 onDelete: 'CASCADE'). There is
+        // nothing left to persist for idempotency: any retried command against
+        // this room will fail SESSION_INVALID once the actor's own session row
+        // is gone, which is a safe terminal response.
+        await sql`
+          delete from ${sql(SCHEMA)}.rooms where room_id = ${context.roomId}
+        `;
+        this.beforeCommit?.();
+        return response;
+      }
+
       const encrypted = encryptJson(
         response,
         this.config.idempotencyEncryptionSecret,
@@ -272,8 +311,38 @@ export class CommandService {
            ${storedState.stateVersion}, 'ROOM_VIEW_CHANGED', ${now}, ${now})
         on conflict (room_id, state_version, event_type) do nothing
       `;
+      await this.revokeSessionEffects(
+        sql,
+        context.roomId,
+        transition.effects,
+        now,
+      );
       this.beforeCommit?.();
       return response;
     });
+  }
+
+  /**
+   * Consumes SESSION_REVOKE_REQUESTED domain effects (LeaveLobby,
+   * KickLobbyPlayer). This never deletes rows: it marks sessions revoked so
+   * the outbox worker and command-service authentication paths stop treating
+   * them as live, while preserving processed_commands/foreign-key integrity.
+   */
+  private async revokeSessionEffects(
+    sql: postgres.TransactionSql,
+    roomId: string,
+    effects: readonly DomainEffect[],
+    now: Date,
+  ): Promise<void> {
+    for (const effect of effects) {
+      if (effect.type !== 'SESSION_REVOKE_REQUESTED') continue;
+      await sql`
+        update ${sql(SCHEMA)}.sessions
+           set revoked_at = ${now}
+         where room_id = ${roomId}
+           and player_id = ${effect.playerId}
+           and revoked_at is null
+      `;
+    }
   }
 }

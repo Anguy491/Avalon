@@ -3,6 +3,7 @@ import { calculatePrivateKnowledge } from './knowledge.js';
 import { randomIndex, shuffle } from './random.js';
 import {
   alignmentForRole,
+  normalizeRoomConfig,
   requiredFails,
   requiredTeamSize,
   validateRoomConfig,
@@ -611,6 +612,136 @@ function replayAudioCue(
   ]);
 }
 
+function reseatContiguously(players: readonly Player[]): readonly Player[] {
+  return players
+    .slice()
+    .sort((left, right) => left.seat - right.seat)
+    .map((player, seat) => ({ ...player, seat }));
+}
+
+function resetReadyForAll(players: readonly Player[]): readonly Player[] {
+  return players.map((player) => ({ ...player, ready: false }));
+}
+
+function configureRoom(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'ConfigureRoom' }>,
+): HandlerResult {
+  if (command.actorPlayerId !== state.hostPlayerId) return failure('NOT_HOST');
+  if (state.phase !== 'LOBBY') return failure('INVALID_PHASE');
+  const result = normalizeRoomConfig(
+    command.configInput,
+    state.config.voicePackVersion,
+  );
+  if (!result.ok) return failure('INVALID_CONFIG');
+  if (result.config.playerCount < state.players.length) {
+    // Never silently drop players: the host must reduce the lobby first.
+    return failure('INVALID_CONFIG');
+  }
+  return success({
+    ...state,
+    config: result.config,
+    players: resetReadyForAll(state.players),
+  });
+}
+
+function reorderSeats(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'ReorderSeats' }>,
+): HandlerResult {
+  if (command.actorPlayerId !== state.hostPlayerId) return failure('NOT_HOST');
+  if (state.phase !== 'LOBBY') return failure('INVALID_PHASE');
+  const currentIds = state.players.map((player) => player.playerId);
+  const currentSet = new Set(currentIds);
+  const submittedSet = new Set(command.playerIds);
+  if (
+    command.playerIds.length !== currentIds.length ||
+    submittedSet.size !== command.playerIds.length ||
+    currentIds.some((playerId) => !submittedSet.has(playerId)) ||
+    command.playerIds.some((playerId) => !currentSet.has(playerId))
+  ) {
+    return failure('INVALID_SEAT_ORDER');
+  }
+  const bySeat = new Map(
+    state.players.map((player) => [player.playerId, player]),
+  );
+  const reordered = command.playerIds.map((playerId, seat) => {
+    const player = bySeat.get(playerId);
+    if (player === undefined) throw new RangeError('Missing reordered player');
+    return { ...player, seat };
+  });
+  return success({
+    ...state,
+    players: resetReadyForAll(reordered),
+  });
+}
+
+function setReady(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'SetReady' }>,
+): HandlerResult {
+  if (state.phase !== 'LOBBY') return failure('INVALID_PHASE');
+  const players = state.players.map((player) =>
+    player.playerId === command.actorPlayerId
+      ? { ...player, ready: command.ready }
+      : player,
+  );
+  return success({ ...state, players });
+}
+
+function leaveLobby(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'LeaveLobby' }>,
+): HandlerResult {
+  if (state.phase !== 'LOBBY') return failure('INVALID_PHASE');
+  if (command.actorPlayerId === state.hostPlayerId) {
+    return failure('HOST_CANNOT_LEAVE');
+  }
+  const remaining = state.players.filter(
+    (player) => player.playerId !== command.actorPlayerId,
+  );
+  return success(
+    {
+      ...state,
+      players: resetReadyForAll(reseatContiguously(remaining)),
+    },
+    [{ type: 'SESSION_REVOKE_REQUESTED', playerId: command.actorPlayerId }],
+  );
+}
+
+function kickLobbyPlayer(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'KickLobbyPlayer' }>,
+): HandlerResult {
+  if (command.actorPlayerId !== state.hostPlayerId) return failure('NOT_HOST');
+  if (state.phase !== 'LOBBY') return failure('INVALID_PHASE');
+  const target = state.players.find(
+    (player) => player.playerId === command.targetPlayerId,
+  );
+  if (target === undefined || target.playerId === state.hostPlayerId) {
+    return failure('INVALID_TARGET');
+  }
+  const remaining = state.players.filter(
+    (player) => player.playerId !== command.targetPlayerId,
+  );
+  return success(
+    {
+      ...state,
+      players: resetReadyForAll(reseatContiguously(remaining)),
+    },
+    [{ type: 'SESSION_REVOKE_REQUESTED', playerId: command.targetPlayerId }],
+  );
+}
+
+function closeRoom(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'CloseRoom' }>,
+): HandlerResult {
+  if (command.actorPlayerId !== state.hostPlayerId) return failure('NOT_HOST');
+  if (state.phase !== 'LOBBY') return failure('INVALID_PHASE');
+  return success(state, [{ type: 'ROOM_CLOSE_REQUESTED' }]);
+}
+
 function dispatch(
   state: GameState,
   command: GameCommand,
@@ -642,6 +773,18 @@ function dispatch(
       return resumeGame(state, command);
     case 'ReplayAudioCue':
       return replayAudioCue(state, command, ports);
+    case 'ConfigureRoom':
+      return configureRoom(state, command);
+    case 'ReorderSeats':
+      return reorderSeats(state, command);
+    case 'SetReady':
+      return setReady(state, command);
+    case 'LeaveLobby':
+      return leaveLobby(state, command);
+    case 'KickLobbyPlayer':
+      return kickLobbyPlayer(state, command);
+    case 'CloseRoom':
+      return closeRoom(state, command);
   }
 }
 

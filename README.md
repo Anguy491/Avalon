@@ -18,6 +18,8 @@ pnpm dev
 
 移动端 Metro 默认使用 Expo Development Build；也可先执行 `pnpm --filter @avalon/mobile start --go` 走 Expo Go 基础导航回路。服务端存活与就绪端点分别是 `GET /v1/health/live`、`GET /v1/health/ready`。
 
+或在mobile目录下运行`pnpm exec expo start --dev-client --clear`启动应用。
+
 完整配置、验证命令和故障排查见 [M0 开发指南](./docs/development.zh-CN.md)。
 
 ## 文档入口

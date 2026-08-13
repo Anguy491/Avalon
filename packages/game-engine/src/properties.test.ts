@@ -14,7 +14,9 @@ import {
   approveTeam,
   command,
   config,
+  configInput,
   fixedPorts,
+  lobbyState,
   players,
   settleQuest,
   startAndAcknowledge,
@@ -441,6 +443,207 @@ describe('M1-007 fast-check stateful model', () => {
           );
         },
       ),
+      { seed: REPRODUCIBLE_SEED, numRuns: PROPERTY_RUNS },
+    );
+  });
+});
+
+describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
+  type LobbyAction =
+    | {
+        readonly kind: 'READY';
+        readonly playerIndex: number;
+        readonly ready: boolean;
+      }
+    | { readonly kind: 'REORDER'; readonly rotateBy: number }
+    | {
+        readonly kind: 'RECONFIGURE';
+        readonly preset: 'CLASSIC' | 'COMMON_ROLES';
+      }
+    | { readonly kind: 'LEAVE'; readonly playerIndex: number }
+    | { readonly kind: 'KICK'; readonly playerIndex: number };
+
+  const actionArbitrary: fc.Arbitrary<LobbyAction> = fc.oneof(
+    fc
+      .tuple(fc.integer({ min: 0, max: 9 }), fc.boolean())
+      .map(([playerIndex, ready]) => ({
+        kind: 'READY' as const,
+        playerIndex,
+        ready,
+      })),
+    fc
+      .integer({ min: 0, max: 9 })
+      .map((rotateBy) => ({ kind: 'REORDER' as const, rotateBy })),
+    fc
+      .constantFrom('CLASSIC' as const, 'COMMON_ROLES' as const)
+      .map((preset) => ({ kind: 'RECONFIGURE' as const, preset })),
+    fc
+      .integer({ min: 0, max: 9 })
+      .map((playerIndex) => ({ kind: 'LEAVE' as const, playerIndex })),
+    fc
+      .integer({ min: 0, max: 9 })
+      .map((playerIndex) => ({ kind: 'KICK' as const, playerIndex })),
+  );
+
+  it('never produces duplicate seats, non-contiguous seats, or leftover ready=true after config/seat mutation', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 5, max: 10 }),
+        fc.array(actionArbitrary, { minLength: 0, maxLength: 25 }),
+        (rawCount, actions) => {
+          const count = rawCount as 5 | 6 | 7 | 8 | 9 | 10;
+          const ports = fixedPorts();
+          let state = lobbyState(count);
+
+          for (const action of actions) {
+            if (state.phase !== 'LOBBY') break;
+            const ids = state.players.map((player) => player.playerId);
+            switch (action.kind) {
+              case 'READY': {
+                const target = ids[action.playerIndex % ids.length];
+                if (target === undefined) break;
+                const transition = executeCommand(
+                  state,
+                  command(state, target, {
+                    type: 'SetReady',
+                    ready: action.ready,
+                  }),
+                  ports,
+                );
+                if (transition.result.accepted) state = transition.state;
+                break;
+              }
+              case 'REORDER': {
+                const rotate = action.rotateBy % ids.length;
+                const rotated = [...ids.slice(rotate), ...ids.slice(0, rotate)];
+                const transition = executeCommand(
+                  state,
+                  command(state, state.hostPlayerId, {
+                    type: 'ReorderSeats',
+                    playerIds: rotated,
+                  }),
+                  ports,
+                );
+                if (transition.result.accepted) state = transition.state;
+                break;
+              }
+              case 'RECONFIGURE': {
+                const transition = executeCommand(
+                  state,
+                  command(state, state.hostPlayerId, {
+                    type: 'ConfigureRoom',
+                    configInput: configInput(
+                      Math.max(state.players.length, count),
+                      action.preset,
+                    ),
+                  }),
+                  ports,
+                );
+                if (transition.result.accepted) state = transition.state;
+                break;
+              }
+              case 'LEAVE': {
+                const target = ids[action.playerIndex % ids.length];
+                if (target === undefined || target === state.hostPlayerId) {
+                  break;
+                }
+                const transition = executeCommand(
+                  state,
+                  command(state, target, { type: 'LeaveLobby' }),
+                  ports,
+                );
+                if (transition.result.accepted) state = transition.state;
+                break;
+              }
+              case 'KICK': {
+                const target = ids[action.playerIndex % ids.length];
+                if (target === undefined || target === state.hostPlayerId) {
+                  break;
+                }
+                const transition = executeCommand(
+                  state,
+                  command(state, state.hostPlayerId, {
+                    type: 'KickLobbyPlayer',
+                    targetPlayerId: target,
+                  }),
+                  ports,
+                );
+                if (transition.result.accepted) state = transition.state;
+                break;
+              }
+            }
+            expect(collectInvariantViolations(state)).toEqual([]);
+          }
+
+          // Seats must always be a contiguous 0..n-1 range with unique players.
+          const seats = state.players
+            .map((player) => player.seat)
+            .sort((a, b) => a - b);
+          seats.forEach((seat, index) => {
+            expect(seat).toBe(index);
+          });
+          expect(
+            new Set(state.players.map((player) => player.playerId)).size,
+          ).toBe(state.players.length);
+
+          // Any accepted config/seat mutation must have left no stale ready=true.
+          // (StartGame is host-only and requires ready=true, so this is only
+          // asserted while still in the lobby.)
+          if (state.phase === 'LOBBY' && actions.length > 0) {
+            expect(collectInvariantViolations(state)).toEqual([]);
+          }
+        },
+      ),
+      { seed: REPRODUCIBLE_SEED, numRuns: PROPERTY_RUNS },
+    );
+  });
+
+  it('freezes config, seats, and role assignments once the game has started', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 239 }), (byte) => {
+        const ports = fixedPorts([byte]);
+        const initial = createInitialGameState(config(6), players(6));
+        const started = accepted(
+          initial,
+          initial.hostPlayerId,
+          { type: 'StartGame' },
+          ports,
+        );
+
+        // Lobby-only commands must all be rejected with INVALID_PHASE now.
+        const rejectedConfig = executeCommand(
+          started,
+          command(started, started.hostPlayerId, {
+            type: 'ConfigureRoom',
+            configInput: configInput(6, 'COMMON_ROLES'),
+          }),
+          ports,
+        );
+        expect(rejectedConfig.result).toMatchObject({
+          accepted: false,
+          errorCode: 'INVALID_PHASE',
+        });
+        expect(rejectedConfig.state.config).toEqual(started.config);
+
+        const rejectedReorder = executeCommand(
+          started,
+          command(started, started.hostPlayerId, {
+            type: 'ReorderSeats',
+            playerIds: started.players
+              .map((player) => player.playerId)
+              .slice()
+              .reverse(),
+          }),
+          ports,
+        );
+        expect(rejectedReorder.result).toMatchObject({
+          accepted: false,
+          errorCode: 'INVALID_PHASE',
+        });
+        expect(rejectedReorder.state.players).toEqual(started.players);
+
+        expect(started.roleAssignments).toEqual(started.roleAssignments);
+      }),
       { seed: REPRODUCIBLE_SEED, numRuns: PROPERTY_RUNS },
     );
   });

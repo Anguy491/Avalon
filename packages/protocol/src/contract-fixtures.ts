@@ -73,6 +73,76 @@ export function roomViewForRole(role: RoleId): RoomView {
   };
 }
 
+export function lobbyRoomView(forHost: boolean): RoomView {
+  const selfIndex = forHost ? 0 : 1;
+  return {
+    public: {
+      roomId: UUIDS.room,
+      roomCode: '7K3M9Q',
+      stateVersion: 1,
+      rulesVersion: 'CLASSIC_AVALON_V1',
+      config: {
+        rulesVersion: 'CLASSIC_AVALON_V1',
+        playerCount: 5,
+        roleIds: [
+          'MERLIN',
+          'LOYAL_SERVANT',
+          'LOYAL_SERVANT',
+          'ASSASSIN',
+          'MINION',
+        ],
+        locale: 'zh-CN',
+        voicePackVersion: 'zh-CN-v1',
+      },
+      phase: 'LOBBY',
+      phaseStage: 'COLLECTING',
+      players: UUIDS.players.map((playerId, seat) => ({
+        playerId,
+        nickname: `Player ${String(seat + 1)}`,
+        seat,
+        isHost: seat === 0,
+        ready: seat !== selfIndex,
+        connected: true,
+      })),
+      leaderPlayerId: null,
+      questIndex: null,
+      proposalAttempt: 1,
+      requiredTeamSize: null,
+      proposedTeamPlayerIds: [],
+      submissionProgress: null,
+      proposalHistory: [],
+      questHistory: [],
+      successCount: 0,
+      failureCount: 0,
+      pauseReasons: [],
+      currentAudioCue: null,
+      gameOutcome: null,
+      revealedAssignments: [],
+    },
+    private: {
+      playerId: UUIDS.players[selfIndex],
+      selfRole: null,
+      selfAlignment: null,
+      knownPlayers: [],
+      availableActions: forHost
+        ? [
+            { commandType: 'ConfigureRoom' },
+            { commandType: 'ReorderSeats' },
+            { commandType: 'SetReady' },
+            {
+              commandType: 'KickLobbyPlayer',
+              eligibleTargetPlayerIds: UUIDS.players.slice(1),
+            },
+            { commandType: 'CloseRoom' },
+          ]
+        : [{ commandType: 'SetReady' }, { commandType: 'LeaveLobby' }],
+      hasSubmitted: false,
+      shouldPlayAudio: false,
+      sessionExpiresAt: '2026-08-13T12:00:00.000Z',
+    },
+  };
+}
+
 const baseCommand = {
   commandId: UUIDS.command,
   roomId: UUIDS.room,
