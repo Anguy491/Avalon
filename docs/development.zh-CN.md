@@ -1,6 +1,6 @@
 # Avalon 本地开发、配置与验证
 
-> 状态：M0 工程基线 + M2 会话/房间增量
+> 状态：M0 工程基线 + M2 会话/房间 + M3 大厅/身份揭示增量
 >
 > 追踪：`M0-001`–`M0-009`、`ADR-001`–`ADR-007`、`TEST-contract`、`TM-002`、`TM-004`、`TM-008`
 
@@ -85,7 +85,15 @@ pnpm secret:scan
 pnpm build
 ```
 
-`pnpm test:e2e:mobile` 运行 Maestro 的 M2 原生创建/错误/拒权流程，需要已安装 Development Build、Maestro、运行中的 API 与 `npx expo start --dev-client --localhost`；Android 模拟器另需执行 `adb reverse tcp:8081 tcp:8081` 和 API 端口反向映射。`pnpm test:load` 针对已启动服务执行默认 20 个并发 10 人房（20 创建 + 180 加入），断言 HTTP 零错误与创建/加入 p95 不超过 `NFR-002` 的 2 秒；可用 `LOAD_ROOM_COUNT` 在 1–1,000 内调整。它不是 `NFR-004` 的 1,000 房/10,000 连接、持续 30 分钟发布验证。
+`pnpm test:e2e:mobile` 运行 Maestro 的 M2 原生创建/错误/拒权流程，需要已安装 Development Build、Maestro、运行中的 API 与 `npx expo start --dev-client --localhost`；Android 模拟器另需执行 `adb reverse tcp:8081 tcp:8081` 和 API 端口反向映射。
+
+`pnpm test:load` 针对已启动服务执行默认 20 个并发 10 人房：20 次创建、180 次加入、200 条 Socket.IO 连接，以及每房完整的 `SetReady → StartGame（含同 commandId 重放）→ ContinuePhase → 全员 AckRole`。脚本断言：
+
+- 创建/加入 p95 不超过 `NFR-002` 的 2 秒；命令 ack 和最终个性化投影 p95 不超过 `NFR-003` 的 1 秒；
+- HTTP/命令零错误、重放不增加 `stateVersion`，最终全部房间到达 `TEAM_PROPOSAL/HOST_HELD`；
+- 每条实时投影的 `roomId`/私密 `playerId` 与连接绑定一致，公开快照不含角色、知识、票或任务私密字段。
+
+可用 `LOAD_BASE_URL` 指向隔离服务端口，用 `LOAD_ROOM_COUNT` 在 1–1,000 内调整房间数；服务端的本地限流配置必须容纳对应请求量。该脚本是短时 M3 多房间烟测，不是 `NFR-004` 的 1,000 房/10,000 连接、持续 30 分钟候选发布验证。
 
 ## 6. Development Build 与 CNG
 

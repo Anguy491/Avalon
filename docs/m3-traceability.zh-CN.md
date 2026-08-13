@@ -1,6 +1,6 @@
 # M3 追踪文档：大厅、配置与身份揭示
 
-状态：进行中（纵向切片推进，每轮对话完成一个切片）。
+状态：✅ M3 六个纵向切片的实现与自动化验证已完成；人工原生验收、音频素材门槛及发布级容量验证见切片五/六已知限制。
 
 ## 切片计划与进度
 
@@ -12,7 +12,7 @@
 | 切片三.1（增量） | `apps/server`：`room-service.ts` 实现 `availableActions` 真实投影填充（LOBBY + ROLE_REVEAL），补齐切片三遗留的已知限制 | ✅ 完成 | 2026-08-14 |
 | 切片四 | `apps/mobile`：命令提交、ack、重同步、纯逻辑 reducer/hook 与大厅 UI | ✅ 完成 | 2026-08-14 |
 | 切片五 | 身份揭示、AckRole、后台遮罩与知识矩阵测试 | ✅ 完成 | 2026-08-14 |
-| 切片六 | 完整命令矩阵、性质测试收尾、M3 追踪文档定稿、多房间负载场景 | 待开始 | — |
+| 切片六 | 完整命令矩阵、性质测试收尾、M3 追踪文档定稿、多房间负载场景 | ✅ 完成 | 2026-08-14 |
 
 ## 切片一详情：game-engine 大厅命令
 
@@ -404,3 +404,79 @@
 - 当前实现使用 `AppState` 在退后台/失活时切换中性遮罩，并明确提示系统无法绝对阻止主动拍摄；未新增平台专用的截屏阻止或录屏状态侦测原生模块。若邀请测试要求 Android `FLAG_SECURE` 或录屏事件联动，应作为纵深防御单独评估，不能把它当作角色保密的唯一边界。
 - `TEAM_PROPOSAL` 及之后的实际对局 UI/`availableActions` 仍超出 M3“大厅、配置与身份揭示”范围；全员 `AckRole` 后先进入既有公共游戏占位路由，后续里程碑再实现组队、投票、任务与刺杀交互。
 - `FR-016` 的测试主持语音及 StartGame 生成的开场音频仍受 `M3-GATE-01` 内容授权门槛约束；本切片没有引入权属不明音频、运行时 TTS 或新的第三方数据采集 SDK。
+
+## 切片六详情：命令矩阵、性质测试与多房间负载收尾
+
+### 范围
+
+完成 M3 的自动化验证收尾，并把短时多房间场景从 M2 的纯 HTTP 创建/加入扩展为完整 M3 身份流程：
+
+- 将 `packages/game-engine/src/command-matrix.test.ts` 的通用成功/非法参与者/过期版本/幂等重放/摘要冲突/不变量矩阵从原有 10 个对局命令扩展到全部 16 个 `GameCommand`，补入 `ConfigureRoom`、`ReorderSeats`、`SetReady`、`LeaveLobby`、`KickLobbyPlayer`、`CloseRoom`。
+- 新增矩阵完整性断言：命令用例名称必须与 16 个权威命令字面量完全一致且不重复，防止未来只新增命令实现而漏掉通用语义回归。
+- 收紧 M3 大厅性质测试：每次接受配置、座次、离开或移除变更后立即断言全员 `ready=false`；开局冻结测试从仅检查配置/座次扩展为六个大厅命令全部返回 `INVALID_PHASE`，并验证配置、玩家/座次及角色分配保持不变，移除原先无效的自比较断言。
+- 重写 `scripts/load-smoke.mjs`：默认创建 20 个并发 10 人房并建立 200 条真实 Socket.IO 连接，每房依次完成全员 `SetReady`、`StartGame`、同一 StartGame 信封幂等重放、房主 `ContinuePhase`、全员 `AckRole`，最终到达 `TEAM_PROPOSAL/HOST_HELD`。
+- 负载场景逐条检查实时投影的房间/玩家绑定，递归扫描公开快照禁止字段，并等待所有 200 个个性化投影收敛到最终版本；只输出聚合延迟与通过状态，不输出房间号、玩家 ID、角色、知识或会话令牌。
+- 定稿本追踪文档及 `docs/development.zh-CN.md` 的 M3 负载运行说明，明确区分短时切片 smoke 与 M7 发布级容量门槛。
+
+### 关键设计决策
+
+1. **完整矩阵与专项测试互补**：`lobby-commands.test.ts` 继续负责每个大厅命令的精细拒绝原因和领域效果；通用矩阵统一验证所有 16 个命令共享的版本、幂等、冲突和不变量语义，避免把两类证据合并成难以诊断的大测试。
+2. **所有矩阵初始状态均具有非零版本**：新增大厅用例先执行一次合法 `SetReady`，`StartGame` 用例先执行准备状态往返，因此通用矩阵确实执行 `STALE_VERSION` 分支，而不是因初始 `stateVersion=0` 跳过断言。
+3. **性质测试在每次相关转换后立即取证**：准备重置不能只从动作序列终态推断，因为后续 `SetReady` 合法地重新置为 `true`；断言放在每个接受的配置/座次/离开/移除转换之后，失败时 fast-check 仍能给出最小可复现序列。
+4. **负载按房间内串行、房间间并行**：同房命令必须携带最新 `expectedStateVersion`，因此每个房间内部按 ack 顺序推进；20 个房间并行执行以制造数据库、Redis、Outbox 和 Socket.IO 的跨房竞争，同时不人为制造应被 `STALE_VERSION` 拒绝的无效业务负载。
+5. **同一 StartGame 信封原样重放**：负载脚本复用完全相同的 `commandId`、版本、载荷和时间戳，断言重放仍接受且 `stateVersion` 不增长，覆盖真实 Socket 通道上的 `NFR-007`/`AC-009` 幂等语义。
+6. **投影安全检查靠结构而非秘密值匹配**：脚本递归拒绝公开模型中的 `roleAssignments`、`privateKnowledge`、本人角色/知识、票和任务选择字段，并断言每条私密投影的 `playerId`、公开 `roomId` 与当前连接绑定一致；不会把真实测试角色或令牌写入输出/报告。
+7. **不冒充发布级容量验证**：`LOAD_ROOM_COUNT` 仍允许 1–1,000，但本切片实测为短时 20 房/200 连接。`NFR-004` 要求的 1,000 房/10,000 连接、混合阶段、连接抖动和持续 30 分钟运行明确保留给 M7，不以本次 smoke 结果替代。
+
+### 新增/变更文件
+
+- `packages/game-engine/src/command-matrix.test.ts`：新增六个大厅命令的通用矩阵用例、非零版本 setup 和 16 命令完整性断言。
+- `packages/game-engine/src/properties.test.ts`：收紧 ready 重置即时断言；六大厅命令开局冻结及角色分配不可变性质。
+- `scripts/load-smoke.mjs`：M3 多房间 Socket.IO 身份流程、幂等重放、延迟分位数、投影隔离与公开秘密字段扫描。
+- `package.json`、`pnpm-lock.yaml`：根开发依赖新增锁定版本 `socket.io-client@4.8.3`，供仓库级负载脚本使用。
+- `docs/development.zh-CN.md`：更新 `test:load` 的 M3 场景、阈值、环境参数与范围边界。
+- `docs/m3-traceability.zh-CN.md`：切片六完成记录及 M3 总体状态定稿。
+
+### 覆盖的规范编号
+
+- 大厅与身份状态机：`SM-004`〜`SM-009`、`SM-017`〜`SM-019`；所有 `GameCommand` 的 §4.2 `commandId`/`expectedStateVersion` 通用语义。
+- 规则与验收：`RULE-004`、`RULE-006`、`RULE-007`；`AC-008`、`AC-009`、`AC-015`。
+- 非功能：`NFR-002`（创建/加入 p95）、`NFR-003`（命令 ack/最终投影 p95）、`NFR-007`（成功命令幂等重放）、`NFR-014`（个性化投影与公开秘密扫描）。
+
+### 多房间负载实测（2026-08-14，本地 PostgreSQL + Redis，隔离端口）
+
+| 指标 | 样本 | p50 | p95 | p99 | 门槛/结果 |
+| --- | ---: | ---: | ---: | ---: | --- |
+| 创建房间 | 20 | 109.3ms | 127.1ms | 127.3ms | `NFR-002` 2,000ms，✅ |
+| 加入房间 | 180 | 226.3ms | 376.7ms | 390.0ms | `NFR-002` 2,000ms，✅ |
+| 实时连接并收到 `session.ready` | 200 | 42.3ms | 44.1ms | 44.2ms | 脚本 smoke 门槛 2,000ms，✅ |
+| 命令 ack | 460 | 22.9ms | 31.1ms | 31.9ms | `NFR-003` 1,000ms，✅ |
+| 最终个性化投影收敛 | 20 房 | 220.0ms | 663.5ms | 705.7ms | `NFR-003` 1,000ms，✅ |
+
+附加断言：HTTP/命令零错误；20 个 `roomId` 唯一；StartGame 重放不增加版本；200 条连接未发现错房或错玩家投影；公开秘密字段扫描零命中；20 个房间均到达 `TEAM_PROPOSAL/HOST_HELD`。
+
+### 本切片验证命令与结果（2026-08-14 实测）
+
+| 命令 | 结果 |
+| --- | --- |
+| `pnpm --filter @avalon/game-engine typecheck` | ✅ 通过 |
+| `pnpm --filter @avalon/game-engine lint` | ✅ 通过（0 警告） |
+| `pnpm --filter @avalon/game-engine test` | ✅ 145/145 通过（7 个测试文件；命令矩阵由 10 扩展到 16 个命令并新增完整性测试） |
+| `LOAD_BASE_URL=http://127.0.0.1:3100 pnpm test:load` | ✅ 20 房/200 连接/460 命令 ack；零错误、隔离/秘密扫描通过，全部 p95 达标 |
+| `pnpm --filter @avalon/server test:integration` | ✅ 22/22 通过（3 个测试文件，PostgreSQL + Redis Testcontainers） |
+| `pnpm format:check`（全仓库） | ✅ 通过 |
+| `pnpm lint`（全仓库） | ✅ 通过（0 警告） |
+| `pnpm typecheck`（全仓库） | ✅ 通过（5 个工作区项目） |
+| `pnpm test`（全仓库单元测试） | ✅ 全部通过（game-engine 145、protocol 3、mobile 27、test-fixtures 3、server 10） |
+| `pnpm test:contract` | ✅ 61/61 通过 |
+| `pnpm docs:check` | ✅ 通过（27 个 Markdown 文件 + 协议生成快照检查） |
+| `pnpm secret:scan` | ✅ 通过（无秘密泄漏） |
+| `pnpm build`（全仓库） | ✅ 通过（含 Expo web/iOS/Android 导出） |
+
+### M3 收尾结论与已知限制
+
+- 六个纵向切片的代码与自动化验证已完成；M3 对应的大厅、配置、开局、个性化身份揭示和 `AckRole` 服务端/协议/移动端路径已形成可追踪闭环。
+- 按用户明确范围，切片四至六未运行或新增模拟器、Maestro、截图和录屏。Roadmap 退出门槛中的最大动态字体、VoiceOver/TalkBack、安全完成身份确认及 AppState 原生任务切换器时序仍需用户手工验收，不能由 Expo bundle 构建代替。
+- `FR-016` 测试主持语音与开场音频仍受 `M3-GATE-01` 音频内容/授权决定约束；这是外部素材门槛，不在本切片擅自引入权属不明资源。
+- 本次 20 房/200 连接结果只证明本地短时 M3 smoke。`NFR-004` 的 1,000 房/10,000 连接持续 30 分钟、混合游戏阶段、5% 连接抖动、1% 重连和基础设施资源曲线仍由 `M7-004` 完成。
+- `TEAM_PROPOSAL` 及之后的 `availableActions` 和实际移动对局 UI 属于 M4+；M3 只保证身份确认完成后权威进入 `TEAM_PROPOSAL/HOST_HELD`，不提前实现后续裁决界面。

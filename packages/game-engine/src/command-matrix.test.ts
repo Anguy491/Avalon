@@ -12,7 +12,9 @@ import {
   accepted,
   command,
   config,
+  configInput,
   fixedPorts,
+  lobbyState,
   playerWithRole,
   players,
   settleQuest,
@@ -22,13 +24,24 @@ import {
 } from './__tests__/helpers.js';
 
 interface ValidCommandCase {
-  readonly name: string;
+  readonly name: TestCommandBody['type'];
   readonly setup: () => {
     readonly state: GameState;
     readonly actor: string;
     readonly body: TestCommandBody;
     readonly ports: EnginePorts;
   };
+}
+
+function versionedLobby() {
+  const ports = fixedPorts();
+  const state = accepted(
+    lobbyState(5),
+    'player-2',
+    { type: 'SetReady', ready: false },
+    ports,
+  );
+  return { state, ports };
 }
 
 function currentLeader(state: GameState): string {
@@ -121,10 +134,103 @@ function assassinationCollecting() {
 
 const cases: readonly ValidCommandCase[] = [
   {
+    name: 'ConfigureRoom',
+    setup: () => {
+      const { state, ports } = versionedLobby();
+      return {
+        state,
+        actor: state.hostPlayerId,
+        body: {
+          type: 'ConfigureRoom',
+          configInput: configInput(5, 'COMMON_ROLES'),
+        },
+        ports,
+      };
+    },
+  },
+  {
+    name: 'ReorderSeats',
+    setup: () => {
+      const { state, ports } = versionedLobby();
+      return {
+        state,
+        actor: state.hostPlayerId,
+        body: {
+          type: 'ReorderSeats',
+          playerIds: state.players
+            .map((player) => player.playerId)
+            .slice()
+            .reverse(),
+        },
+        ports,
+      };
+    },
+  },
+  {
+    name: 'SetReady',
+    setup: () => {
+      const { state, ports } = versionedLobby();
+      return {
+        state,
+        actor: 'player-2',
+        body: { type: 'SetReady', ready: true },
+        ports,
+      };
+    },
+  },
+  {
+    name: 'LeaveLobby',
+    setup: () => {
+      const { state, ports } = versionedLobby();
+      return {
+        state,
+        actor: 'player-2',
+        body: { type: 'LeaveLobby' },
+        ports,
+      };
+    },
+  },
+  {
+    name: 'KickLobbyPlayer',
+    setup: () => {
+      const { state, ports } = versionedLobby();
+      return {
+        state,
+        actor: state.hostPlayerId,
+        body: { type: 'KickLobbyPlayer', targetPlayerId: 'player-2' },
+        ports,
+      };
+    },
+  },
+  {
+    name: 'CloseRoom',
+    setup: () => {
+      const { state, ports } = versionedLobby();
+      return {
+        state,
+        actor: state.hostPlayerId,
+        body: { type: 'CloseRoom' },
+        ports,
+      };
+    },
+  },
+  {
     name: 'StartGame',
     setup: () => {
       const ports = fixedPorts();
-      const state = createInitialGameState(config(5), players(5));
+      let state = createInitialGameState(config(5), players(5));
+      state = accepted(
+        state,
+        'player-2',
+        { type: 'SetReady', ready: false },
+        ports,
+      );
+      state = accepted(
+        state,
+        'player-2',
+        { type: 'SetReady', ready: true },
+        ports,
+      );
       return {
         state,
         actor: state.hostPlayerId,
@@ -264,6 +370,29 @@ const cases: readonly ValidCommandCase[] = [
 ];
 
 describe('M1-007 table-driven command contract', () => {
+  it('covers every GameCommand variant exactly once', () => {
+    const expected: readonly TestCommandBody['type'][] = [
+      'ConfigureRoom',
+      'ReorderSeats',
+      'SetReady',
+      'StartGame',
+      'ContinuePhase',
+      'AckRole',
+      'SubmitTeam',
+      'SubmitTeamVote',
+      'SubmitQuestChoice',
+      'SelectMerlinTarget',
+      'PauseGame',
+      'ResumeGame',
+      'ReplayAudioCue',
+      'LeaveLobby',
+      'KickLobbyPlayer',
+      'CloseRoom',
+    ];
+    expect(cases.map(({ name }) => name).sort()).toEqual([...expected].sort());
+    expect(new Set(cases.map(({ name }) => name)).size).toBe(expected.length);
+  });
+
   it.each(cases)(
     '$name covers success, bad actor, stale version, replay, digest conflict, and invariants',
     ({ setup }) => {

@@ -21,6 +21,7 @@ import {
   settleQuest,
   startAndAcknowledge,
   teamForQuest,
+  type TestCommandBody,
 } from './__tests__/helpers.js';
 
 const REPRODUCIBLE_SEED = 20_260_813;
@@ -524,7 +525,12 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
                   }),
                   ports,
                 );
-                if (transition.result.accepted) state = transition.state;
+                if (transition.result.accepted) {
+                  expect(
+                    transition.state.players.every((player) => !player.ready),
+                  ).toBe(true);
+                  state = transition.state;
+                }
                 break;
               }
               case 'RECONFIGURE': {
@@ -539,7 +545,12 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
                   }),
                   ports,
                 );
-                if (transition.result.accepted) state = transition.state;
+                if (transition.result.accepted) {
+                  expect(
+                    transition.state.players.every((player) => !player.ready),
+                  ).toBe(true);
+                  state = transition.state;
+                }
                 break;
               }
               case 'LEAVE': {
@@ -552,7 +563,12 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
                   command(state, target, { type: 'LeaveLobby' }),
                   ports,
                 );
-                if (transition.result.accepted) state = transition.state;
+                if (transition.result.accepted) {
+                  expect(
+                    transition.state.players.every((player) => !player.ready),
+                  ).toBe(true);
+                  state = transition.state;
+                }
                 break;
               }
               case 'KICK': {
@@ -568,7 +584,12 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
                   }),
                   ports,
                 );
-                if (transition.result.accepted) state = transition.state;
+                if (transition.result.accepted) {
+                  expect(
+                    transition.state.players.every((player) => !player.ready),
+                  ).toBe(true);
+                  state = transition.state;
+                }
                 break;
               }
             }
@@ -610,39 +631,62 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
           ports,
         );
 
-        // Lobby-only commands must all be rejected with INVALID_PHASE now.
-        const rejectedConfig = executeCommand(
-          started,
-          command(started, started.hostPlayerId, {
-            type: 'ConfigureRoom',
-            configInput: configInput(6, 'COMMON_ROLES'),
-          }),
-          ports,
-        );
-        expect(rejectedConfig.result).toMatchObject({
-          accepted: false,
-          errorCode: 'INVALID_PHASE',
-        });
-        expect(rejectedConfig.state.config).toEqual(started.config);
+        const immutableSnapshot = {
+          config: started.config,
+          players: started.players,
+          roleAssignments: started.roleAssignments,
+        };
+        const reversedPlayerIds = started.players
+          .map((player) => player.playerId)
+          .slice()
+          .reverse();
+        const attempts: readonly {
+          readonly actor: string;
+          readonly body: TestCommandBody;
+        }[] = [
+          {
+            actor: started.hostPlayerId,
+            body: {
+              type: 'ConfigureRoom',
+              configInput: configInput(6, 'COMMON_ROLES'),
+            },
+          },
+          {
+            actor: started.hostPlayerId,
+            body: { type: 'ReorderSeats', playerIds: reversedPlayerIds },
+          },
+          {
+            actor: 'player-2',
+            body: { type: 'SetReady', ready: false },
+          },
+          { actor: 'player-2', body: { type: 'LeaveLobby' } },
+          {
+            actor: started.hostPlayerId,
+            body: {
+              type: 'KickLobbyPlayer',
+              targetPlayerId: 'player-2',
+            },
+          },
+          { actor: started.hostPlayerId, body: { type: 'CloseRoom' } },
+        ];
 
-        const rejectedReorder = executeCommand(
-          started,
-          command(started, started.hostPlayerId, {
-            type: 'ReorderSeats',
-            playerIds: started.players
-              .map((player) => player.playerId)
-              .slice()
-              .reverse(),
-          }),
-          ports,
-        );
-        expect(rejectedReorder.result).toMatchObject({
-          accepted: false,
-          errorCode: 'INVALID_PHASE',
-        });
-        expect(rejectedReorder.state.players).toEqual(started.players);
-
-        expect(started.roleAssignments).toEqual(started.roleAssignments);
+        for (const attempt of attempts) {
+          const rejected = executeCommand(
+            started,
+            command(started, attempt.actor, attempt.body),
+            ports,
+          );
+          expect(rejected.result).toMatchObject({
+            accepted: false,
+            errorCode: 'INVALID_PHASE',
+          });
+          expect(rejected.state).toBe(started);
+          expect({
+            config: rejected.state.config,
+            players: rejected.state.players,
+            roleAssignments: rejected.state.roleAssignments,
+          }).toEqual(immutableSnapshot);
+        }
       }),
       { seed: REPRODUCIBLE_SEED, numRuns: PROPERTY_RUNS },
     );
