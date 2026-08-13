@@ -127,6 +127,7 @@ export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:
 - `ready` 返回 503：先运行 `docker-compose ps`，再检查 `.env` URL 是否与 Compose 端口一致；响应本身不会暴露原因。
 - pnpm 版本不匹配：使用 Corepack 激活根 `packageManager`，不要生成 npm/Yarn/Bun 锁文件。
 - Expo 依赖漂移：在 `apps/mobile` 运行 `npx expo install --check`，不要手工猜测 React Native 原生依赖版本。
+- Metro 报 `Unable to resolve "@avalon/protocol/mobile"`：确认 `packages/protocol/package.json` 的 `react-native`/`browser` 条件仍指向 `src/mobile.ts`，然后用 `npx expo start --dev-client --clear` 清理旧解析缓存。移动开发入口直接使用协议源码，不要求先生成被 Git 忽略的 `packages/protocol/dist`；Node/生产构建仍使用 `dist`。
 - iOS/Android 构建后出现旧配置：删除未提交的原生目录并运行 `npx expo prebuild --clean`，不得手工修补 `ios/`、`android/`。
 - iOS codesign 报 `resource fork, Finder information, or similar detritus not allowed`：确认仓库是否位于 iCloud/其他 File Provider 同步目录；从同步范围外的干净 checkout 构建。不要用 `xattr` 修改依赖或生成 Framework 来掩盖环境问题。
 - `--localhost` 显示 `127.0.0.1`、但 Metro 只监听 `::1`：在当前 shell 设置 `NODE_OPTIONS=--dns-result-order=ipv4first` 后重启 Metro；iOS 模拟器继续使用 `127.0.0.1`，Android 模拟器继续配置 `adb reverse`。
