@@ -1,6 +1,7 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 const PLACEHOLDER_BUNDLE_ID = 'com.example.avalon.dev';
+const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? 'join.example.invalid';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -16,6 +17,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: PLACEHOLDER_BUNDLE_ID,
     icon: './assets/expo.icon',
     supportsTablet: true,
+    associatedDomains: [`applinks:${JOIN_HOST}`],
   },
   android: {
     package: PLACEHOLDER_BUNDLE_ID,
@@ -25,13 +27,35 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       backgroundImage: './assets/images/android-icon-background.png',
       monochromeImage: './assets/images/android-icon-monochrome.png',
     },
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: false,
+        data: [
+          {
+            scheme: 'https',
+            host: JOIN_HOST,
+            pathPrefix: '/join/',
+          },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
   },
   web: {
-    output: 'static',
+    output: 'single',
     favicon: './assets/images/favicon.png',
   },
   plugins: [
     'expo-router',
+    'expo-secure-store',
+    [
+      'expo-camera',
+      {
+        cameraPermission: '用于扫描公开房间二维码；不会采集照片、视频或音频。',
+        recordAudioAndroid: false,
+      },
+    ],
     [
       'expo-splash-screen',
       {

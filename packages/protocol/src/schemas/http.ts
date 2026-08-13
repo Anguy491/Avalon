@@ -19,6 +19,7 @@ export const ClientCapabilitiesSchema = Type.Object(
     protocolVersion: Type.Literal(1),
     platform: Type.Union([Type.Literal('IOS'), Type.Literal('ANDROID')]),
     appVersion: Type.String({ minLength: 1, maxLength: 40 }),
+    installationId: Type.Optional(UuidSchema),
     voicePackVersions: Type.Array(
       Type.String({ pattern: '^zh-CN-v[1-9][0-9]*$' }),
       { minItems: 1, maxItems: 5, uniqueItems: true },

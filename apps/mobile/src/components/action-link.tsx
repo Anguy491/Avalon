@@ -1,7 +1,8 @@
 import { Link, type Href } from 'expo-router';
 import { Pressable, Text, View } from 'react-native';
 
-import { color, spacing, touchTarget, typography } from '@/theme/tokens';
+import { spacing, touchTarget, typography } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/use-app-theme';
 
 interface ActionLinkProps {
   readonly href: Href;
@@ -16,6 +17,7 @@ export function ActionLink({
   description,
   primary = false,
 }: ActionLinkProps) {
+  const { color } = useAppTheme();
   const foreground = primary ? color.text.inverse : color.text.primary;
 
   return (

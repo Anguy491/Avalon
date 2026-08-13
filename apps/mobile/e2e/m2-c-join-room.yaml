@@ -1,0 +1,40 @@
+appId: com.example.avalon.dev
+name: M2 join existing room happy path
+---
+- launchApp:
+    clearState: true
+- openLink: 'exp+avalon-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
+- tapOn:
+    point: '68%,54%'
+    optional: true
+- tapOn:
+    text: 'Wait'
+    optional: true
+- tapOn:
+    text: 'http://127.0.0.1:8081'
+    optional: true
+- tapOn:
+    text: 'Continue'
+    optional: true
+- tapOn:
+    text: 'Reload'
+    optional: true
+- assertVisible: '让手机保管秘密'
+- tapOn: '你的昵称'
+- inputText: 'Galahad'
+- hideKeyboard
+- tapOn: '输入房间号'
+- tapOn:
+    id: 'join-room-code'
+- inputText: '${M2_ROOM_CODE}'
+- hideKeyboard
+- tapOn:
+    id: 'join-room-submit'
+- assertVisible: '房间号'
+- assertVisible: 'SeedHost · 房主'
+- scrollUntilVisible:
+    element:
+      text: 'Galahad.*'
+    direction: DOWN
+    timeout: 10000
+    visibilityPercentage: 50

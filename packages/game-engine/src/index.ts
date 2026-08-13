@@ -1,17 +1,9 @@
-/**
- * Ports that keep the future RULE-* / SM-* implementation deterministic.
- * M1 will add state transitions; M0 only establishes the dependency boundary.
- */
-export interface ClockPort {
-  now(): Date;
-}
+export * from './engine.js';
+export * from './invariants.js';
+export * from './knowledge.js';
+export * from './projection.js';
+export * from './random.js';
+export * from './rules.js';
+export * from './types.js';
 
-export interface IdGeneratorPort {
-  nextId(): string;
-}
-
-export interface RandomBytesPort {
-  bytes(length: number): Uint8Array;
-}
-
-export const GAME_ENGINE_MILESTONE = 'M0_BOUNDARY_ONLY' as const;
+export const GAME_ENGINE_MILESTONE = 'M1_RULES_COMPLETE' as const;

@@ -1,4 +1,4 @@
-export const color = {
+export const lightColor = {
   surface: {
     public: '#F6F2E8',
     private: '#171A22',
@@ -25,6 +25,36 @@ export const color = {
     visible: '#1467B3',
   },
 } as const;
+
+export const darkColor = {
+  surface: {
+    public: '#11151C',
+    private: '#080A0F',
+    blocking: '#242A35',
+    card: '#1B222C',
+  },
+  text: {
+    primary: '#F7F4EC',
+    secondary: '#BEC7D3',
+    inverse: '#10201D',
+  },
+  action: {
+    primary: '#8ED5C5',
+    destructive: '#FF9EA5',
+    selected: '#E6B85C',
+    disabled: '#69717D',
+  },
+  result: {
+    success: '#87D3A5',
+    failure: '#FF9EA5',
+    pending: '#E5C777',
+  },
+  focus: {
+    visible: '#74B9FF',
+  },
+} as const;
+
+export const color = lightColor;
 
 export const spacing = {
   xs: 4,

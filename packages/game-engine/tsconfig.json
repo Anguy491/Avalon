@@ -3,7 +3,7 @@
   "compilerOptions": {
     "lib": ["ES2023"],
     "noEmit": true,
-    "types": ["vitest/globals"]
+    "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*.ts"]
 }

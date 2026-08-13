@@ -10,6 +10,11 @@ export const CONFIG_KEYS = [
   'REDIS_URL',
   'RATE_LIMIT_MAX',
   'RATE_LIMIT_HMAC_SECRET',
+  'JOIN_RATE_LIMIT_MAX',
+  'SESSION_TOKEN_PEPPER',
+  'IDEMPOTENCY_ENCRYPTION_SECRET',
+  'SESSION_TTL_SECONDS',
+  'REALTIME_PUBLIC_URL',
 ] as const;
 
 type ConfigKey = (typeof CONFIG_KEYS)[number];
@@ -36,6 +41,11 @@ const ConfigSchema = Type.Object(
     redisUrl: Type.String({ pattern: '^redis(?:s)?://' }),
     rateLimitMax: Type.Integer({ minimum: 1, maximum: 10_000 }),
     rateLimitHmacSecret: Type.String({ minLength: 32 }),
+    joinRateLimitMax: Type.Integer({ minimum: 1, maximum: 100 }),
+    sessionTokenPepper: Type.String({ minLength: 32 }),
+    idempotencyEncryptionSecret: Type.String({ minLength: 32 }),
+    sessionTtlSeconds: Type.Integer({ minimum: 60, maximum: 86_400 }),
+    realtimePublicUrl: Type.String({ pattern: '^wss://' }),
   },
   { additionalProperties: false },
 );
@@ -56,6 +66,11 @@ export interface ServerConfig {
   readonly redisUrl: string;
   readonly rateLimitMax: number;
   readonly rateLimitHmacSecret: string;
+  readonly joinRateLimitMax: number;
+  readonly sessionTokenPepper: string;
+  readonly idempotencyEncryptionSecret: string;
+  readonly sessionTtlSeconds: number;
+  readonly realtimePublicUrl: string;
 }
 
 const read = (
@@ -92,6 +107,24 @@ export function loadConfig(
       'RATE_LIMIT_MAX',
     ),
     rateLimitHmacSecret: read(environment, 'RATE_LIMIT_HMAC_SECRET'),
+    joinRateLimitMax: parseInteger(
+      read(environment, 'JOIN_RATE_LIMIT_MAX', '5'),
+      'JOIN_RATE_LIMIT_MAX',
+    ),
+    sessionTokenPepper: read(environment, 'SESSION_TOKEN_PEPPER'),
+    idempotencyEncryptionSecret: read(
+      environment,
+      'IDEMPOTENCY_ENCRYPTION_SECRET',
+    ),
+    sessionTtlSeconds: parseInteger(
+      read(environment, 'SESSION_TTL_SECONDS', '1800'),
+      'SESSION_TTL_SECONDS',
+    ),
+    realtimePublicUrl: read(
+      environment,
+      'REALTIME_PUBLIC_URL',
+      'wss://localhost.invalid/game-v1',
+    ),
   };
 
   if (!Value.Check(ConfigSchema, config)) {

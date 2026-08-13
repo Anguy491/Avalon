@@ -20,6 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@avalon/game-engine": "workspace:*",
     "@avalon/protocol": "workspace:*",
     "@fastify/rate-limit": "11.2.0",
     "@sinclair/typebox": "0.34.52",
@@ -29,10 +30,12 @@
     "socket.io": "4.8.3"
   },
   "devDependencies": {
+    "@avalon/test-fixtures": "workspace:*",
     "@testcontainers/postgresql": "12.1.0",
     "@testcontainers/redis": "12.1.0",
     "@types/node": "24.10.1",
     "node-pg-migrate": "9.0.0",
+    "socket.io-client": "^4.8.3",
     "tsx": "4.21.0",
     "typescript": "5.9.3",
     "vitest": "4.0.16"

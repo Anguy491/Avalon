@@ -84,6 +84,7 @@ Content-Type: application/json
     "protocolVersion": 1,
     "platform": "IOS",
     "appVersion": "0.1.0",
+    "installationId": "20000000-0000-4000-8000-000000000001",
     "voicePackVersions": ["zh-CN-v1"]
   }
 }
@@ -123,12 +124,15 @@ X-Protocol-Version: 1
     "protocolVersion": 1,
     "platform": "ANDROID",
     "appVersion": "0.1.0",
+    "installationId": "20000000-0000-4000-8000-000000000002",
     "voicePackVersions": ["zh-CN-v1"]
   }
 }
 ```
 
 成功同样返回 `201 SessionBootstrap`。加入必须在一个数据库事务中检查房间仍为 `LOBBY`、容量和昵称冲突。二维码只编码 `https://{joinHost}/join/7K3M9Q`，不得附 token、playerId、昵称或应用私密状态。
+
+`installationId` 是客户端首次启动后生成的随机 UUID，可选用于创建/加入限流；它不是硬件或广告标识符，不参与玩家身份判断。服务端只把其 HMAC 摘要用于最长 10 分钟的临时限流键，不记录原值。旧版客户端缺少该字段时按匿名安装维度处理。
 
 ### 3.4 恢复会话
 

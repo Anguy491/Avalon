@@ -6,6 +6,7 @@ android
 coverage
 dist
 docs/contracts/*.schema.json
+packages/protocol/src/generated/*.json
 ios
 node_modules
 pnpm-lock.yaml

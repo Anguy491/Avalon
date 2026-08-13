@@ -1,0 +1,43 @@
+appId: com.example.avalon.dev
+name: M2 invalid input and denied camera fallback
+---
+- launchApp:
+    clearState: true
+    permissions:
+      camera: deny
+- openLink: 'exp+avalon-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
+- tapOn:
+    point: '68%,54%'
+    optional: true
+- tapOn:
+    text: 'Wait'
+    optional: true
+- tapOn:
+    text: 'http://127.0.0.1:8081'
+    optional: true
+- tapOn:
+    text: 'Continue'
+    optional: true
+- tapOn:
+    text: 'Reload'
+    optional: true
+- assertVisible: '让手机保管秘密'
+- tapOn: '你的昵称'
+- inputText: 'Arthur'
+- hideKeyboard
+- tapOn: '输入房间号'
+- assertVisible: '加入房间'
+- tapOn:
+    id: 'join-room-code'
+- inputText: '22222'
+- hideKeyboard
+- tapOn:
+    id: 'join-room-submit'
+- assertVisible: '请输入完整的六位房间号。'
+- tapOn:
+    id: 'BackButton'
+- tapOn: '扫描二维码'
+- assertVisible: '相机只用于读取公开加入链接，不拍照、不录像，也不会请求麦克风权限。'
+- tapOn: '允许相机并开始扫描'
+- assertVisible: '相机权限未开启。你仍可手动输入房间号。'
+- assertVisible: '改用房间号'

@@ -1,13 +1,5 @@
-import { Text } from 'react-native';
+import { LobbyScreen } from '@/features/rooms/lobby-screen';
 
-import { PageShell } from '@/components/page-shell';
-
-export default function LobbyPlaceholder() {
-  return (
-    <PageShell>
-      <Text selectable accessibilityRole="header">
-        大厅投影将在 M3 实现
-      </Text>
-    </PageShell>
-  );
+export default function LobbyRoute() {
+  return <LobbyScreen />;
 }

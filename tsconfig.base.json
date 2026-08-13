@@ -18,6 +18,7 @@
     "paths": {
       "@avalon/game-engine": ["packages/game-engine/src/index.ts"],
       "@avalon/protocol": ["packages/protocol/src/index.ts"],
+      "@avalon/protocol/mobile": ["packages/protocol/src/mobile.ts"],
       "@avalon/test-fixtures": ["packages/test-fixtures/src/index.ts"]
     },
     "skipLibCheck": true,

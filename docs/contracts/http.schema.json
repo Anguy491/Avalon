@@ -1081,6 +1081,10 @@
               "maxLength": 40,
               "type": "string"
             },
+            "installationId": {
+              "format": "uuid",
+              "type": "string"
+            },
             "voicePackVersions": {
               "minItems": 1,
               "maxItems": 5,
@@ -1139,6 +1143,10 @@
               "maxLength": 40,
               "type": "string"
             },
+            "installationId": {
+              "format": "uuid",
+              "type": "string"
+            },
             "voicePackVersions": {
               "minItems": 1,
               "maxItems": 5,
@@ -1182,6 +1190,10 @@
         "appVersion": {
           "minLength": 1,
           "maxLength": 40,
+          "type": "string"
+        },
+        "installationId": {
+          "format": "uuid",
           "type": "string"
         },
         "voicePackVersions": {
@@ -1232,6 +1244,10 @@
             "appVersion": {
               "minLength": 1,
               "maxLength": 40,
+              "type": "string"
+            },
+            "installationId": {
+              "format": "uuid",
               "type": "string"
             },
             "voicePackVersions": {

@@ -1,6 +1,6 @@
-# Avalon M0 本地开发、配置与验证
+# Avalon 本地开发、配置与验证
 
-> 状态：M0 工程基线
+> 状态：M0 工程基线 + M2 会话/房间增量
 >
 > 追踪：`M0-001`–`M0-009`、`ADR-001`–`ADR-007`、`TEST-contract`、`TM-002`、`TM-004`、`TM-008`
 
@@ -26,7 +26,7 @@ pnpm --filter @avalon/server db:migrate
 pnpm dev
 ```
 
-`pnpm dev:deps` 使用供应商无关的本地 PostgreSQL/Redis。迁移由 `node-pg-migrate` 管理；M0 基线只建立独立运行时 schema，业务房间表属于 M2。
+`pnpm dev:deps` 使用供应商无关的本地 PostgreSQL/Redis。迁移由 `node-pg-migrate` 管理；`000001` 建立运行时 schema，`000002` 建立 M2 暂态房间、玩家、会话、幂等、Outbox 与终局回执表。
 
 常用入口：
 
@@ -45,10 +45,17 @@ pnpm dev
 | --------------------------------------- | ------------------- | ---------------- |
 | `NODE_ENV`、`HOST`、`PORT`、`LOG_LEVEL` | 进程与日志级别      | 否               |
 | `DATABASE_URL`、`REDIS_URL`             | 本地/部署适配器连接 | 是，禁止日志     |
-| `RATE_LIMIT_MAX`                        | M0 基础入口限流     | 否               |
+| `RATE_LIMIT_MAX`                        | 基础入口限流        | 否               |
 | `RATE_LIMIT_HMAC_SECRET`                | 对限流来源键做 HMAC | 是，至少 32 字符 |
+| `JOIN_RATE_LIMIT_MAX`                   | 每分钟创建/加入上限 | 否               |
+| `SESSION_TOKEN_PEPPER`                  | SessionToken 摘要   | 是，至少 32 字符 |
+| `IDEMPOTENCY_ENCRYPTION_SECRET`         | 加密幂等响应        | 是，至少 32 字符 |
+| `SESSION_TTL_SECONDS`                   | 会话有效期          | 否               |
+| `REALTIME_PUBLIC_URL`                   | bootstrap WSS 地址  | 否               |
 
-Compose 另外读取 `POSTGRES_DB/USER/PASSWORD`，仅用于本地容器。`.env` 不进入 Git；`.env.example` 只含不可复用占位值。服务端禁止请求体自动日志，并显式删减 Authorization、SessionToken、角色、知识、票与任务行动路径。
+Compose 另外读取 `POSTGRES_DB/USER/PASSWORD`，仅用于本地容器。`.env` 不进入 Git；`.env.example` 只含不可复用占位值。服务端禁止请求体自动日志，并显式删减 Authorization、SessionToken、角色、知识、票与任务行动路径。pepper、幂等加密密钥和限流 HMAC 密钥必须彼此独立；Preview/Production 由秘密管理系统注入，不得使用示例值。
+
+移动构建读取 `EXPO_PUBLIC_API_URL` 与 `EXPO_PUBLIC_JOIN_HOST`。开发默认 API 为 `http://127.0.0.1:3000`，公开加入 host 为不可发布占位值；Preview/Production 必须显式改为 HTTPS/WSS 域名并配置 iOS Associated Domains、Android App Links 和服务端 `REALTIME_PUBLIC_URL`。随机安装 UUID 只存在于 SecureStore，并只用于组合限流。
 
 ## 4. 生成协议
 
@@ -71,11 +78,14 @@ pnpm typecheck
 pnpm test
 pnpm test:contract
 pnpm test:integration
+pnpm test:e2e:mobile
+pnpm test:load
 pnpm docs:check
 pnpm secret:scan
+pnpm build
 ```
 
-`pnpm test:e2e:mobile` 运行 Maestro 的 M0 原生导航冒烟，需要已安装开发构建和 Maestro，并在执行前启动 `npx expo start --dev-client --localhost`；Android 模拟器另需执行 `adb reverse tcp:8081 tcp:8081`。`pnpm test:load` 针对已启动服务执行 50 请求的 M0 健康负载冒烟；它不是 `NFR-004` 的 1,000 房/10,000 连接发布验证。
+`pnpm test:e2e:mobile` 运行 Maestro 的 M2 原生创建/错误/拒权流程，需要已安装 Development Build、Maestro、运行中的 API 与 `npx expo start --dev-client --localhost`；Android 模拟器另需执行 `adb reverse tcp:8081 tcp:8081` 和 API 端口反向映射。`pnpm test:load` 针对已启动服务执行默认 20 个并发 10 人房（20 创建 + 180 加入），断言 HTTP 零错误与创建/加入 p95 不超过 `NFR-002` 的 2 秒；可用 `LOAD_ROOM_COUNT` 在 1–1,000 内调整。它不是 `NFR-004` 的 1,000 房/10,000 连接、持续 30 分钟发布验证。
 
 ## 6. Development Build 与 CNG
 
@@ -88,6 +98,8 @@ npx expo prebuild --clean
 npx expo run:ios
 npx expo run:android
 ```
+
+Web 只作为开发预览，Expo Router 使用 `single` 输出；M2 的发布验收目标是 iOS/Android 原生 bundle 与 Development Build。
 
 最后两项分别需要 Xcode+iOS Simulator 与 Android SDK+Java/模拟器。EAS 云构建、签名、TestFlight/Play 分发需要外部账号或证书，未经单次授权不得执行。
 

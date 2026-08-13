@@ -9,6 +9,11 @@ export interface DependencyChecks {
   close(): Promise<void>;
 }
 
+export interface RuntimeDependencies extends DependencyChecks {
+  readonly sql: postgres.Sql;
+  readonly redis: RedisClientType;
+}
+
 const DEPENDENCY_TIMEOUT_MS = 5_000;
 
 async function withTimeout<T>(
@@ -32,7 +37,7 @@ async function withTimeout<T>(
 
 export function createDependencyChecks(
   config: Pick<ServerConfig, 'databaseUrl' | 'redisUrl'>,
-): DependencyChecks {
+): RuntimeDependencies {
   const sql = postgres(config.databaseUrl, {
     connect_timeout: DEPENDENCY_TIMEOUT_MS / 1_000,
     max: 2,
@@ -48,6 +53,8 @@ export function createDependencyChecks(
   });
 
   return {
+    sql,
+    redis,
     async checkPostgres() {
       await withTimeout(sql`select 1 as healthy`, 'PostgreSQL');
     },
@@ -62,4 +69,10 @@ export function createDependencyChecks(
       ]);
     },
   };
+}
+
+export function isRuntimeDependencies(
+  dependencies: DependencyChecks,
+): dependencies is RuntimeDependencies {
+  return 'sql' in dependencies && 'redis' in dependencies;
 }

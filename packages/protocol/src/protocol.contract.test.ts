@@ -50,6 +50,7 @@ const clientCapabilities = {
   protocolVersion: 1,
   platform: 'IOS',
   appVersion: '0.1.0',
+  installationId: '20000000-0000-4000-8000-000000000001',
   voicePackVersions: ['zh-CN-v1'],
 } as const;
 

@@ -5,11 +5,20 @@ import { Type } from '@sinclair/typebox';
 import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import { Server as SocketIoServer } from 'socket.io';
 
-import { RealtimeAuthSchema, createProtocolValidator } from '@avalon/protocol';
-
+import { CommandService } from './command-service.js';
 import type { ServerConfig } from './config.js';
-import type { DependencyChecks } from './dependencies.js';
+import {
+  isRuntimeDependencies,
+  type DependencyChecks,
+} from './dependencies.js';
+import { installSafeErrorHandler, registerRoomRoutes } from './http-routes.js';
 import { createLoggerOptions } from './observability.js';
+import { OutboxWorker } from './outbox-worker.js';
+import { RedisProjectionBus } from './projection-bus.js';
+import { createRedisRateLimitStore } from './rate-limit-store.js';
+import { registerRealtime } from './realtime.js';
+import { RoomService, ServiceError } from './room-service.js';
+import { createRuntimePorts, type RuntimePorts } from './runtime-ports.js';
 
 const healthSchema = Type.Object(
   { status: Type.Union([Type.Literal('ok'), Type.Literal('ready')]) },
@@ -26,10 +35,17 @@ export interface AvalonServer {
   close(): Promise<void>;
 }
 
+export interface CreateServerOptions {
+  readonly ports?: RuntimePorts;
+  readonly startBackgroundWorkers?: boolean;
+}
+
 export async function createServer(
   config: ServerConfig,
   dependencies: DependencyChecks,
+  options: CreateServerOptions = {},
 ): Promise<AvalonServer> {
+  const ports = options.ports ?? createRuntimePorts();
   const app = Fastify({
     bodyLimit: 32 * 1024,
     logController: new LogController({ disableRequestLogging: true }),
@@ -39,13 +55,20 @@ export async function createServer(
 
   await app.register(rateLimit, {
     global: true,
+    hook: 'preHandler',
     max: config.rateLimitMax,
     timeWindow: 60_000,
     keyGenerator: (request) =>
       createHmac('sha256', config.rateLimitHmacSecret)
         .update(request.ip)
         .digest('base64url'),
+    errorResponseBuilder: () => new ServiceError('RATE_LIMITED', 429, true),
+    ...(isRuntimeDependencies(dependencies)
+      ? { store: createRedisRateLimitStore(dependencies.redis, ports.clock) }
+      : {}),
   });
+
+  installSafeErrorHandler(app, ports);
 
   app.addHook('onSend', (_request, reply, payload, done) => {
     void reply.header('Cache-Control', 'no-store');
@@ -83,24 +106,42 @@ export async function createServer(
     maxHttpBufferSize: 64 * 1024,
     serveClient: false,
   });
-  const protocolValidator = createProtocolValidator();
-  const validateRealtimeAuth = protocolValidator.compile(RealtimeAuthSchema);
   const gameNamespace = io.of('/game-v1');
-
-  gameNamespace.use((socket, next) => {
-    if (!validateRealtimeAuth(socket.handshake.auth)) {
+  let projectionBus: RedisProjectionBus | undefined;
+  let outboxWorker: OutboxWorker | undefined;
+  if (isRuntimeDependencies(dependencies)) {
+    const roomService = new RoomService(dependencies.sql, config, ports);
+    const commandService = new CommandService(dependencies.sql, config, ports);
+    registerRoomRoutes(app, roomService, config);
+    projectionBus = new RedisProjectionBus(dependencies.redis, gameNamespace);
+    await projectionBus.start();
+    outboxWorker = new OutboxWorker(dependencies.sql, projectionBus, ports, {
+      workerId: ports.ids.next(),
+    });
+    registerRealtime(
+      gameNamespace,
+      roomService,
+      commandService,
+      outboxWorker,
+      dependencies.redis,
+      ports,
+    );
+    if (options.startBackgroundWorkers !== false) outboxWorker.start();
+  } else {
+    gameNamespace.use((_socket, next) => {
       next(new Error('UNAUTHORIZED'));
-      return;
-    }
-    next(new Error('UNAUTHORIZED'));
-  });
+    });
+  }
 
   return {
     app,
     io,
     async close() {
+      await outboxWorker?.stop();
       await io.close();
-      await Promise.all([app.close(), dependencies.close()]);
+      await projectionBus?.close();
+      await app.close();
+      await dependencies.close();
     },
   };
 }

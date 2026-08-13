@@ -1,11 +1,26 @@
+import { router } from 'expo-router';
 import { Stack } from 'expo-router/stack';
+import { useEffect } from 'react';
 import { Text, View } from 'react-native';
 
 import { ActionLink } from '@/components/action-link';
+import { FormField } from '@/components/form-field';
 import { PageShell } from '@/components/page-shell';
-import { color, spacing, typography } from '@/theme/tokens';
+import { PrimaryButton } from '@/components/primary-button';
+import { usePublicDraft } from '@/session/public-draft-provider';
+import { useSession } from '@/session/session-provider';
+import { spacing, typography } from '@/theme/tokens';
+import { useAppTheme } from '@/theme/use-app-theme';
 
 export default function HomeScreen() {
+  const { color } = useAppTheme();
+  const draft = usePublicDraft();
+  const session = useSession();
+
+  useEffect(() => {
+    if (session.roomView?.public.phase === 'LOBBY') router.replace('/lobby');
+  }, [session.roomView]);
+
   return (
     <PageShell>
       <Stack.Screen options={{ title: 'Avalon' }} />
@@ -28,6 +43,63 @@ export default function HomeScreen() {
           面向同桌 5–10 人的服务端权威阿瓦隆主持应用。
         </Text>
       </View>
+
+      <FormField
+        label="你的昵称"
+        value={draft.nickname}
+        onChangeText={draft.setNickname}
+        autoFocus
+        autoCapitalize="none"
+        autoCorrect={false}
+        maxLength={48}
+        placeholder="1–16 个可见字符"
+        returnKeyType="done"
+      />
+
+      {session.status === 'LOADING' || session.status === 'RECOVERING' ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={{
+            gap: spacing.sm,
+            padding: spacing.md,
+            borderRadius: 16,
+            backgroundColor: color.surface.blocking,
+          }}
+        >
+          <Text
+            style={{ color: color.text.inverse, fontSize: typography.body }}
+          >
+            正在恢复对局…
+          </Text>
+        </View>
+      ) : null}
+
+      {session.status === 'OFFLINE' && session.summary !== undefined ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={{
+            gap: spacing.md,
+            padding: spacing.md,
+            borderRadius: 16,
+            backgroundColor: color.surface.card,
+          }}
+        >
+          <Text
+            style={{ color: color.text.primary, fontSize: typography.body }}
+          >
+            房间 {session.summary.roomCode}{' '}
+            暂时无法恢复。你可以继续等待或清除本机会话。
+          </Text>
+          <PrimaryButton
+            label="继续等待并重试"
+            onPress={() => void session.recover()}
+          />
+          <PrimaryButton
+            label="清除本机会话"
+            onPress={() => void session.forgetSession()}
+          />
+        </View>
+      ) : null}
 
       <View style={{ gap: spacing.md }}>
         <ActionLink
@@ -52,7 +124,7 @@ export default function HomeScreen() {
         selectable
         style={{ color: color.text.secondary, fontSize: typography.supporting }}
       >
-        M0 工程导航已就绪；建房、加入和扫码将在 M2 接入权威服务。
+        昵称只用于当前房间；会话令牌不会进入链接、剪贴板或普通偏好存储。
       </Text>
     </PageShell>
   );
