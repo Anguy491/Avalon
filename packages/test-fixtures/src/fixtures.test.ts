@@ -5,6 +5,8 @@ import {
   FIXTURE_PLAYER_IDS,
   FIXTURE_RULE_ROWS,
   M1_FAST_CHECK_SEED,
+  M4_FIVE_QUEST_SCRIPT,
+  M4_REJECTION_SCRIPT,
   createFixedEnginePorts,
   fixturePlayerIds,
 } from './index.js';
@@ -34,5 +36,18 @@ describe('M1-007 deterministic fixtures', () => {
     expect(ports.clock.nowIso()).toBe('2026-08-13T10:00:00.000Z');
     expect(ports.ids.nextId()).toBe('fixture-audio-1');
     expect(M1_FAST_CHECK_SEED).toBe(20_260_813);
+  });
+
+  it('provides M4 five-quest and rejection scripts without player-to-action ownership', () => {
+    expect(M4_FIVE_QUEST_SCRIPT.map((step) => step.result)).toEqual([
+      'SUCCESS',
+      'FAILURE',
+      'SUCCESS',
+      'FAILURE',
+      'SUCCESS',
+    ]);
+    expect(M4_REJECTION_SCRIPT.sixPlayerTie).toHaveLength(6);
+    expect(M4_REJECTION_SCRIPT.fiveRejectedAttempts).toEqual([1, 2, 3, 4, 5]);
+    expect(JSON.stringify(M4_FIVE_QUEST_SCRIPT)).not.toContain('playerId');
   });
 });

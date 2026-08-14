@@ -200,7 +200,19 @@ function lobbyCommand(
         readonly type: 'ContinuePhase';
         readonly payload: Record<string, never>;
       }
-    | { readonly type: 'AckRole'; readonly payload: Record<string, never> },
+    | { readonly type: 'AckRole'; readonly payload: Record<string, never> }
+    | {
+        readonly type: 'SubmitTeam';
+        readonly payload: { readonly teamPlayerIds: readonly string[] };
+      }
+    | {
+        readonly type: 'SubmitTeamVote';
+        readonly payload: { readonly vote: 'APPROVE' | 'REJECT' };
+      }
+    | {
+        readonly type: 'SubmitQuestChoice';
+        readonly payload: { readonly choice: 'SUCCESS' | 'FAIL' };
+      },
 ): Command {
   return {
     commandId,
@@ -252,6 +264,39 @@ async function readyRosterAndStart(
   );
   if (!started.accepted) throw new Error('expected StartGame to succeed');
   return { contexts, stateVersion: started.stateVersion };
+}
+
+async function advanceToTeamProposal(
+  commands: CommandService,
+  roster: Roster,
+  contexts: readonly Awaited<ReturnType<RoomService['authenticate']>>[],
+  startedVersion: number,
+  commandIdBase: number,
+): Promise<number> {
+  const host = contexts[0];
+  if (host === undefined) throw new Error('Missing host context');
+  const continued = await commands.submit(
+    host,
+    lobbyCommand(id(commandIdBase), roster.roomId, startedVersion, {
+      type: 'ContinuePhase',
+      payload: {},
+    }),
+  );
+  if (!continued.accepted) throw new Error('expected role gate to open');
+  let version = continued.stateVersion;
+  for (const [index, context] of contexts.entries()) {
+    const acknowledged = await commands.submit(
+      context,
+      lobbyCommand(id(commandIdBase + index + 1), roster.roomId, version, {
+        type: 'AckRole',
+        payload: {},
+      }),
+    );
+    if (!acknowledged.accepted)
+      throw new Error('expected role acknowledgement');
+    version = acknowledged.stateVersion;
+  }
+  return version;
 }
 
 describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, and concurrency', () => {
@@ -1164,5 +1209,628 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       expect(delivery.message.roomView.public.players).toHaveLength(5);
     }
     expect(host.playerId).not.toBe(leaver.playerId);
+  });
+
+  it('M4-001–M4-006 projects gated actions, reveals votes together, and settles one anonymous quest exactly once', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commandsA = new CommandService(sql, config, testPorts.ports);
+    const commandsB = new CommandService(sql, config, testPorts.ports);
+    const roster = await prepareLobbyRoster(roomService, 5, 700);
+    const started = await readyRosterAndStart(
+      roomService,
+      commandsA,
+      roster,
+      710,
+    );
+    let version = await advanceToTeamProposal(
+      commandsA,
+      roster,
+      started.contexts,
+      started.stateVersion,
+      720,
+    );
+    const host = started.contexts[0];
+    if (host === undefined) throw new Error('Missing host context');
+
+    const heldViews = await Promise.all(
+      roster.members.map((current) =>
+        roomService.readCurrentView(current.sessionToken),
+      ),
+    );
+    const leaderPlayerId = heldViews[0]?.roomView.public.leaderPlayerId;
+    const leaderIndex = roster.members.findIndex(
+      (current) => current.playerId === leaderPlayerId,
+    );
+    const leader = started.contexts[leaderIndex];
+    if (leader === undefined) throw new Error('Missing leader context');
+    expect(
+      heldViews[0]?.roomView.private.availableActions.map(
+        (action) => action.commandType,
+      ),
+    ).toEqual(['ContinuePhase']);
+
+    const proposalOpened = await commandsA.submit(
+      host,
+      lobbyCommand(id(730), roster.roomId, version, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!proposalOpened.accepted) throw new Error('expected proposal gate');
+    version = proposalOpened.stateVersion;
+    const collectingViews = await Promise.all(
+      roster.members.map((current) =>
+        roomService.readCurrentView(current.sessionToken),
+      ),
+    );
+    expect(
+      collectingViews[leaderIndex]?.roomView.private.availableActions.map(
+        (action) => action.commandType,
+      ),
+    ).toEqual(['SubmitTeam']);
+    for (const [index, view] of collectingViews.entries()) {
+      if (index !== leaderIndex) {
+        expect(view.roomView.private.availableActions).toEqual([]);
+      }
+    }
+
+    const goodIndex = collectingViews.findIndex(
+      (view) => view.roomView.private.selfAlignment === 'GOOD',
+    );
+    const evilIndex = collectingViews.findIndex(
+      (view) => view.roomView.private.selfAlignment === 'EVIL',
+    );
+    if (goodIndex < 0 || evilIndex < 0) throw new Error('Missing alignments');
+    const teamPlayerIds = [
+      member(roster, goodIndex).playerId,
+      member(roster, evilIndex).playerId,
+    ];
+    const proposed = await commandsA.submit(
+      leader,
+      lobbyCommand(id(731), roster.roomId, version, {
+        type: 'SubmitTeam',
+        payload: { teamPlayerIds },
+      }),
+    );
+    if (!proposed.accepted) throw new Error('expected team proposal');
+    version = proposed.stateVersion;
+    const proposedView = await roomService.readCurrentView(
+      member(roster, 1).sessionToken,
+    );
+    expect(proposedView.roomView.public).toMatchObject({
+      phase: 'TEAM_VOTE',
+      phaseStage: 'HOST_HELD',
+      proposedTeamPlayerIds: teamPlayerIds,
+    });
+
+    const voteOpened = await commandsA.submit(
+      host,
+      lobbyCommand(id(732), roster.roomId, version, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!voteOpened.accepted) throw new Error('expected vote gate');
+    version = voteOpened.stateVersion;
+    for (const current of roster.members) {
+      const view = await roomService.readCurrentView(current.sessionToken);
+      expect(view.roomView.private.availableActions).toEqual([
+        {
+          commandType: 'SubmitTeamVote',
+          allowedTeamVotes: ['APPROVE', 'REJECT'],
+        },
+      ]);
+    }
+
+    for (let index = 0; index < roster.members.length - 1; index += 1) {
+      const context = started.contexts[index];
+      if (context === undefined) throw new Error('Missing voter');
+      const voted = await commandsA.submit(
+        context,
+        lobbyCommand(id(733 + index), roster.roomId, version, {
+          type: 'SubmitTeamVote',
+          payload: { vote: 'APPROVE' },
+        }),
+      );
+      if (!voted.accepted) throw new Error('expected team vote');
+      version = voted.stateVersion;
+    }
+    const beforeLastVote = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    expect(beforeLastVote.roomView.public.submissionProgress).toEqual({
+      submittedCount: 4,
+      requiredCount: 5,
+    });
+    expect(beforeLastVote.roomView.public.proposalHistory).toEqual([]);
+    expect(JSON.stringify(beforeLastVote.roomView.public)).not.toContain(
+      'APPROVE',
+    );
+
+    const lastVoter = started.contexts[4];
+    if (lastVoter === undefined) throw new Error('Missing last voter');
+    const [lastApprove, lastReject] = await Promise.all([
+      commandsA.submit(
+        lastVoter,
+        lobbyCommand(id(740), roster.roomId, version, {
+          type: 'SubmitTeamVote',
+          payload: { vote: 'APPROVE' },
+        }),
+      ),
+      commandsB.submit(
+        lastVoter,
+        lobbyCommand(id(741), roster.roomId, version, {
+          type: 'SubmitTeamVote',
+          payload: { vote: 'REJECT' },
+        }),
+      ),
+    ]);
+    const acceptedVote = [lastApprove, lastReject].find(
+      (result) => result.accepted,
+    );
+    expect(
+      [lastApprove, lastReject].filter((result) => result.accepted),
+    ).toHaveLength(1);
+    expect(
+      [lastApprove, lastReject].filter((result) => !result.accepted),
+    ).toHaveLength(1);
+    if (acceptedVote === undefined) {
+      throw new Error('Missing accepted last vote');
+    }
+    version = acceptedVote.stateVersion;
+    const voteResult = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    const revealedProposal = voteResult.roomView.public.proposalHistory[0];
+    expect(revealedProposal).toMatchObject({ approved: true });
+    expect(revealedProposal?.approveCount).toBeGreaterThanOrEqual(4);
+    expect(
+      (revealedProposal?.approveCount ?? 0) +
+        (revealedProposal?.rejectCount ?? 0),
+    ).toBe(5);
+    expect(revealedProposal?.votes).toHaveLength(5);
+    expect(voteResult.roomView.private.availableActions).toEqual([
+      { commandType: 'ContinuePhase' },
+    ]);
+
+    const questHeld = await commandsA.submit(
+      host,
+      lobbyCommand(id(742), roster.roomId, version, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!questHeld.accepted) throw new Error('expected quest transition');
+    const questOpened = await commandsA.submit(
+      host,
+      lobbyCommand(id(743), roster.roomId, questHeld.stateVersion, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!questOpened.accepted) throw new Error('expected quest gate');
+    version = questOpened.stateVersion;
+
+    const questViews = await Promise.all(
+      roster.members.map((current) =>
+        roomService.readCurrentView(current.sessionToken),
+      ),
+    );
+    expect(questViews[goodIndex]?.roomView.private.availableActions).toEqual([
+      {
+        commandType: 'SubmitQuestChoice',
+        allowedQuestChoices: ['SUCCESS'],
+      },
+    ]);
+    expect(questViews[evilIndex]?.roomView.private.availableActions).toEqual([
+      {
+        commandType: 'SubmitQuestChoice',
+        allowedQuestChoices: ['SUCCESS', 'FAIL'],
+      },
+    ]);
+    const nonTeamIndex = roster.members.findIndex(
+      (current) => !teamPlayerIds.includes(current.playerId),
+    );
+    const nonTeam = started.contexts[nonTeamIndex];
+    if (nonTeam === undefined) throw new Error('Missing non-team player');
+    const illegalNonTeam = await commandsA.submit(
+      nonTeam,
+      lobbyCommand(id(744), roster.roomId, version, {
+        type: 'SubmitQuestChoice',
+        payload: { choice: 'SUCCESS' },
+      }),
+    );
+    expect(illegalNonTeam).toMatchObject({
+      accepted: false,
+      error: { code: 'PLAYER_NOT_ON_TEAM' },
+    });
+    const good = started.contexts[goodIndex];
+    const evil = started.contexts[evilIndex];
+    if (good === undefined || evil === undefined) {
+      throw new Error('Missing quest contexts');
+    }
+    const illegalGoodFail = await commandsA.submit(
+      good,
+      lobbyCommand(id(745), roster.roomId, version, {
+        type: 'SubmitQuestChoice',
+        payload: { choice: 'FAIL' },
+      }),
+    );
+    expect(illegalGoodFail).toMatchObject({
+      accepted: false,
+      error: { code: 'GOOD_CANNOT_FAIL' },
+    });
+
+    const firstChoice = await commandsA.submit(
+      good,
+      lobbyCommand(id(746), roster.roomId, version, {
+        type: 'SubmitQuestChoice',
+        payload: { choice: 'SUCCESS' },
+      }),
+    );
+    if (!firstChoice.accepted) throw new Error('expected first quest choice');
+    version = firstChoice.stateVersion;
+    const beforeLastChoice = await roomService.readCurrentView(
+      member(roster, evilIndex).sessionToken,
+    );
+    expect(beforeLastChoice.roomView.public.submissionProgress).toEqual({
+      submittedCount: 1,
+      requiredCount: 2,
+    });
+    expect(beforeLastChoice.roomView.public.questHistory).toEqual([]);
+    expect(beforeLastChoice.roomView.public).not.toHaveProperty(
+      'submittedPlayerIds',
+    );
+
+    const [lastSuccess, lastFail] = await Promise.all([
+      commandsA.submit(
+        evil,
+        lobbyCommand(id(747), roster.roomId, version, {
+          type: 'SubmitQuestChoice',
+          payload: { choice: 'SUCCESS' },
+        }),
+      ),
+      commandsB.submit(
+        evil,
+        lobbyCommand(id(748), roster.roomId, version, {
+          type: 'SubmitQuestChoice',
+          payload: { choice: 'FAIL' },
+        }),
+      ),
+    ]);
+    const acceptedChoice = [lastSuccess, lastFail].find(
+      (result) => result.accepted,
+    );
+    expect(
+      [lastSuccess, lastFail].filter((result) => result.accepted),
+    ).toHaveLength(1);
+    expect(
+      [lastSuccess, lastFail].filter((result) => !result.accepted),
+    ).toHaveLength(1);
+    if (acceptedChoice === undefined) {
+      throw new Error('Missing accepted last quest choice');
+    }
+    const questResult = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    expect(questResult.roomView.public.phase).toBe('QUEST_RESOLUTION');
+    expect(questResult.roomView.public.questHistory).toHaveLength(1);
+    const settledQuest = questResult.roomView.public.questHistory[0];
+    expect(
+      (settledQuest?.successChoices ?? 0) + (settledQuest?.failChoices ?? 0),
+    ).toBe(2);
+    expect(settledQuest).not.toHaveProperty('questChoices');
+    expect(settledQuest).not.toHaveProperty('choicesByPlayer');
+    expect(questResult.roomView.private.availableActions).toEqual([
+      { commandType: 'ContinuePhase' },
+    ]);
+  });
+
+  it('RULE-010 / AC-003 rejects a six-player 3:3 tie and rotates the leader without advancing the quest', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commands = new CommandService(sql, config, testPorts.ports);
+    const roster = await prepareLobbyRoster(roomService, 6, 800);
+    const started = await readyRosterAndStart(
+      roomService,
+      commands,
+      roster,
+      810,
+    );
+    let version = await advanceToTeamProposal(
+      commands,
+      roster,
+      started.contexts,
+      started.stateVersion,
+      820,
+    );
+    const host = started.contexts[0];
+    if (host === undefined) throw new Error('Missing host context');
+    const opened = await commands.submit(
+      host,
+      lobbyCommand(id(830), roster.roomId, version, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!opened.accepted) throw new Error('expected proposal gate');
+    version = opened.stateVersion;
+    const proposalView = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    const leaderIndex = roster.members.findIndex(
+      (current) =>
+        current.playerId === proposalView.roomView.public.leaderPlayerId,
+    );
+    const leader = started.contexts[leaderIndex];
+    if (leader === undefined) throw new Error('Missing leader context');
+    const originalLeaderId = leader.playerId;
+    const proposed = await commands.submit(
+      leader,
+      lobbyCommand(id(831), roster.roomId, version, {
+        type: 'SubmitTeam',
+        payload: {
+          teamPlayerIds: roster.members
+            .slice(0, 2)
+            .map((item) => item.playerId),
+        },
+      }),
+    );
+    if (!proposed.accepted) throw new Error('expected team proposal');
+    const voteOpened = await commands.submit(
+      host,
+      lobbyCommand(id(832), roster.roomId, proposed.stateVersion, {
+        type: 'ContinuePhase',
+        payload: {},
+      }),
+    );
+    if (!voteOpened.accepted) throw new Error('expected vote gate');
+    version = voteOpened.stateVersion;
+    for (const [index, context] of started.contexts.entries()) {
+      const voted = await commands.submit(
+        context,
+        lobbyCommand(id(833 + index), roster.roomId, version, {
+          type: 'SubmitTeamVote',
+          payload: { vote: index < 3 ? 'APPROVE' : 'REJECT' },
+        }),
+      );
+      if (!voted.accepted) throw new Error('expected tied vote');
+      version = voted.stateVersion;
+    }
+    const result = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    expect(result.roomView.public).toMatchObject({
+      phase: 'TEAM_VOTE',
+      phaseStage: 'RESOLVED',
+      questIndex: 1,
+      proposalAttempt: 2,
+    });
+    expect(result.roomView.public.leaderPlayerId).not.toBe(originalLeaderId);
+    expect(result.roomView.public.proposalHistory.at(-1)).toMatchObject({
+      approveCount: 3,
+      rejectCount: 3,
+      approved: false,
+    });
+  });
+
+  it('RULE-011 / AC-004 locks evil victory after the fifth rejected team without entering a quest', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commands = new CommandService(sql, config, testPorts.ports);
+    const roster = await prepareLobbyRoster(roomService, 5, 900);
+    const started = await readyRosterAndStart(
+      roomService,
+      commands,
+      roster,
+      910,
+    );
+    let version = await advanceToTeamProposal(
+      commands,
+      roster,
+      started.contexts,
+      started.stateVersion,
+      920,
+    );
+    const host = started.contexts[0];
+    if (host === undefined) throw new Error('Missing host context');
+
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      const opened = await commands.submit(
+        host,
+        lobbyCommand(id(930 + attempt * 20), roster.roomId, version, {
+          type: 'ContinuePhase',
+          payload: {},
+        }),
+      );
+      if (!opened.accepted) throw new Error('expected proposal gate');
+      version = opened.stateVersion;
+      const view = await roomService.readCurrentView(
+        member(roster, 0).sessionToken,
+      );
+      const leaderIndex = roster.members.findIndex(
+        (current) => current.playerId === view.roomView.public.leaderPlayerId,
+      );
+      const leader = started.contexts[leaderIndex];
+      if (leader === undefined) throw new Error('Missing leader context');
+      const proposed = await commands.submit(
+        leader,
+        lobbyCommand(id(931 + attempt * 20), roster.roomId, version, {
+          type: 'SubmitTeam',
+          payload: {
+            teamPlayerIds: roster.members
+              .slice(0, view.roomView.public.requiredTeamSize ?? 2)
+              .map((item) => item.playerId),
+          },
+        }),
+      );
+      if (!proposed.accepted) throw new Error('expected team proposal');
+      const voteOpened = await commands.submit(
+        host,
+        lobbyCommand(
+          id(932 + attempt * 20),
+          roster.roomId,
+          proposed.stateVersion,
+          {
+            type: 'ContinuePhase',
+            payload: {},
+          },
+        ),
+      );
+      if (!voteOpened.accepted) throw new Error('expected vote gate');
+      version = voteOpened.stateVersion;
+      for (const [index, context] of started.contexts.entries()) {
+        const rejected = await commands.submit(
+          context,
+          lobbyCommand(id(933 + attempt * 20 + index), roster.roomId, version, {
+            type: 'SubmitTeamVote',
+            payload: { vote: 'REJECT' },
+          }),
+        );
+        if (!rejected.accepted) throw new Error('expected rejected vote');
+        version = rejected.stateVersion;
+      }
+      if (attempt < 5) {
+        const continued = await commands.submit(
+          host,
+          lobbyCommand(id(945 + attempt * 20), roster.roomId, version, {
+            type: 'ContinuePhase',
+            payload: {},
+          }),
+        );
+        if (!continued.accepted) throw new Error('expected next proposal');
+        version = continued.stateVersion;
+      }
+    }
+
+    const result = await roomService.readCurrentView(
+      member(roster, 0).sessionToken,
+    );
+    expect(result.roomView.public).toMatchObject({
+      phase: 'TEAM_VOTE',
+      phaseStage: 'RESOLVED',
+      questIndex: 1,
+      proposalAttempt: 5,
+      successCount: 0,
+      failureCount: 0,
+      gameOutcome: {
+        winner: 'EVIL',
+        reason: 'FIVE_REJECTED_TEAMS',
+      },
+    });
+    expect(result.roomView.public.proposalHistory).toHaveLength(5);
+    expect(result.roomView.public.questHistory).toEqual([]);
+  });
+
+  it('RULE-014 / AC-006 applies the two-fail threshold to the fourth quest for seven players', async () => {
+    const runFourthQuest = async (
+      failSubmissions: 1 | 2,
+      commandIdBase: number,
+    ) => {
+      const testPorts = createTestPorts();
+      const roomService = new RoomService(sql, config, testPorts.ports);
+      const commands = new CommandService(sql, config, testPorts.ports);
+      const roster = await prepareLobbyRoster(roomService, 7, commandIdBase);
+      const started = await readyRosterAndStart(
+        roomService,
+        commands,
+        roster,
+        commandIdBase + 20,
+      );
+      const [row] = await sql<{ readonly aggregate: unknown }[]>`
+        select aggregate
+          from avalon_runtime.rooms
+         where room_id = ${roster.roomId}
+      `;
+      const state =
+        typeof row?.aggregate === 'string'
+          ? (JSON.parse(row.aggregate) as GameState)
+          : (row?.aggregate as GameState);
+      const evilRoles = new Set<RoleId>([
+        'ASSASSIN',
+        'MINION',
+        'MORGANA',
+        'MORDRED',
+        'OBERON',
+      ]);
+      const evilPlayers = state.players.filter((player) => {
+        const roleId = state.roleAssignments[player.playerId];
+        return roleId !== undefined && evilRoles.has(roleId);
+      });
+      const goodPlayers = state.players.filter(
+        (player) =>
+          !evilPlayers.some((evil) => evil.playerId === player.playerId),
+      );
+      const team = [...evilPlayers.slice(0, 2), ...goodPlayers.slice(0, 2)];
+      if (team.length !== 4) throw new Error('Missing fourth-quest team');
+      const questState: GameState = {
+        ...state,
+        phase: 'QUEST_SUBMISSION',
+        phaseStage: 'COLLECTING',
+        questIndex: 4,
+        proposalAttempt: 1,
+        proposedTeam: team.map((player) => player.playerId),
+        teamVotes: {},
+        questChoices: {},
+        roleAcknowledgements: [],
+        proposalHistory: [],
+        questHistory: [],
+        successCount: 0,
+        failureCount: 0,
+        pendingTransition: undefined,
+      };
+      await sql`
+        update avalon_runtime.rooms
+           set phase = 'QUEST_SUBMISSION',
+               aggregate = ${sql.json(questState as unknown as postgres.JSONValue)}
+         where room_id = ${roster.roomId}
+      `;
+      const before = await roomService.readCurrentView(
+        member(roster, 0).sessionToken,
+      );
+      expect(before.roomView.public.requiredQuestFails).toBe(2);
+
+      let version = started.stateVersion;
+      for (const [index, player] of team.entries()) {
+        const contextIndex = roster.members.findIndex(
+          (current) => current.playerId === player.playerId,
+        );
+        const context = started.contexts[contextIndex];
+        if (context === undefined) throw new Error('Missing quest context');
+        const choice = await commands.submit(
+          context,
+          lobbyCommand(id(commandIdBase + 40 + index), roster.roomId, version, {
+            type: 'SubmitQuestChoice',
+            payload: {
+              choice: index < failSubmissions && index < 2 ? 'FAIL' : 'SUCCESS',
+            },
+          }),
+        );
+        if (!choice.accepted) throw new Error('expected quest choice');
+        version = choice.stateVersion;
+      }
+      const after = await roomService.readCurrentView(
+        member(roster, 0).sessionToken,
+      );
+      const settled = after.roomView.public.questHistory.at(-1);
+      await sql`
+        delete from avalon_runtime.rooms where room_id = ${roster.roomId}
+      `;
+      return settled;
+    };
+
+    await expect(runFourthQuest(1, 1_100)).resolves.toMatchObject({
+      questIndex: 4,
+      failChoices: 1,
+      requiredFails: 2,
+      result: 'SUCCESS',
+    });
+    await expect(runFourthQuest(2, 1_200)).resolves.toMatchObject({
+      questIndex: 4,
+      failChoices: 2,
+      requiredFails: 2,
+      result: 'FAILURE',
+    });
   });
 });

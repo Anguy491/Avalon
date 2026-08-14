@@ -256,6 +256,7 @@
               "phaseStage",
               "players",
               "proposalAttempt",
+              "requiredQuestFails",
               "proposedTeamPlayerIds",
               "proposalHistory",
               "questHistory",
@@ -489,6 +490,18 @@
                   }
                 ]
               },
+              "requiredQuestFails": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "maximum": 2,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "proposedTeamPlayerIds": {
                 "maxItems": 5,
                 "uniqueItems": true,
@@ -537,6 +550,8 @@
                     "leaderPlayerId",
                     "teamPlayerIds",
                     "votes",
+                    "approveCount",
+                    "rejectCount",
                     "approved"
                   ],
                   "properties": {
@@ -594,6 +609,16 @@
                           }
                         }
                       }
+                    },
+                    "approveCount": {
+                      "minimum": 0,
+                      "maximum": 10,
+                      "type": "integer"
+                    },
+                    "rejectCount": {
+                      "minimum": 0,
+                      "maximum": 10,
+                      "type": "integer"
                     },
                     "approved": {
                       "type": "boolean"
@@ -1164,6 +1189,7 @@
                   "phaseStage",
                   "players",
                   "proposalAttempt",
+                  "requiredQuestFails",
                   "proposedTeamPlayerIds",
                   "proposalHistory",
                   "questHistory",
@@ -1397,6 +1423,18 @@
                       }
                     ]
                   },
+                  "requiredQuestFails": {
+                    "anyOf": [
+                      {
+                        "minimum": 1,
+                        "maximum": 2,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "proposedTeamPlayerIds": {
                     "maxItems": 5,
                     "uniqueItems": true,
@@ -1445,6 +1483,8 @@
                         "leaderPlayerId",
                         "teamPlayerIds",
                         "votes",
+                        "approveCount",
+                        "rejectCount",
                         "approved"
                       ],
                       "properties": {
@@ -1502,6 +1542,16 @@
                               }
                             }
                           }
+                        },
+                        "approveCount": {
+                          "minimum": 0,
+                          "maximum": 10,
+                          "type": "integer"
+                        },
+                        "rejectCount": {
+                          "minimum": 0,
+                          "maximum": 10,
+                          "type": "integer"
                         },
                         "approved": {
                           "type": "boolean"
@@ -2069,6 +2119,7 @@
                   "phaseStage",
                   "players",
                   "proposalAttempt",
+                  "requiredQuestFails",
                   "proposedTeamPlayerIds",
                   "proposalHistory",
                   "questHistory",
@@ -2302,6 +2353,18 @@
                       }
                     ]
                   },
+                  "requiredQuestFails": {
+                    "anyOf": [
+                      {
+                        "minimum": 1,
+                        "maximum": 2,
+                        "type": "integer"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
                   "proposedTeamPlayerIds": {
                     "maxItems": 5,
                     "uniqueItems": true,
@@ -2350,6 +2413,8 @@
                         "leaderPlayerId",
                         "teamPlayerIds",
                         "votes",
+                        "approveCount",
+                        "rejectCount",
                         "approved"
                       ],
                       "properties": {
@@ -2407,6 +2472,16 @@
                               }
                             }
                           }
+                        },
+                        "approveCount": {
+                          "minimum": 0,
+                          "maximum": 10,
+                          "type": "integer"
+                        },
+                        "rejectCount": {
+                          "minimum": 0,
+                          "maximum": 10,
+                          "type": "integer"
                         },
                         "approved": {
                           "type": "boolean"
@@ -3252,6 +3327,7 @@
               "phaseStage",
               "players",
               "proposalAttempt",
+              "requiredQuestFails",
               "proposedTeamPlayerIds",
               "proposalHistory",
               "questHistory",
@@ -3485,6 +3561,18 @@
                   }
                 ]
               },
+              "requiredQuestFails": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "maximum": 2,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "proposedTeamPlayerIds": {
                 "maxItems": 5,
                 "uniqueItems": true,
@@ -3533,6 +3621,8 @@
                     "leaderPlayerId",
                     "teamPlayerIds",
                     "votes",
+                    "approveCount",
+                    "rejectCount",
                     "approved"
                   ],
                   "properties": {
@@ -3590,6 +3680,16 @@
                           }
                         }
                       }
+                    },
+                    "approveCount": {
+                      "minimum": 0,
+                      "maximum": 10,
+                      "type": "integer"
+                    },
+                    "rejectCount": {
+                      "minimum": 0,
+                      "maximum": 10,
+                      "type": "integer"
                     },
                     "approved": {
                       "type": "boolean"
@@ -4152,6 +4252,7 @@
               "phaseStage",
               "players",
               "proposalAttempt",
+              "requiredQuestFails",
               "proposedTeamPlayerIds",
               "proposalHistory",
               "questHistory",
@@ -4385,6 +4486,18 @@
                   }
                 ]
               },
+              "requiredQuestFails": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "maximum": 2,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
               "proposedTeamPlayerIds": {
                 "maxItems": 5,
                 "uniqueItems": true,
@@ -4433,6 +4546,8 @@
                     "leaderPlayerId",
                     "teamPlayerIds",
                     "votes",
+                    "approveCount",
+                    "rejectCount",
                     "approved"
                   ],
                   "properties": {
@@ -4490,6 +4605,16 @@
                           }
                         }
                       }
+                    },
+                    "approveCount": {
+                      "minimum": 0,
+                      "maximum": 10,
+                      "type": "integer"
+                    },
+                    "rejectCount": {
+                      "minimum": 0,
+                      "maximum": 10,
+                      "type": "integer"
                     },
                     "approved": {
                       "type": "boolean"

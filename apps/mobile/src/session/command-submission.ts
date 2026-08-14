@@ -25,14 +25,26 @@ export type LobbyCommandInput =
     }
   | { readonly type: 'CloseRoom'; readonly payload: Record<string, never> };
 
-export type M3CommandInput =
+export type RoomCommandInput =
   | LobbyCommandInput
   | { readonly type: 'StartGame'; readonly payload: Record<string, never> }
   | {
       readonly type: 'ContinuePhase';
       readonly payload: Record<string, never>;
     }
-  | { readonly type: 'AckRole'; readonly payload: Record<string, never> };
+  | { readonly type: 'AckRole'; readonly payload: Record<string, never> }
+  | {
+      readonly type: 'SubmitTeam';
+      readonly payload: { readonly teamPlayerIds: readonly string[] };
+    }
+  | {
+      readonly type: 'SubmitTeamVote';
+      readonly payload: { readonly vote: 'APPROVE' | 'REJECT' };
+    }
+  | {
+      readonly type: 'SubmitQuestChoice';
+      readonly payload: { readonly choice: 'SUCCESS' | 'FAIL' };
+    };
 
 interface PendingCommand {
   readonly fingerprint: string;
@@ -44,7 +56,7 @@ export class RoomCommandAttempts {
 
   acquire(
     roomView: RoomView,
-    input: M3CommandInput,
+    input: RoomCommandInput,
     createId: () => string,
     now: () => Date,
   ): Command {
@@ -142,11 +154,14 @@ export async function submitCommandWithAck(
 
 const RESYNC_REJECTION_CODES = new Set([
   'NOT_HOST',
+  'NOT_LEADER',
   'INVALID_PHASE',
   'INVALID_PHASE_STAGE',
   'PHASE_HELD',
   'STALE_VERSION',
   'ALREADY_SUBMITTED',
+  'PLAYER_NOT_ON_TEAM',
+  'GOOD_CANNOT_FAIL',
 ]);
 
 export function shouldResyncAfterRejection(result: CommandResult): boolean {

@@ -42,7 +42,7 @@ import {
   RoomCommandAttempts,
   shouldResyncAfterRejection,
   submitCommandWithAck,
-  type M3CommandInput,
+  type RoomCommandInput,
 } from './command-submission';
 import { IdempotencyKeys } from './idempotency';
 import { acceptNewerRoomView } from './room-view-state';
@@ -82,7 +82,7 @@ interface SessionContextValue {
   readonly joinRoom: (nickname: string, roomCode: string) => Promise<void>;
   readonly recover: () => Promise<void>;
   readonly refreshView: () => Promise<void>;
-  readonly submitCommand: (command: M3CommandInput) => Promise<CommandResult>;
+  readonly submitCommand: (command: RoomCommandInput) => Promise<CommandResult>;
   readonly forgetSession: () => Promise<void>;
   readonly dismissError: () => void;
 }
@@ -347,7 +347,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, [forgetSession, roomViewQuery]);
 
   const submitCommand = useCallback(
-    async (input: M3CommandInput): Promise<CommandResult> => {
+    async (input: RoomCommandInput): Promise<CommandResult> => {
       if (commandInFlight.current) {
         const busyError = new ApiError(
           {

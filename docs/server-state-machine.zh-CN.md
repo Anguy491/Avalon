@@ -339,6 +339,7 @@ else:
   "questIndex": 2,
   "proposalAttempt": 1,
   "requiredTeamSize": 3,
+  "requiredQuestFails": 1,
   "proposedTeam": ["p2", "p3", "p6"],
   "submissionProgress": { "submittedCount": 4, "requiredCount": 7 },
   "questHistory": [],
@@ -347,6 +348,8 @@ else:
   "currentAudioCue": { "audioCueId": "cue-occurrence-51", "subtitleKey": "team.vote.prompt" }
 }
 ```
+
+`requiredQuestFails` 是当前任务的服务端权威失败阈值；7–10 人第四项任务为 2，其余任务为 1。已结算的 `proposalHistory` 条目必须包含服务端权威的 `approveCount` 与 `rejectCount`，客户端只负责展示，不得据此重新裁决。
 
 它不得包含角色、阵营、私密知识、未公开票值、任务行动、会话令牌、设备标识或具体未提交玩家名单。
 

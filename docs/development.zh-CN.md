@@ -55,7 +55,17 @@ pnpm dev
 
 Compose 另外读取 `POSTGRES_DB/USER/PASSWORD`，仅用于本地容器。`.env` 不进入 Git；`.env.example` 只含不可复用占位值。服务端禁止请求体自动日志，并显式删减 Authorization、SessionToken、角色、知识、票与任务行动路径。pepper、幂等加密密钥和限流 HMAC 密钥必须彼此独立；Preview/Production 由秘密管理系统注入，不得使用示例值。
 
-移动构建读取 `EXPO_PUBLIC_API_URL` 与 `EXPO_PUBLIC_JOIN_HOST`。开发默认 API 为 `http://127.0.0.1:3000`，公开加入 host 为不可发布占位值；Preview/Production 必须显式改为 HTTPS/WSS 域名并配置 iOS Associated Domains、Android App Links 和服务端 `REALTIME_PUBLIC_URL`。随机安装 UUID 只存在于 SecureStore，并只用于组合限流。
+移动构建读取 `EXPO_PUBLIC_API_URL`、`EXPO_PUBLIC_JOIN_HOST` 与 `EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS`。开发默认 API 为 `http://127.0.0.1:3000`，公开加入 host 为不可发布占位值；本地 iOS Simulator 默认不生成 Associated Domains entitlement，避免无证书的模拟器构建被原生签名能力阻断。随机安装 UUID 只存在于 SecureStore，并只用于组合限流。
+
+Preview/Production（或需要在真机验证 Universal Links 的 Development Build）必须同时设置真实 HTTPS host 和 `EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS=1`，再重新生成/构建原生应用。例如：
+
+```bash
+EXPO_PUBLIC_JOIN_HOST=anguy.dev \
+EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS=1 \
+pnpm --filter @avalon/mobile exec expo prebuild --platform ios --clean
+```
+
+启用后，iOS entitlement 为 `applinks:<EXPO_PUBLIC_JOIN_HOST>`；该 host 必须通过无重定向的 HTTPS 在 `/.well-known/apple-app-site-association` 提供 AASA 文件，且其中 App ID 必须匹配 Apple Team ID 与最终 `ios.bundleIdentifier`。这类构建仍需要 Apple 开发团队、证书和 provisioning profile。仅做本地 Simulator 开发时不要设置该开关；`EXPO_PUBLIC_JOIN_HOST` 仍可设为真实域名，用于生成/解析加入链接，但不会声明 Universal Links entitlement。Preview/Production 还必须配置 Android App Links 和服务端 `REALTIME_PUBLIC_URL`。
 
 ## 4. 生成协议
 
@@ -87,13 +97,13 @@ pnpm build
 
 `pnpm test:e2e:mobile` 运行 Maestro 的 M2 原生创建/错误/拒权流程，需要已安装 Development Build、Maestro、运行中的 API 与 `npx expo start --dev-client --localhost`；Android 模拟器另需执行 `adb reverse tcp:8081 tcp:8081` 和 API 端口反向映射。
 
-`pnpm test:load` 针对已启动服务执行默认 20 个并发 10 人房：20 次创建、180 次加入、200 条 Socket.IO 连接，以及每房完整的 `SetReady → StartGame（含同 commandId 重放）→ ContinuePhase → 全员 AckRole`。脚本断言：
+`pnpm test:load` 针对已启动服务执行默认 20 个并发房，人数循环覆盖 5–10 人。每房完成 `SetReady → StartGame（含同 commandId 重放）→ 全员 AckRole → 五次组队/投票/任务结算`，确定性结果为成功、失败、成功、失败、成功。脚本断言：
 
 - 创建/加入 p95 不超过 `NFR-002` 的 2 秒；命令 ack 和最终个性化投影 p95 不超过 `NFR-003` 的 1 秒；
-- HTTP/命令零错误、重放不增加 `stateVersion`，最终全部房间到达 `TEAM_PROPOSAL/HOST_HELD`；
+- HTTP/命令零错误、重放不增加 `stateVersion`，最终全部房间具有五条匿名任务历史并到达 `QUEST_RESOLUTION/RESOLVED`；
 - 每条实时投影的 `roomId`/私密 `playerId` 与连接绑定一致，公开快照不含角色、知识、票或任务私密字段。
 
-可用 `LOAD_BASE_URL` 指向隔离服务端口，用 `LOAD_ROOM_COUNT` 在 1–1,000 内调整房间数；服务端的本地限流配置必须容纳对应请求量。该脚本是短时 M3 多房间烟测，不是 `NFR-004` 的 1,000 房/10,000 连接、持续 30 分钟候选发布验证。
+可用 `LOAD_BASE_URL` 指向隔离服务端口，用 `LOAD_ROOM_COUNT` 在 1–1,000 内调整房间数；服务端的本地限流配置必须容纳对应请求量。该脚本是短时 M4 多房间烟测，不是 `NFR-004` 的 1,000 房/10,000 连接、持续 30 分钟候选发布验证。
 
 ## 6. Development Build 与 CNG
 
@@ -105,6 +115,15 @@ npx expo start --go
 npx expo prebuild --clean
 npx expo run:ios
 npx expo run:android
+```
+
+首次从旧配置切换到无签名的 iOS Simulator 构建时，需要重新生成原生目录，清除其中已生成的 Associated Domains entitlement：
+
+```bash
+cd apps/mobile
+unset EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS
+npx expo prebuild --platform ios --clean
+npx expo run:ios --device "iPhone 17"
 ```
 
 Web 只作为开发预览，Expo Router 使用 `single` 输出；M2 的发布验收目标是 iOS/Android 原生 bundle 与 Development Build。

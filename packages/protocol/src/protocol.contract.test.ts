@@ -328,6 +328,38 @@ describe('TEST-contract / NFR-014 projection boundaries', () => {
     );
   });
 
+  it('requires server-authoritative team-vote totals on revealed proposals', () => {
+    const roomView = roomViewForRole('MERLIN');
+    roomView.public.phase = 'TEAM_VOTE';
+    roomView.public.phaseStage = 'RESOLVED';
+    roomView.public.proposedTeamPlayerIds = UUIDS.players.slice(0, 2);
+    roomView.public.proposalHistory = [
+      {
+        questIndex: 1,
+        proposalAttempt: 1,
+        leaderPlayerId: UUIDS.players[0],
+        teamPlayerIds: UUIDS.players.slice(0, 2),
+        votes: UUIDS.players.map((playerId, index) => ({
+          playerId,
+          vote: index < 3 ? 'APPROVE' : 'REJECT',
+        })),
+        approveCount: 3,
+        rejectCount: 2,
+        approved: true,
+      },
+    ];
+    expect(
+      validateRoomView(roomView),
+      JSON.stringify(validateRoomView.errors),
+    ).toBe(true);
+
+    const withoutTotals = structuredClone(roomView) as unknown as {
+      public: { proposalHistory: Array<Record<string, unknown>> };
+    };
+    delete withoutTotals.public.proposalHistory[0]?.approveCount;
+    expect(validateRoomView(withoutTotals)).toBe(false);
+  });
+
   it.each([
     'roleAssignments',
     'privateKnowledge',

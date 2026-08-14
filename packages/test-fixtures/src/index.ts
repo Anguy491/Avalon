@@ -41,6 +41,19 @@ export const M1_REGRESSION_QUEST_RESULTS = [
   'SUCCESS',
 ] as const;
 
+export const M4_FIVE_QUEST_SCRIPT = [
+  { questIndex: 1, result: 'SUCCESS' },
+  { questIndex: 2, result: 'FAILURE' },
+  { questIndex: 3, result: 'SUCCESS' },
+  { questIndex: 4, result: 'FAILURE' },
+  { questIndex: 5, result: 'SUCCESS' },
+] as const;
+
+export const M4_REJECTION_SCRIPT = {
+  sixPlayerTie: ['APPROVE', 'APPROVE', 'APPROVE', 'REJECT', 'REJECT', 'REJECT'],
+  fiveRejectedAttempts: [1, 2, 3, 4, 5],
+} as const;
+
 export const FIXTURE_RULE_ROWS = ([5, 6, 7, 8, 9, 10] as const).map(
   (playerCount) => ({
     playerCount,

@@ -47,6 +47,7 @@ const delivery: ProjectionDelivery = {
         questIndex: null,
         proposalAttempt: 1,
         requiredTeamSize: null,
+        requiredQuestFails: null,
         proposedTeamPlayerIds: [],
         submissionProgress: null,
         proposalHistory: [],

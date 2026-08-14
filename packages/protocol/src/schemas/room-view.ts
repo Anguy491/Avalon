@@ -55,6 +55,8 @@ export const ProposalRecordSchema = Type.Object(
       uniqueItems: true,
     }),
     votes: Type.Array(TeamVoteRecordSchema, { minItems: 5, maxItems: 10 }),
+    approveCount: Type.Integer({ minimum: 0, maximum: 10 }),
+    rejectCount: Type.Integer({ minimum: 0, maximum: 10 }),
     approved: Type.Boolean(),
   },
   { additionalProperties: false },
@@ -121,6 +123,10 @@ export const PublicSnapshotSchema = Type.Object(
     requiredTeamSize: Type.Optional(
       Type.Union([Type.Integer({ minimum: 2, maximum: 5 }), Type.Null()]),
     ),
+    requiredQuestFails: Type.Union([
+      Type.Integer({ minimum: 1, maximum: 2 }),
+      Type.Null(),
+    ]),
     proposedTeamPlayerIds: Type.Array(UuidSchema, {
       maxItems: 5,
       uniqueItems: true,

@@ -6,7 +6,7 @@ import { io } from 'socket.io-client';
 
 const baseUrl = process.env.LOAD_BASE_URL ?? 'http://127.0.0.1:3000';
 const roomCount = Number.parseInt(process.env.LOAD_ROOM_COUNT ?? '20', 10);
-const playersPerRoom = 10;
+const playerCountForRoom = (roomIndex) => 5 + (roomIndex % 6);
 const maximumHttpP95Milliseconds = 2_000;
 const maximumRealtimeP95Milliseconds = 1_000;
 const realtimeTimeoutMilliseconds = 10_000;
@@ -265,15 +265,137 @@ async function waitForFinalProjection(room, stateVersion) {
       room.members.every(
         (member) =>
           member.lastView?.public?.stateVersion >= stateVersion &&
-          member.lastView?.public?.phase === 'TEAM_PROPOSAL' &&
-          member.lastView?.public?.phaseStage === 'HOST_HELD',
+          member.lastView?.public?.phase === 'QUEST_RESOLUTION' &&
+          member.lastView?.public?.phaseStage === 'RESOLVED' &&
+          member.lastView?.public?.questHistory?.length === 5,
       )
     ) {
       return performance.now() - startedAt;
     }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error('final personalized projections timed out');
+  throw new Error('final M4 personalized projections timed out');
+}
+
+async function throttleHostCommands() {
+  await new Promise((resolve) => setTimeout(resolve, 1_200));
+}
+
+async function waitForMemberProjection(member, stateVersion) {
+  const startedAt = performance.now();
+  while (performance.now() - startedAt < realtimeTimeoutMilliseconds) {
+    if ((member.lastView?.public?.stateVersion ?? -1) >= stateVersion) {
+      return member.lastView;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error('member projection timed out');
+}
+
+async function playFiveQuests(room, initialStateVersion, commandTimings) {
+  const host = room.members[0];
+  if (host === undefined) throw new Error('load room had no host');
+  let stateVersion = initialStateVersion;
+  const desiredFailures = [false, true, false, true, false];
+
+  // Start/role acknowledgement is intentionally bursty. Let the per-session
+  // five-second sustained command window clear before the host begins the
+  // longer gameplay loop, then pace host-only phase gates below the limit.
+  await new Promise((resolve) => setTimeout(resolve, 5_200));
+
+  const submit = async (member, type, payload = {}) => {
+    const result = await emitCommand(
+      member,
+      commandEnvelope(room.roomId, stateVersion, type, payload),
+    );
+    commandTimings.push(result.elapsed);
+    stateVersion = result.result.stateVersion;
+  };
+
+  for (let questOffset = 0; questOffset < 5; questOffset += 1) {
+    let hostView = await waitForMemberProjection(host, stateVersion);
+    if (hostView.public.phase === 'QUEST_RESOLUTION') {
+      await submit(host, 'ContinuePhase');
+      await throttleHostCommands();
+      hostView = await waitForMemberProjection(host, stateVersion);
+    }
+    if (
+      hostView.public.phase !== 'TEAM_PROPOSAL' ||
+      hostView.public.phaseStage !== 'HOST_HELD'
+    ) {
+      throw new Error('quest did not begin at the proposal host gate');
+    }
+
+    await submit(host, 'ContinuePhase');
+    await throttleHostCommands();
+    hostView = await waitForMemberProjection(host, stateVersion);
+    const leader = room.members.find(
+      (current) => current.playerId === hostView.public.leaderPlayerId,
+    );
+    if (leader === undefined) throw new Error('proposal leader was missing');
+    const requiredTeamSize = hostView.public.requiredTeamSize;
+    const requiredQuestFails = hostView.public.requiredQuestFails;
+    if (
+      !Number.isInteger(requiredTeamSize) ||
+      !Number.isInteger(requiredQuestFails)
+    ) {
+      throw new Error('quest rule projection was incomplete');
+    }
+
+    const memberViews = await Promise.all(
+      room.members.map(async (current) => ({
+        member: current,
+        view: await waitForMemberProjection(current, stateVersion),
+      })),
+    );
+    const evilMembers = memberViews
+      .filter(({ view }) => view.private.selfAlignment === 'EVIL')
+      .map(({ member }) => member);
+    const failQuest = desiredFailures[questOffset] === true;
+    const evilNeeded = failQuest ? requiredQuestFails : 0;
+    const team = evilMembers.slice(0, evilNeeded);
+    for (const current of room.members) {
+      if (team.length >= requiredTeamSize) break;
+      if (!team.some((selected) => selected.playerId === current.playerId)) {
+        team.push(current);
+      }
+    }
+    if (team.length !== requiredTeamSize || evilMembers.length < evilNeeded) {
+      throw new Error('could not build deterministic quest team');
+    }
+
+    await submit(leader, 'SubmitTeam', {
+      teamPlayerIds: team.map((current) => current.playerId),
+    });
+    await submit(host, 'ContinuePhase');
+    await throttleHostCommands();
+    for (const current of room.members) {
+      await submit(current, 'SubmitTeamVote', { vote: 'APPROVE' });
+    }
+    await submit(host, 'ContinuePhase');
+    await throttleHostCommands();
+    await submit(host, 'ContinuePhase');
+    await throttleHostCommands();
+
+    const failingIds = new Set(
+      evilMembers.slice(0, evilNeeded).map((current) => current.playerId),
+    );
+    for (const current of team) {
+      await submit(current, 'SubmitQuestChoice', {
+        choice: failingIds.has(current.playerId) ? 'FAIL' : 'SUCCESS',
+      });
+    }
+    const resolved = await waitForMemberProjection(host, stateVersion);
+    const latestQuest = resolved.public.questHistory?.at(-1);
+    if (
+      resolved.public.phase !== 'QUEST_RESOLUTION' ||
+      latestQuest?.questIndex !== questOffset + 1 ||
+      latestQuest.result !== (failQuest ? 'FAILURE' : 'SUCCESS')
+    ) {
+      throw new Error('quest result diverged from the deterministic script');
+    }
+  }
+  return stateVersion;
 }
 
 const sockets = [];
@@ -286,7 +408,7 @@ try {
           nickname: `LoadHost${String(roomIndex)}`,
           config: {
             rulesVersion: 'CLASSIC_AVALON_V1',
-            playerCount: playersPerRoom,
+            playerCount: playerCountForRoom(roomIndex),
             roleSelection: { type: 'PRESET', presetId: 'CLASSIC' },
             locale: 'zh-CN',
           },
@@ -299,12 +421,14 @@ try {
   const joinGroups = await Promise.all(
     createdRooms.map(({ payload }, roomIndex) =>
       Promise.all(
-        Array.from({ length: playersPerRoom - 1 }, (_, playerIndex) =>
-          timedRequest(
-            `/v1/rooms/${payload.roomCode}/players`,
-            { nickname: `LoadP${String(roomIndex)}_${String(playerIndex)}` },
-            playerIndex % 2 === 0 ? 'ANDROID' : 'IOS',
-          ),
+        Array.from(
+          { length: playerCountForRoom(roomIndex) - 1 },
+          (_, playerIndex) =>
+            timedRequest(
+              `/v1/rooms/${payload.roomCode}/players`,
+              { nickname: `LoadP${String(roomIndex)}_${String(playerIndex)}` },
+              playerIndex % 2 === 0 ? 'ANDROID' : 'IOS',
+            ),
         ),
       ),
     ),
@@ -312,6 +436,7 @@ try {
 
   const rooms = createdRooms.map(({ payload }, roomIndex) => ({
     roomId: payload.roomView.public.roomId,
+    playerCount: playerCountForRoom(roomIndex),
     bootstraps: [
       payload,
       ...(joinGroups[roomIndex] ?? []).map((joined) => joined.payload),
@@ -324,9 +449,9 @@ try {
   let connectionIndex = 0;
   for (const room of rooms) {
     room.members = connected
-      .slice(connectionIndex, connectionIndex + playersPerRoom)
+      .slice(connectionIndex, connectionIndex + room.playerCount)
       .map(({ member }) => member);
-    connectionIndex += playersPerRoom;
+    connectionIndex += room.playerCount;
   }
 
   const commandTimings = [];
@@ -381,16 +506,18 @@ try {
         stateVersion = acknowledged.result.stateVersion;
       }
 
+      stateVersion = await playFiveQuests(room, stateVersion, commandTimings);
       projectionTimings.push(await waitForFinalProjection(room, stateVersion));
       const authoritative = await readCurrentView(host.sessionToken);
       inspectProjection(host, authoritative);
       if (
         authoritative.public.roomId !== room.roomId ||
-        authoritative.public.players.length !== playersPerRoom ||
-        authoritative.public.phase !== 'TEAM_PROPOSAL' ||
-        authoritative.public.phaseStage !== 'HOST_HELD'
+        authoritative.public.players.length !== room.playerCount ||
+        authoritative.public.phase !== 'QUEST_RESOLUTION' ||
+        authoritative.public.phaseStage !== 'RESOLVED' ||
+        authoritative.public.questHistory.length !== 5
       ) {
-        throw new Error('room did not finish the M3 identity flow');
+        throw new Error('room did not finish the M4 five-quest flow');
       }
     }),
   );
@@ -407,8 +534,8 @@ try {
 
   process.stdout.write(
     [
-      'M3 multi-room identity load smoke (zero request/command errors)',
-      `rooms=${String(roomCount)}, connections=${String(roomCount * playersPerRoom)}, projectionIsolation=passed, publicSecretScan=passed`,
+      'M4 multi-room five-quest load smoke (zero request/command errors)',
+      `rooms=${String(roomCount)}, connections=${String(rooms.reduce((total, room) => total + room.playerCount, 0))}, playerCounts=5-10, projectionIsolation=passed, publicSecretScan=passed`,
       summarize(
         'create',
         createdRooms.map(({ elapsed }) => elapsed),

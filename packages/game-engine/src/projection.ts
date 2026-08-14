@@ -1,4 +1,4 @@
-import { alignmentForRole, requiredTeamSize } from './rules.js';
+import { alignmentForRole, requiredFails, requiredTeamSize } from './rules.js';
 import type {
   GameState,
   PrivatePlayerState,
@@ -42,6 +42,10 @@ export function buildPublicGameState(state: GameState): PublicGameState {
     questIndex: state.questIndex,
     proposalAttempt: state.proposalAttempt,
     requiredTeamSize: requiredTeamSize(
+      state.config.playerCount,
+      state.questIndex,
+    ),
+    requiredQuestFails: requiredFails(
       state.config.playerCount,
       state.questIndex,
     ),

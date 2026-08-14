@@ -20,6 +20,8 @@
 - [M0 本地原生验证证据](./verification/m0/README.md)；
 - [M2 会话与房间追踪证据](./m2-traceability.zh-CN.md)；
 - [M2 本地原生验证证据](./verification/m2/README.md)；
+- [M3 大厅、配置与身份揭示追踪证据](./m3-traceability.zh-CN.md)；
+- [M4 组队、投票与任务主循环追踪证据](./m4-traceability.zh-CN.md)；
 - [仓库协作规范](../AGENTS.md)。
 
 ## 状态

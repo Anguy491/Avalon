@@ -1,7 +1,18 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 const PLACEHOLDER_BUNDLE_ID = 'com.example.avalon.dev';
-const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? 'join.example.invalid';
+const PLACEHOLDER_JOIN_HOST = 'join.example.invalid';
+const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? PLACEHOLDER_JOIN_HOST;
+// Associated Domains is an Apple-signed capability. Keep it opt-in so a local
+// Simulator development build does not require a signing identity.
+const ENABLE_IOS_ASSOCIATED_DOMAINS =
+  process.env.EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS === '1';
+
+if (ENABLE_IOS_ASSOCIATED_DOMAINS && JOIN_HOST === PLACEHOLDER_JOIN_HOST) {
+  throw new Error(
+    'EXPO_PUBLIC_JOIN_HOST must be a real HTTPS host when EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS=1.',
+  );
+}
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
@@ -17,7 +28,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: PLACEHOLDER_BUNDLE_ID,
     icon: './assets/expo.icon',
     supportsTablet: true,
-    associatedDomains: [`applinks:${JOIN_HOST}`],
+    ...(ENABLE_IOS_ASSOCIATED_DOMAINS
+      ? { associatedDomains: [`applinks:${JOIN_HOST}`] }
+      : {}),
   },
   android: {
     package: PLACEHOLDER_BUNDLE_ID,

@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 
 import {
+  alignmentForRole,
   assertGameInvariants,
   buildPrivatePlayerState,
   buildPublicGameState,
@@ -147,6 +148,8 @@ function proposalHistory(state: GameState): PublicSnapshot['proposalHistory'] {
         }
         return { playerId: player.playerId, vote };
       }),
+    approveCount: record.approveCount,
+    rejectCount: record.rejectCount,
     approved: record.approved,
   }));
 }
@@ -159,8 +162,6 @@ type AvailableAction = PrivatePlayerProjection['availableActions'][number];
 // clients can disable/enable controls without guessing — it deliberately does
 // NOT re-derive any secret or vote-counting logic; the engine remains the
 // sole source of truth and re-validates every command on submission.
-// M3 covers LOBBY and ROLE_REVEAL (identity reveal); later gameplay phases
-// (TEAM_PROPOSAL onward) are left as an explicit follow-up for a later slice.
 function computeAvailableActions(
   state: GameState,
   playerId: string,
@@ -201,6 +202,54 @@ function computeAvailableActions(
     }
   }
 
+  const canHostContinue =
+    isHost &&
+    (state.phaseStage === 'HOST_HELD' ||
+      ((state.phase === 'TEAM_VOTE' || state.phase === 'QUEST_RESOLUTION') &&
+        state.phaseStage === 'RESOLVED'));
+  if (canHostContinue) return [{ commandType: 'ContinuePhase' }];
+
+  if (state.phase === 'TEAM_PROPOSAL' && state.phaseStage === 'COLLECTING') {
+    const leader = state.players.find(
+      (player) => player.seat === state.leaderSeatIndex,
+    );
+    return leader?.playerId === playerId ? [{ commandType: 'SubmitTeam' }] : [];
+  }
+
+  if (
+    state.phase === 'TEAM_VOTE' &&
+    state.phaseStage === 'COLLECTING' &&
+    !hasSubmitted
+  ) {
+    return [
+      {
+        commandType: 'SubmitTeamVote',
+        allowedTeamVotes: ['APPROVE', 'REJECT'],
+      },
+    ];
+  }
+
+  if (
+    state.phase === 'QUEST_SUBMISSION' &&
+    state.phaseStage === 'COLLECTING' &&
+    state.proposedTeam.includes(playerId) &&
+    !hasSubmitted
+  ) {
+    const roleId = state.roleAssignments[playerId];
+    if (roleId === undefined) {
+      throw new ServiceError('INTERNAL_ERROR', 500, false);
+    }
+    return [
+      {
+        commandType: 'SubmitQuestChoice',
+        allowedQuestChoices:
+          alignmentForRole(roleId) === 'GOOD'
+            ? ['SUCCESS']
+            : ['SUCCESS', 'FAIL'],
+      },
+    ];
+  }
+
   return [];
 }
 
@@ -234,6 +283,8 @@ function projectRoom(
     proposalAttempt: publicGame.proposalAttempt,
     requiredTeamSize:
       state.phase === 'LOBBY' ? null : publicGame.requiredTeamSize,
+    requiredQuestFails:
+      state.phase === 'LOBBY' ? null : publicGame.requiredQuestFails,
     proposedTeamPlayerIds: [...publicGame.proposedTeam],
     submissionProgress: publicGame.submissionProgress ?? null,
     proposalHistory: proposalHistory(state),

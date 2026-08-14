@@ -378,6 +378,7 @@ export interface PublicGameState {
   readonly questIndex: QuestIndex;
   readonly proposalAttempt: ProposalAttempt;
   readonly requiredTeamSize: number;
+  readonly requiredQuestFails: 1 | 2;
   readonly proposedTeam: readonly string[];
   readonly submissionProgress?: {
     readonly submittedCount: number;
