@@ -1,0 +1,59 @@
+appId: com.example.avalon.dev
+name: M5 assassination, terminal result, and local cleanup
+---
+- launchApp:
+    clearState: true
+- openLink: 'exp+avalon-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
+- tapOn:
+    point: '68%,54%'
+    optional: true
+- tapOn:
+    text: 'Wait'
+    optional: true
+- tapOn:
+    text: 'http://127.0.0.1:8081'
+    optional: true
+- tapOn:
+    text: 'Continue'
+    optional: true
+- tapOn:
+    text: 'Reload'
+    optional: true
+- assertVisible: '让手机保管秘密'
+- tapOn: '你的昵称'
+- inputText: 'M5Sim'
+- hideKeyboard
+- tapOn: '输入房间号'
+- tapOn:
+    id: 'join-room-code'
+- inputText: '${ROOM_CODE}'
+- hideKeyboard
+- tapOn:
+    id: 'join-room-submit'
+- assertVisible: '房间号'
+- extendedWaitUntil:
+    visible: '私密选择刺杀目标'
+    timeout: 15000
+- assertVisible: '候选由服务器授权，包含除你之外的所有玩家，不按阵营分组或过滤。'
+- tapOn: '1号位，BotMerlin'
+- tapOn: '确认刺杀目标'
+- assertVisible: '刺杀 BotMerlin，提交后立即结束游戏。'
+- takeScreenshot: 'ios-assassination-${SCREENSHOT_MODE}'
+- tapOn: '确认刺杀'
+- extendedWaitUntil:
+    visible: '邪恶方获胜'
+    timeout: 15000
+- assertVisible: '刺客成功找出梅林，邪恶方翻盘获胜。'
+- assertVisible: '刺杀目标：1号位 · BotMerlin'
+- assertVisible: '全部角色'
+- takeScreenshot: 'ios-result-${SCREENSHOT_MODE}'
+- scrollUntilVisible:
+    element:
+      text: '匿名行动：成功 2，失败 0；失败阈值 1'
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: '返回首页并清理本机会话'
+    direction: DOWN
+- tapOn: '返回首页并清理本机会话'
+- assertVisible: '让手机保管秘密'

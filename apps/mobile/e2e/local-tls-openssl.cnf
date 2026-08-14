@@ -1,0 +1,17 @@
+[req]
+distinguished_name = subject
+prompt = no
+
+[subject]
+CN = Avalon M5 local realtime
+
+[server_cert]
+basicConstraints = critical, CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+

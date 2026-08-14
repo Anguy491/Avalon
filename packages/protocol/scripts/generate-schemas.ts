@@ -10,6 +10,7 @@ import {
   RoomViewMessageSchema,
   SessionBootstrapSchema,
   SessionReadySchema,
+  TerminalViewAckResultSchema,
 } from '../src/schemas/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,6 +29,7 @@ const mobileContracts = {
   sessionBootstrap: SessionBootstrapSchema,
   sessionReady: SessionReadySchema,
   commandResult: CommandResultSchema,
+  terminalViewAckResult: TerminalViewAckResultSchema,
 };
 
 for (const [filename, schema] of Object.entries(schemaDocuments)) {

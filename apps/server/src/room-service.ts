@@ -66,6 +66,7 @@ interface RoomRow {
   readonly state_version: number;
   readonly phase: string;
   readonly aggregate: unknown;
+  readonly terminal_published_at?: Date | null;
 }
 
 interface SessionRow {
@@ -246,6 +247,21 @@ function computeAvailableActions(
           alignmentForRole(roleId) === 'GOOD'
             ? ['SUCCESS']
             : ['SUCCESS', 'FAIL'],
+      },
+    ];
+  }
+
+  if (
+    state.phase === 'ASSASSINATION' &&
+    state.phaseStage === 'COLLECTING' &&
+    state.roleAssignments[playerId] === 'ASSASSIN'
+  ) {
+    return [
+      {
+        commandType: 'SelectMerlinTarget',
+        eligibleTargetPlayerIds: state.players
+          .filter((player) => player.playerId !== playerId)
+          .map((player) => player.playerId),
       },
     ];
   }
@@ -577,7 +593,8 @@ export class RoomService {
       if (replay !== undefined) return replay;
 
       const [room] = await sql<RoomRow[]>`
-        select room_id, room_code, state_version, phase, aggregate
+        select room_id, room_code, state_version, phase, aggregate,
+               terminal_published_at
           from ${sql(SCHEMA)}.rooms
          where room_code = ${roomCode}
          for update
@@ -716,6 +733,9 @@ export class RoomService {
       if (lockedRoom === undefined) {
         throw new ServiceError('ROOM_EXPIRED', 410, false);
       }
+      if (lockedRoom.phase === 'GAME_OVER') {
+        throw new ServiceError('ROOM_EXPIRED', 410, false);
+      }
 
       const now = this.ports.clock.now();
       const newToken = issueSessionToken(this.ports.random);
@@ -780,11 +800,15 @@ export class RoomService {
   async readCurrentView(token: string): Promise<ReadRoomViewResponse> {
     const context = await this.authenticate(token);
     const [room] = await this.sql<RoomRow[]>`
-      select room_id, room_code, state_version, phase, aggregate
+      select room_id, room_code, state_version, phase, aggregate,
+             terminal_published_at
         from ${this.sql(SCHEMA)}.rooms
        where room_id = ${context.roomId}
     `;
     if (room === undefined) {
+      throw new ServiceError('ROOM_EXPIRED', 410, false);
+    }
+    if (room.phase === 'GAME_OVER') {
       throw new ServiceError('ROOM_EXPIRED', 410, false);
     }
     return {
@@ -805,11 +829,18 @@ export class RoomService {
     delivery: 'LIVE' | 'RESYNC',
   ): Promise<RoomView> {
     const [room] = await this.sql<RoomRow[]>`
-      select room_id, room_code, state_version, phase, aggregate
+      select room_id, room_code, state_version, phase, aggregate,
+             terminal_published_at
         from ${this.sql(SCHEMA)}.rooms
        where room_id = ${context.roomId}
     `;
     if (room === undefined) throw new ServiceError('ROOM_EXPIRED', 410);
+    if (
+      room.phase === 'GAME_OVER' &&
+      room.terminal_published_at instanceof Date
+    ) {
+      throw new ServiceError('ROOM_EXPIRED', 410, false);
+    }
     return projectRoom(
       room.room_id,
       room.room_code,

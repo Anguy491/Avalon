@@ -174,7 +174,7 @@ flowchart LR
 | `TM-006` | 互联网 DoS、错误客户端 | 可建立长连接、创建空房和频繁重连 | 耗尽实例、连接池、Redis、数据库锁或 Outbox | 全服务不可用，对局暂停/过期 | API/Realtime/DB 可用性、活跃聚合 | 已规定载荷上限、速率、10 秒暂停、目标压测与水平扩展（协议 2.1/4.2；`NFR-004/005`） | 尚无入口/WAF、每 IP/会话/房间配额和过载策略 | 握手与未认证端点独立限流；全局连接预算；每房命令队列上限；DB pool backpressure；优先保护活跃已认证房间；滚动排空和容量告警 | 连接/实例、握手失败、DB pool、event-loop lag、Outbox age、房间创建率 | 中：互联网可达，但邀请测试降低动机/规模 | 高：会中断所有进行中房间 | high |
 | `TM-007` | 恶意玩家/二维码制作者 | 能提供昵称、暂停原因或 QR | Unicode 欺骗、控制字符、恶意深链、超大/畸形 Schema | 误认玩家、外部钓鱼、客户端崩溃、日志污染 | UI 完整性、可用性、可观测性 | 已规定 NFC/控制字符拒绝、受控 host/path、严格 Schema/未知字段拒绝（协议 2.3；UX 4.2；`ADR-007`） | grapheme/双向字符实现和所有渲染上下文未验证 | 使用成熟 Unicode grapheme 库；拒绝 bidi controls；React Native 文本不解释 markup；deep link allowlist；扫码不自动打开；Schema fuzz/大小限制 | validation code 分布、非法 deep link 计数、客户端 crash 版本关联 | 中：输入完全可控 | 中：通常单设备/单房影响，链到注入才扩大 | medium |
 | `TM-008` | 恶意依赖维护者、CI/EAS 凭证窃贼 | 依赖/Action 未固定或长期凭证泄漏 | 篡改构建、注入 token/角色外传代码、替换音频 | 所有受邀设备和活跃房间被接管 | 签名、构建、token、角色、服务凭证 | 已规定锁文件、EAS profiles、人工生产门槛、secret scan（`AGENTS.md` 3/8；Roadmap M0/M8） | 尚无 CI、OIDC、provenance、review/签名策略 | 固定依赖和 GitHub Actions commit SHA；最小权限 OIDC 短凭证；环境保护；依赖审查；可复现构建/产物哈希；签名密钥不进 repo/普通 CI | 依赖 diff、构建 provenance、异常 EAS 登录/签名、产物网络目的地审查 | 低：需要供应链或凭证突破 | 高：影响所有测试者并可盗取秘密 | medium |
-| `TM-009` | 配置错误、DB/日志/备份读者 | GAME_OVER 后清理失败，或副本/Outbox/备份仍保存 | 查询/恢复已结束对局、昵称、角色或任务公开历史 | 违反无历史决定，扩大未来基础设施泄漏范围 | 昵称、角色、聚合、隐私承诺 | 已规定全部在线会话确认或 60 秒后清除、结果只在客户端内存（`ADR-003`；`NFR-016`） | 尚无实现，WAL/供应商日志的物理残余上限仍未决定 | 删除主行/幂等/Outbox/会话；无历史 API；暂态表排除长期备份；M0 明确复制/WAL/供应商日志残余上限；删除合成 canary | terminal-to-delete 延迟 SLI、过期行数、删除失败告警、备份内容抽检 | 中：多存储副本和失败任务容易造成残余 | 中：假名和游戏秘密，不含账号/支付，但明确违反承诺 | medium |
+| `TM-009` | 配置错误、DB/日志/备份读者 | GAME_OVER 后清理失败，或副本/Outbox/备份仍保存 | 查询/恢复已结束对局、昵称、角色或任务公开历史 | 违反无历史决定，扩大未来基础设施泄漏范围 | 昵称、角色、聚合、隐私承诺 | 已实现在线会话冻结、终局投影前收据、全部 ACK 立即级联删除、60 秒兜底删除、无终局恢复/查询接口和客户端安全存储清理（`ADR-003`；`NFR-016`） | 应用层已覆盖并有并发/受控时钟测试；WAL、复制、长期备份和供应商日志的物理残余上限仍须在邀请测试前由目标基础设施验证 | 暂态表排除长期备份；部署前明确复制/WAL/供应商日志残余上限；增加删除合成 canary 与告警 | terminal-to-delete 延迟 SLI、过期行数、删除失败告警、备份内容抽检 | 中：多存储副本和失败任务容易造成残余 | 中：假名和游戏秘密，不含账号/支付，但明确违反承诺 | medium |
 | `TM-010` | 同桌旁观者、录屏/系统预览 | 玩家在私密操作时被观察；UI 行为因选择不同 | 通过屏幕、预览、动画、触觉或停留时间推断身份/选择 | 单局秘密泄漏和现场争议 | 角色、任务行动、投票 | 已规定隐私门、后台遮罩、提交后中性态、等价动画/触觉（UX 4.5/4.9/8） | 平台截图能力不同，无法阻止主动分享；尚无真机侧信道检查 | Android 私密页截图保护作为纵深；iOS 录屏检测/遮罩；成功/失败等时反馈；默认低亮私密布局；明确现场提示；读屏仅显式揭示 | 不采集秘密选择遥测；以真机人工/录屏审查验证，不记录玩家行为 | 高：线下同桌天然可观察 | 中：影响当前一局，不能远程扩大 | medium |
 
 ## Criticality calibration
@@ -207,11 +207,11 @@ flowchart LR
 | `apps/server/src/auth/` | token 摘要、轮换、撤销和 SessionContext（计划路径） | `TM-001`、`TM-002` |
 | `apps/server/src/realtime/` | Socket 鉴权、重连、速率和逐连接发送（计划路径） | `TM-001`、`TM-003`、`TM-006` |
 | `apps/server/src/projections/` | 最敏感的角色/玩家隔离点（计划路径） | `TM-001`、`TM-004` |
-| `apps/server/src/persistence/` | 行锁、processed commands、Outbox 和终局清除（计划路径） | `TM-003`、`TM-009` |
+| `apps/server/src/outbox-worker.ts`、`apps/server/src/session-presence.ts` | 行锁、终局在线会话冻结、收据、ACK/超时清除 | `TM-003`、`TM-009` |
 | `apps/server/src/observability/` | 日志/指标字段允许列表和 SDK redaction（计划路径） | `TM-002`、`TM-004` |
 | `packages/game-engine/` | 权限后的确定性裁决和善方动作限制（计划路径） | `TM-003` |
 | `packages/protocol/` | 运行时 Schema 和生成投影契约（计划路径） | `TM-001`、`TM-004`、`TM-007` |
-| `apps/mobile/src/session/` | SecureStore、token 清理和恢复（计划路径） | `TM-002`、`TM-009` |
+| `apps/mobile/src/session/` | SecureStore、token 清理、终局内存保留和恢复 | `TM-002`、`TM-009` |
 | `apps/mobile/src/features/private/` | 身份/任务/刺杀遮罩和侧信道（计划路径） | `TM-010` |
 | `apps/mobile/app.config.*` | deep link、平台权限、截图/录屏和 EAS 配置（计划路径） | `TM-007`、`TM-008`、`TM-010` |
 | `.github/workflows/`、`eas.json` | 供应链权限、签名和发布环境（计划路径） | `TM-008` |
@@ -232,6 +232,6 @@ flowchart LR
 - [x] 每个主要信任边界至少出现在一个威胁与缓解路径中；
 - [x] 区分运行时系统、移动设备、CI/EAS 与测试工具；
 - [x] 反映所有者确认的邀请制、互联网多租户、澳大利亚区域、无后台和无历史；
-- [x] 明确仓库尚无实现，所有控制均需后续代码/部署验证；
+- [x] 区分已由 M0–M5 实现并验证的应用控制，以及仍需部署/基础设施证据的控制；
 - [x] 标记会影响风险评级的云、分发、日志和物理残留开放问题；
 - [x] 没有假设房间号是认证凭证，也没有把邀请分发当作可信客户端边界。

@@ -17,6 +17,7 @@ import {
   isCommandResult,
   isRoomViewMessage,
   isSessionReady,
+  isTerminalViewAckResult,
   type CommandResult,
   type CommandType,
   type CreateRoomRequest,
@@ -61,7 +62,8 @@ type SessionStatus =
   | 'ANONYMOUS'
   | 'RECOVERING'
   | 'CONNECTED'
-  | 'OFFLINE';
+  | 'OFFLINE'
+  | 'TERMINAL';
 
 interface SessionSummary {
   readonly roomCode: string;
@@ -104,6 +106,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const sessionToken = useRef<string | undefined>(undefined);
   const sessionRecord = useRef<StoredSession | undefined>(undefined);
   const socket = useRef<Socket | undefined>(undefined);
+  const heartbeat = useRef<ReturnType<typeof setInterval> | undefined>(
+    undefined,
+  );
+  const terminalAckVersion = useRef<number | undefined>(undefined);
   const recovery = useRef<Promise<void> | undefined>(undefined);
   const createKeys = useRef(new IdempotencyKeys());
   const joinKeys = useRef(new IdempotencyKeys());
@@ -139,6 +145,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
   }, []);
 
   const stopSocket = useCallback(() => {
+    if (heartbeat.current !== undefined) clearInterval(heartbeat.current);
+    heartbeat.current = undefined;
     const activeSocket = socket.current;
     socket.current = undefined;
     if (activeSocket === undefined) return;
@@ -157,15 +165,28 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const forgetSession = useCallback(async () => {
     stopSocket();
+    terminalAckVersion.current = undefined;
     sessionRecord.current = undefined;
     sessionToken.current = undefined;
     setSummary(undefined);
     setError(undefined);
     setPendingCommandType(undefined);
     queryClient.removeQueries({ queryKey: ROOM_VIEW_KEY, exact: true });
+    commandAttempts.current = new RoomCommandAttempts();
     await clearStoredSession(expoSecureStore);
     setStatus('ANONYMOUS');
   }, [queryClient, stopSocket]);
+
+  const retireTerminalSession = useCallback(async () => {
+    stopSocket();
+    sessionRecord.current = undefined;
+    sessionToken.current = undefined;
+    setSummary(undefined);
+    setPendingCommandType(undefined);
+    commandAttempts.current = new RoomCommandAttempts();
+    await clearStoredSession(expoSecureStore);
+    setStatus('TERMINAL');
+  }, [stopSocket]);
 
   const connectSocket = useCallback(
     (record: StoredSession) => {
@@ -186,6 +207,14 @@ export function SessionProvider({ children }: PropsWithChildren) {
       socket.current = nextSocket;
       nextSocket.on('connect', () => {
         setStatus('CONNECTED');
+        if (heartbeat.current !== undefined) clearInterval(heartbeat.current);
+        heartbeat.current = setInterval(() => {
+          if (nextSocket.connected) {
+            nextSocket.emit('session.ping', {
+              clientTime: new Date().toISOString(),
+            });
+          }
+        }, 5_000);
       });
       nextSocket.on('disconnect', () => {
         setStatus('OFFLINE');
@@ -202,12 +231,25 @@ export function SessionProvider({ children }: PropsWithChildren) {
         acceptRoomView(payload.roomView);
       });
       nextSocket.on('session.revoked', () => {
-        void forgetSession().then(() => {
-          setError('本机会话已失效，请返回首页重新加入。');
-        });
+        const isTerminal =
+          queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY)?.public.phase ===
+          'GAME_OVER';
+        void (isTerminal ? retireTerminalSession() : forgetSession()).then(
+          () => {
+            if (!isTerminal) {
+              setError('本机会话已失效，请返回首页重新加入。');
+            }
+          },
+        );
       });
     },
-    [acceptRoomView, forgetSession, queryClient, stopSocket],
+    [
+      acceptRoomView,
+      forgetSession,
+      queryClient,
+      retireTerminalSession,
+      stopSocket,
+    ],
   );
 
   const installBootstrap = useCallback(
@@ -267,6 +309,36 @@ export function SessionProvider({ children }: PropsWithChildren) {
     void recover();
     return stopSocket;
   }, [recover, stopSocket]);
+
+  useEffect(() => {
+    const view = roomViewQuery.data;
+    const activeSocket = socket.current;
+    if (
+      view?.public.phase !== 'GAME_OVER' ||
+      activeSocket?.connected !== true ||
+      terminalAckVersion.current === view.public.stateVersion
+    ) {
+      return;
+    }
+    terminalAckVersion.current = view.public.stateVersion;
+    setStatus('TERMINAL');
+    activeSocket
+      .timeout(4_000)
+      .emit(
+        'room.terminalAck',
+        { stateVersion: view.public.stateVersion },
+        (ackError: Error | null, payload: unknown) => {
+          if (
+            ackError !== null ||
+            !isTerminalViewAckResult(payload) ||
+            !payload.accepted
+          ) {
+            setError('终局回执未确认；服务器仍会在 60 秒内自动清理房间。');
+          }
+          void retireTerminalSession();
+        },
+      );
+  }, [retireTerminalSession, roomViewQuery.data]);
 
   useEffect(() => {
     let previous = AppState.currentState;
@@ -410,11 +482,17 @@ export function SessionProvider({ children }: PropsWithChildren) {
           return result;
         }
 
-        try {
-          await refreshView();
-        } catch {
-          // A committed command still converges through room.view when the
-          // opportunistic HTTP resync is unavailable.
+        if (
+          input.type !== 'SubmitTeamVote' &&
+          input.type !== 'SubmitQuestChoice' &&
+          input.type !== 'SelectMerlinTarget'
+        ) {
+          try {
+            await refreshView();
+          } catch {
+            // A committed command still converges through room.view when the
+            // opportunistic HTTP resync is unavailable.
+          }
         }
         return result;
       } catch (caught) {

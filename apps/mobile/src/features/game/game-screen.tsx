@@ -102,6 +102,8 @@ export function GameScreen() {
     const phase = roomView?.public.phase;
     if (phase === 'LOBBY') router.replace('/lobby');
     else if (phase === 'ROLE_REVEAL') router.replace('/role');
+    else if (phase === 'ASSASSINATION') router.replace('/assassination');
+    else if (phase === 'GAME_OVER') router.replace('/result');
   }, [roomView?.public.phase]);
 
   if (roomView === undefined || table === undefined) {

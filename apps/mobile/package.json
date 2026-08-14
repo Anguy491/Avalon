@@ -46,7 +46,7 @@
     "web": "expo start --web",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "test:e2e": "maestro test e2e/m2-a-safe-states.yaml && maestro test e2e/m2-b-create-room.yaml",
+    "test:e2e": "node scripts/run-maestro.mjs e2e/m2-a-safe-states.yaml e2e/m2-b-create-room.yaml && node scripts/run-m5-e2e.mjs",
     "typecheck": "tsc --noEmit"
   },
   "private": true

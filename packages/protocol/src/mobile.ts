@@ -6,6 +6,7 @@ import type {
   RoomViewMessage,
   SessionBootstrap,
   SessionReady,
+  TerminalViewAckResult,
 } from './schemas/index.js';
 
 interface JsonSchema {
@@ -42,6 +43,7 @@ interface MobileContracts {
   readonly sessionBootstrap: JsonSchema;
   readonly sessionReady: JsonSchema;
   readonly commandResult: JsonSchema;
+  readonly terminalViewAckResult: JsonSchema;
 }
 
 const contracts = generatedContracts as unknown as MobileContracts;
@@ -220,6 +222,12 @@ export function isCommandResult(value: unknown): value is CommandResult {
   return matchesSchema(contracts.commandResult, value);
 }
 
+export function isTerminalViewAckResult(
+  value: unknown,
+): value is TerminalViewAckResult {
+  return matchesSchema(contracts.terminalViewAckResult, value);
+}
+
 export type {
   ClientCapabilities,
   Command,
@@ -235,4 +243,5 @@ export type {
   RoomViewMessage,
   SessionBootstrap,
   SessionReady,
+  TerminalViewAckResult,
 } from './schemas/index.js';

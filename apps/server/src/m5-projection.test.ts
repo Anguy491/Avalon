@@ -1,0 +1,134 @@
+import { describe, expect, it } from 'vitest';
+
+import type { GameState, RoleId } from '@avalon/game-engine';
+import {
+  RoomViewMessageSchema,
+  createProtocolValidator,
+} from '@avalon/protocol';
+
+import { projectRoom } from './room-service.js';
+
+const playerIds = [
+  '10000000-0000-4000-8000-000000000001',
+  '10000000-0000-4000-8000-000000000002',
+  '10000000-0000-4000-8000-000000000003',
+  '10000000-0000-4000-8000-000000000004',
+  '10000000-0000-4000-8000-000000000005',
+] as const;
+const roles: readonly RoleId[] = [
+  'MERLIN',
+  'LOYAL_SERVANT',
+  'LOYAL_SERVANT',
+  'ASSASSIN',
+  'MINION',
+];
+
+function assassinationState(): GameState {
+  return {
+    stateVersion: 40,
+    config: {
+      rulesVersion: 'CLASSIC_AVALON_V1',
+      playerCount: 5,
+      roleIds: roles,
+      locale: 'zh-CN',
+      voicePackVersion: 'zh-CN-v1',
+    },
+    players: playerIds.map((playerId, seat) => ({
+      playerId,
+      nickname: `玩家${String(seat + 1)}`,
+      seat,
+      isHost: seat === 0,
+      ready: true,
+      connected: true,
+    })),
+    hostPlayerId: playerIds[0],
+    phase: 'ASSASSINATION',
+    phaseStage: 'COLLECTING',
+    leaderSeatIndex: 0,
+    questIndex: 5,
+    proposalAttempt: 1,
+    proposedTeam: [],
+    teamVotes: {},
+    questChoices: {},
+    roleAcknowledgements: [],
+    proposalHistory: [],
+    questHistory: [],
+    successCount: 3,
+    failureCount: 1,
+    roleAssignments: Object.fromEntries(
+      playerIds.map((playerId, index) => [playerId, roles[index]]),
+    ) as Readonly<Record<string, RoleId>>,
+    privateKnowledge: Object.fromEntries(
+      playerIds.map((playerId) => [playerId, { playerId, knownPlayers: [] }]),
+    ),
+    pauseReasons: [],
+    processedCommands: {},
+  };
+}
+
+function viewFor(state: GameState, playerId: string) {
+  return projectRoom(
+    '20000000-0000-4000-8000-000000000001',
+    '7K3M9Q',
+    state,
+    playerId,
+    new Date('2026-08-14T12:00:00.000Z'),
+    'LIVE',
+  );
+}
+
+describe('M5 assassination and terminal projections', () => {
+  it('RULE-017/RULE-018 keeps roles secret and authorizes every non-assassin target', () => {
+    const state = assassinationState();
+    const assassin = viewFor(state, playerIds[3]);
+    const bystander = viewFor(state, playerIds[0]);
+    expect(assassin.public.revealedAssignments).toEqual([]);
+    expect(assassin.private.availableActions).toEqual([
+      {
+        commandType: 'SelectMerlinTarget',
+        eligibleTargetPlayerIds: [
+          playerIds[0],
+          playerIds[1],
+          playerIds[2],
+          playerIds[4],
+        ],
+      },
+    ]);
+    expect(bystander.private.availableActions).toEqual([]);
+    expect(
+      createProtocolValidator().compile(RoomViewMessageSchema)({
+        protocolVersion: 1,
+        delivery: 'LIVE',
+        eventId: '30000000-0000-4000-8000-000000000001',
+        roomView: assassin,
+      }),
+    ).toBe(true);
+  });
+
+  it('RULE-019 reveals all assignments while retaining only anonymous quest history', () => {
+    const state = assassinationState();
+    const terminal: GameState = {
+      ...state,
+      stateVersion: 41,
+      phase: 'GAME_OVER',
+      phaseStage: 'RESOLVED',
+      gameOutcome: {
+        winner: 'EVIL',
+        reason: 'MERLIN_ASSASSINATED',
+        assassinationTargetPlayerId: playerIds[0],
+      },
+    };
+    const view = viewFor(terminal, playerIds[0]);
+    expect(view.public.revealedAssignments).toHaveLength(5);
+    expect(view.public.gameOutcome).toMatchObject({
+      winner: 'EVIL',
+      reason: 'MERLIN_ASSASSINATED',
+      assassinationTargetPlayerId: playerIds[0],
+    });
+    expect(view.private.availableActions).toEqual([]);
+    const serialized = JSON.stringify(view);
+    expect(serialized).not.toContain('roleAssignments');
+    expect(serialized).not.toContain('privateKnowledge');
+    expect(serialized).not.toContain('questChoices');
+  });
+});

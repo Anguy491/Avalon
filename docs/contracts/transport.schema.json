@@ -3346,6 +3346,18 @@
         }
       }
     },
+    "TerminalViewAckResult": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "accepted"
+      ],
+      "properties": {
+        "accepted": {
+          "type": "boolean"
+        }
+      }
+    },
     "CommandAccepted": {
       "additionalProperties": false,
       "type": "object",

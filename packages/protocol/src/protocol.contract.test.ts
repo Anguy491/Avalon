@@ -294,6 +294,57 @@ describe('TEST-contract / M3 lobby command and error code drift guard', () => {
       guestView.private.availableActions.map((action) => action.commandType),
     ).toEqual(['SetReady', 'LeaveLobby']);
   });
+
+  it('accepts assassination targets only in the private action projection', () => {
+    const view = roomViewForRole('ASSASSIN');
+    view.public.phase = 'ASSASSINATION';
+    view.public.phaseStage = 'COLLECTING';
+    view.public.successCount = 3;
+    view.public.revealedAssignments = [];
+    view.private.availableActions = [
+      {
+        commandType: 'SelectMerlinTarget',
+        eligibleTargetPlayerIds: UUIDS.players.slice(1),
+      },
+    ];
+    expect(
+      validateRoomView(view),
+      JSON.stringify(validateRoomView.errors),
+    ).toBe(true);
+    expect(JSON.stringify(view.public)).not.toContain(
+      'eligibleTargetPlayerIds',
+    );
+  });
+
+  it('accepts terminal role revelation without task-action attribution', () => {
+    const view = roomViewForRole('MERLIN');
+    view.public.phase = 'GAME_OVER';
+    view.public.phaseStage = 'RESOLVED';
+    view.public.successCount = 3;
+    view.public.gameOutcome = {
+      winner: 'EVIL',
+      reason: 'MERLIN_ASSASSINATED',
+      assassinationTargetPlayerId: UUIDS.players[0],
+    };
+    const terminalRoles = [
+      'MERLIN',
+      'LOYAL_SERVANT',
+      'LOYAL_SERVANT',
+      'ASSASSIN',
+      'MINION',
+    ] as const;
+    view.public.revealedAssignments = UUIDS.players.map((playerId, index) => ({
+      playerId,
+      roleId: terminalRoles[index] ?? 'LOYAL_SERVANT',
+      alignment: index < 3 ? ('GOOD' as const) : ('EVIL' as const),
+    }));
+    view.private.availableActions = [];
+    expect(
+      validateRoomView(view),
+      JSON.stringify(validateRoomView.errors),
+    ).toBe(true);
+    expect(JSON.stringify(view)).not.toContain('questChoices');
+  });
 });
 
 describe('TEST-contract / NFR-014 projection boundaries', () => {

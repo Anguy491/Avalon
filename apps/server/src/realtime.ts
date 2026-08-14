@@ -10,6 +10,7 @@ import {
   type CommandResult,
   type RealtimeAuth,
   type TerminalViewAck,
+  type TerminalViewAckResult,
 } from '@avalon/protocol';
 
 import type { CommandService } from './command-service.js';
@@ -18,6 +19,7 @@ import { sessionSocketRoom } from './projection-bus.js';
 import type { RoomService } from './room-service.js';
 import type { RuntimePorts } from './runtime-ports.js';
 import type { SessionContext } from './session-context.js';
+import type { SessionPresencePort } from './session-presence.js';
 
 const INVALID_COMMAND_ID = '00000000-0000-4000-8000-000000000000';
 
@@ -32,7 +34,7 @@ interface ClientToServerEvents {
   ) => void;
   'room.terminalAck': (
     payload: unknown,
-    ack?: (result: { readonly accepted: boolean }) => void,
+    ack?: (result: TerminalViewAckResult) => void,
   ) => void;
   'session.ping': (
     payload: unknown,
@@ -117,6 +119,7 @@ export function registerRealtime(
   outboxWorker: OutboxWorker,
   redis: RedisClientType,
   ports: RuntimePorts,
+  presence: SessionPresencePort,
 ): void {
   const validator = createProtocolValidator();
   const validateAuth = validator.compile(RealtimeAuthSchema);
@@ -148,19 +151,32 @@ export function registerRealtime(
   namespace.on('connection', (untypedSocket) => {
     const socket = untypedSocket as unknown as GameSocket;
     const context = socket.data.session;
-    void socket.join(sessionSocketRoom(context.sessionId));
-    void roomService
-      .readViewForSession(context, 'RESYNC')
-      .then((roomView) => {
+    socket.on('disconnect', () => {
+      void presence.markOffline(context).catch(() => undefined);
+    });
+    void (async () => {
+      try {
+        await socket.join(sessionSocketRoom(context.sessionId));
+        if (!namespace.sockets.has(socket.id)) return;
+        await presence.markOnline(context);
+        if (!namespace.sockets.has(socket.id)) {
+          await presence.markOffline(context);
+          return;
+        }
+        const roomView = await roomService.readViewForSession(
+          context,
+          'RESYNC',
+        );
+        if (!namespace.sockets.has(socket.id)) return;
         socket.emit('session.ready', {
           protocolVersion: 1,
           delivery: 'RESYNC',
           roomView,
         });
-      })
-      .catch(() => {
+      } catch {
         socket.disconnect(true);
-      });
+      }
+    })();
 
     socket.on(
       'command.submit',
@@ -192,7 +208,7 @@ export function registerRealtime(
       'room.terminalAck',
       async (
         payload: unknown,
-        ack?: (result: { readonly accepted: boolean }) => void,
+        ack?: (result: TerminalViewAckResult) => void,
       ) => {
         if (!validateTerminalAck(payload)) {
           ack?.({ accepted: false });
@@ -210,11 +226,16 @@ export function registerRealtime(
 
     socket.on(
       'session.ping',
-      (
+      async (
         _payload: unknown,
         ack?: (result: { readonly serverTime: string }) => void,
       ) => {
-        ack?.({ serverTime: ports.clock.now().toISOString() });
+        try {
+          await presence.refresh(context);
+          ack?.({ serverTime: ports.clock.now().toISOString() });
+        } catch {
+          socket.disconnect(true);
+        }
       },
     );
   });

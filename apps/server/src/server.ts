@@ -19,6 +19,7 @@ import { createRedisRateLimitStore } from './rate-limit-store.js';
 import { registerRealtime } from './realtime.js';
 import { RoomService, ServiceError } from './room-service.js';
 import { createRuntimePorts, type RuntimePorts } from './runtime-ports.js';
+import { RedisSessionPresence } from './session-presence.js';
 
 const healthSchema = Type.Object(
   { status: Type.Union([Type.Literal('ok'), Type.Literal('ready')]) },
@@ -113,10 +114,18 @@ export async function createServer(
     const roomService = new RoomService(dependencies.sql, config, ports);
     const commandService = new CommandService(dependencies.sql, config, ports);
     registerRoomRoutes(app, roomService, config);
+    const presence = new RedisSessionPresence(dependencies.redis);
     projectionBus = new RedisProjectionBus(dependencies.redis, gameNamespace);
     await projectionBus.start();
     outboxWorker = new OutboxWorker(dependencies.sql, projectionBus, ports, {
       workerId: ports.ids.next(),
+      presence,
+      onTerminalCleanup: (observation) => {
+        app.log.info(observation, 'terminal room data deleted');
+      },
+      onError: (operation) => {
+        app.log.error({ operation }, 'outbox worker operation failed');
+      },
     });
     registerRealtime(
       gameNamespace,
@@ -125,6 +134,7 @@ export async function createServer(
       outboxWorker,
       dependencies.redis,
       ports,
+      presence,
     );
     if (options.startBackgroundWorkers !== false) outboxWorker.start();
   } else {

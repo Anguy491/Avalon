@@ -18,9 +18,10 @@ import {
   type ProjectionDelivery,
   type ProjectionPublisher,
 } from './outbox-worker.js';
-import { RoomService } from './room-service.js';
+import { RoomService, stateFrom } from './room-service.js';
 import type { RuntimePorts } from './runtime-ports.js';
 import { createServer } from './server.js';
+import type { SessionPresencePort } from './session-presence.js';
 
 const migrationsDirectory = resolve(import.meta.dirname, '../migrations');
 const id = (value: number): string =>
@@ -100,6 +101,33 @@ class MemoryPublisher implements ProjectionPublisher {
   publish(delivery: ProjectionDelivery): Promise<void> {
     if (this.fail) return Promise.reject(new Error('injected publish crash'));
     this.deliveries.push(delivery);
+    return Promise.resolve();
+  }
+}
+
+class FixedSessionPresence implements SessionPresencePort {
+  readonly clearedRoomIds: string[] = [];
+
+  constructor(private readonly onlineIds: readonly string[]) {}
+
+  markOnline(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  refresh(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  markOffline(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  onlineSessionIds(): Promise<readonly string[]> {
+    return Promise.resolve(this.onlineIds);
+  }
+
+  clearRoom(roomId: string): Promise<void> {
+    this.clearedRoomIds.push(roomId);
     return Promise.resolve();
   }
 }
@@ -826,5 +854,256 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
         (select count(*)::integer from avalon_runtime.outbox) as outbox
     `;
     expect(remaining).toEqual({ rooms: 0, sessions: 0, outbox: 0 });
+  });
+
+  async function prepareTerminalRoom(
+    roomId: string,
+    reason: 'ABORTED' | 'MERLIN_SURVIVED' = 'ABORTED',
+  ): Promise<number> {
+    const [row] = await sql<
+      { readonly aggregate: unknown; readonly state_version: number }[]
+    >`
+      select aggregate, state_version from avalon_runtime.rooms
+       where room_id = ${roomId}
+    `;
+    if (row === undefined) throw new Error('Missing room');
+    const state = stateFrom(row.aggregate);
+    const roleAssignments = Object.fromEntries(
+      state.players.map((player, index) => [
+        player.playerId,
+        index === 0 ? 'MERLIN' : index === 1 ? 'ASSASSIN' : 'LOYAL_SERVANT',
+      ]),
+    ) as GameState['roleAssignments'];
+    const terminal: GameState = {
+      ...state,
+      phase: 'GAME_OVER',
+      phaseStage: 'RESOLVED',
+      roleAssignments,
+      privateKnowledge: Object.fromEntries(
+        state.players.map((player) => [
+          player.playerId,
+          { playerId: player.playerId, knownPlayers: [] },
+        ]),
+      ),
+      gameOutcome:
+        reason === 'ABORTED'
+          ? { winner: 'NONE', reason }
+          : { winner: 'GOOD', reason },
+    };
+    await sql`
+      update avalon_runtime.rooms
+         set phase = 'GAME_OVER',
+             aggregate = ${sql.json(terminal as unknown as postgres.JSONValue)}
+       where room_id = ${roomId}
+    `;
+    return row.state_version;
+  }
+
+  it('M5-004 freezes online terminal targets before delivery and deletes after their acknowledgement', async () => {
+    const testPorts = createTestPorts();
+    const service = new RoomService(sql, config, testPorts.ports);
+    const created = await service.createRoom(id(260), createRequest());
+    const joined = await service.joinRoom(
+      id(261),
+      created.body.roomCode,
+      joinRequest('Offline guest'),
+    );
+    const roomId = created.body.roomView.public.roomId;
+    const stateVersion = await prepareTerminalRoom(roomId);
+    const sessions = await sql<
+      {
+        readonly session_id: string;
+        readonly player_id: string;
+      }[]
+    >`
+      select session_id, player_id from avalon_runtime.sessions
+       where room_id = ${roomId}
+       order by player_id
+    `;
+    const hostSession = sessions.find(
+      (session) => session.player_id === created.body.playerId,
+    );
+    if (hostSession === undefined) throw new Error('Missing host session');
+    const presence = new FixedSessionPresence([hostSession.session_id]);
+    const cleanupObservations: Array<{
+      readonly trigger: 'ACK' | 'TIMEOUT' | 'NO_ONLINE_SESSIONS';
+      readonly delayMs: number;
+    }> = [];
+    const receiptsObservedDuringPublish: number[] = [];
+    const deliveries: ProjectionDelivery[] = [];
+    const publisher: ProjectionPublisher = {
+      async publish(delivery) {
+        deliveries.push(delivery);
+        const [receiptCount] = await sql<{ readonly count: number }[]>`
+          select count(*)::integer as count
+            from avalon_runtime.terminal_receipts
+           where room_id = ${roomId}
+        `;
+        receiptsObservedDuringPublish.push(receiptCount?.count ?? 0);
+      },
+    };
+    const worker = new OutboxWorker(sql, publisher, testPorts.ports, {
+      workerId: id(262),
+      presence,
+      onTerminalCleanup: (observation) => {
+        cleanupObservations.push(observation);
+      },
+    });
+
+    await worker.drainOnce();
+    expect(receiptsObservedDuringPublish).not.toHaveLength(0);
+    expect(receiptsObservedDuringPublish.every((count) => count === 1)).toBe(
+      true,
+    );
+    expect(deliveries).not.toHaveLength(0);
+    expect(
+      deliveries.every(
+        (delivery) =>
+          delivery.sessionId === hostSession.session_id &&
+          delivery.message.roomView.public.phase === 'GAME_OVER',
+      ),
+    ).toBe(true);
+    const context = await service.authenticate(created.body.sessionToken);
+    await expect(
+      service.readCurrentView(created.body.sessionToken),
+    ).rejects.toMatchObject({ code: 'ROOM_EXPIRED' });
+    await expect(
+      service.readViewForSession(context, 'RESYNC'),
+    ).rejects.toMatchObject({ code: 'ROOM_EXPIRED' });
+    await expect(
+      service.resumeSession(id(263), created.body.sessionToken, {
+        client: createRequest().client,
+      }),
+    ).rejects.toMatchObject({ code: 'ROOM_EXPIRED' });
+    expect(await worker.acknowledgeTerminal(context, stateVersion + 1)).toBe(
+      false,
+    );
+    expect(await worker.acknowledgeTerminal(context, stateVersion)).toBe(true);
+    const [counts] = await sql<
+      {
+        readonly rooms: number;
+        readonly sessions: number;
+        readonly receipts: number;
+      }[]
+    >`
+      select
+        (select count(*)::integer from avalon_runtime.rooms) as rooms,
+        (select count(*)::integer from avalon_runtime.sessions) as sessions,
+        (select count(*)::integer from avalon_runtime.terminal_receipts) as receipts
+    `;
+    expect(counts).toEqual({ rooms: 0, sessions: 0, receipts: 0 });
+    expect(presence.clearedRoomIds).toContain(roomId);
+    expect(cleanupObservations).toEqual([{ trigger: 'ACK', delayMs: 0 }]);
+    await expect(
+      service.authenticate(joined.body.sessionToken),
+    ).rejects.toMatchObject({ code: 'SESSION_INVALID' });
+  });
+
+  it('M5-004 serializes concurrent final acknowledgements and deletes exactly once', async () => {
+    const testPorts = createTestPorts();
+    const service = new RoomService(sql, config, testPorts.ports);
+    const created = await service.createRoom(id(270), createRequest());
+    const joined = await service.joinRoom(
+      id(271),
+      created.body.roomCode,
+      joinRequest('Online guest'),
+    );
+    const roomId = created.body.roomView.public.roomId;
+    const stateVersion = await prepareTerminalRoom(roomId);
+    const sessions = await sql<{ readonly session_id: string }[]>`
+      select session_id from avalon_runtime.sessions
+       where room_id = ${roomId}
+       order by session_id
+    `;
+    const presence = new FixedSessionPresence(
+      sessions.map((session) => session.session_id),
+    );
+    const worker = new OutboxWorker(
+      sql,
+      new MemoryPublisher(),
+      testPorts.ports,
+      { workerId: id(272), presence },
+    );
+    await worker.drainOnce();
+    const contexts = await Promise.all([
+      service.authenticate(created.body.sessionToken),
+      service.authenticate(joined.body.sessionToken),
+    ]);
+    await expect(
+      Promise.all(
+        contexts.map((context) =>
+          worker.acknowledgeTerminal(context, stateVersion),
+        ),
+      ),
+    ).resolves.toEqual([true, true]);
+    const [remaining] = await sql<{ readonly count: number }[]>`
+      select count(*)::integer as count from avalon_runtime.rooms
+       where room_id = ${roomId}
+    `;
+    expect(remaining?.count).toBe(0);
+    expect(presence.clearedRoomIds).toEqual([roomId]);
+  });
+
+  it('M5-004 removes every transient row after the 60 second deadline', async () => {
+    const testPorts = createTestPorts();
+    const service = new RoomService(sql, config, testPorts.ports);
+    const created = await service.createRoom(id(280), createRequest());
+    const roomId = created.body.roomView.public.roomId;
+    await prepareTerminalRoom(roomId);
+    const [session] = await sql<{ readonly session_id: string }[]>`
+      select session_id from avalon_runtime.sessions
+       where room_id = ${roomId}
+    `;
+    if (session === undefined) throw new Error('Missing session');
+    const presence = new FixedSessionPresence([session.session_id]);
+    const cleanupObservations: Array<{
+      readonly trigger: 'ACK' | 'TIMEOUT' | 'NO_ONLINE_SESSIONS';
+      readonly delayMs: number;
+    }> = [];
+    const worker = new OutboxWorker(
+      sql,
+      new MemoryPublisher(),
+      testPorts.ports,
+      {
+        workerId: id(281),
+        presence,
+        onTerminalCleanup: (observation) => {
+          cleanupObservations.push(observation);
+        },
+      },
+    );
+    await worker.drainOnce();
+    testPorts.advance(60_001);
+    expect(await worker.cleanupExpiredRooms()).toBe(1);
+    const [counts] = await sql<
+      {
+        readonly rooms: number;
+        readonly players: number;
+        readonly sessions: number;
+        readonly commands: number;
+        readonly outbox: number;
+        readonly receipts: number;
+      }[]
+    >`
+      select
+        (select count(*)::integer from avalon_runtime.rooms) as rooms,
+        (select count(*)::integer from avalon_runtime.players) as players,
+        (select count(*)::integer from avalon_runtime.sessions) as sessions,
+        (select count(*)::integer from avalon_runtime.processed_commands) as commands,
+        (select count(*)::integer from avalon_runtime.outbox) as outbox,
+        (select count(*)::integer from avalon_runtime.terminal_receipts) as receipts
+    `;
+    expect(counts).toEqual({
+      rooms: 0,
+      players: 0,
+      sessions: 0,
+      commands: 0,
+      outbox: 0,
+      receipts: 0,
+    });
+    expect(presence.clearedRoomIds).toContain(roomId);
+    expect(cleanupObservations).toEqual([
+      { trigger: 'TIMEOUT', delayMs: 60_001 },
+    ]);
   });
 });

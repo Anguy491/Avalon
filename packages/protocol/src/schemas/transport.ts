@@ -67,6 +67,11 @@ export const TerminalViewAckSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const TerminalViewAckResultSchema = Type.Object(
+  { accepted: Type.Boolean() },
+  { additionalProperties: false },
+);
+
 export const CommandAcceptedSchema = Type.Object(
   {
     commandId: UuidSchema,
@@ -99,6 +104,7 @@ export const TransportSchemaDocument = {
     SessionReady: SessionReadySchema,
     RoomViewMessage: RoomViewMessageSchema,
     TerminalViewAck: TerminalViewAckSchema,
+    TerminalViewAckResult: TerminalViewAckResultSchema,
     CommandAccepted: CommandAcceptedSchema,
     CommandRejected: CommandRejectedSchema,
     CommandResult: CommandResultSchema,
@@ -109,4 +115,5 @@ export type RealtimeAuth = Static<typeof RealtimeAuthSchema>;
 export type SessionReady = Static<typeof SessionReadySchema>;
 export type RoomViewMessage = Static<typeof RoomViewMessageSchema>;
 export type TerminalViewAck = Static<typeof TerminalViewAckSchema>;
+export type TerminalViewAckResult = Static<typeof TerminalViewAckResultSchema>;
 export type CommandResult = Static<typeof CommandResultSchema>;

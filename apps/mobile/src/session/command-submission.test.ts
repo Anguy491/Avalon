@@ -77,6 +77,23 @@ describe('RoomCommandAttempts', () => {
     expect(fresh.commandId).not.toBe(stale.commandId);
     expect(fresh.expectedStateVersion).toBe(8);
   });
+
+  it('builds a versioned assassination command without persisting the target', () => {
+    const attempts = new RoomCommandAttempts();
+    const targetPlayerId = '10000000-0000-4000-8000-000000000099';
+    const command = attempts.acquire(
+      view(12),
+      { type: 'SelectMerlinTarget', payload: { targetPlayerId } },
+      () => '10000000-0000-4000-8000-000000000010',
+      () => new Date('2026-08-14T10:00:00.000Z'),
+    );
+    expect(command).toMatchObject({
+      expectedStateVersion: 12,
+      type: 'SelectMerlinTarget',
+      payload: { targetPlayerId },
+    });
+    attempts.complete(command.commandId);
+  });
 });
 
 describe('submitCommandWithAck', () => {

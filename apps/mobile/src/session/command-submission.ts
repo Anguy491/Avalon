@@ -44,6 +44,10 @@ export type RoomCommandInput =
   | {
       readonly type: 'SubmitQuestChoice';
       readonly payload: { readonly choice: 'SUCCESS' | 'FAIL' };
+    }
+  | {
+      readonly type: 'SelectMerlinTarget';
+      readonly payload: { readonly targetPlayerId: string };
     };
 
 interface PendingCommand {

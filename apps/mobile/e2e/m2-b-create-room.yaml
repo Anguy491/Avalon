@@ -32,4 +32,4 @@ name: M2 create room happy path
     id: 'create-room-submit'
 - assertVisible: '房间号'
 - assertVisible: 'Arthur · 房主'
-- assertVisible: 'M2 仅提供创建、加入与实时大厅投影；准备、改座次和开始游戏将在 M3 开放。'
+- assertVisible: '我已准备'

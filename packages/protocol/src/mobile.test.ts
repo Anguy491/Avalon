@@ -7,6 +7,7 @@ import {
   isRoomViewMessage,
   isSessionBootstrap,
   isSessionReady,
+  isTerminalViewAckResult,
 } from './mobile.js';
 
 const roomView = roomViewForRole('MERLIN');
@@ -52,6 +53,7 @@ describe('M2 mobile-safe protocol boundary', () => {
         },
       }),
     ).toBe(true);
+    expect(isTerminalViewAckResult({ accepted: true })).toBe(true);
   });
 
   it('rejects drift, extra fields, and audible RESYNC payloads', () => {
@@ -83,6 +85,9 @@ describe('M2 mobile-safe protocol boundary', () => {
           private: { ...roomView.private, shouldPlayAudio: true },
         },
       }),
+    ).toBe(false);
+    expect(
+      isTerminalViewAckResult({ accepted: true, unexpected: 'secret' }),
     ).toBe(false);
   });
 });

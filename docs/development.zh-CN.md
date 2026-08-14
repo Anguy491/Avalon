@@ -95,7 +95,7 @@ pnpm secret:scan
 pnpm build
 ```
 
-`pnpm test:e2e:mobile` 运行 Maestro 的 M2 原生创建/错误/拒权流程，需要已安装 Development Build、Maestro、运行中的 API 与 `npx expo start --dev-client --localhost`；Android 模拟器另需执行 `adb reverse tcp:8081 tcp:8081` 和 API 端口反向映射。
+`pnpm test:e2e:mobile` 运行 Maestro 的 M2 原生创建/错误/拒权流程和 M5 刺杀/终局/清理流程，需要已安装 Development Build、Maestro、运行中的 API 与 Metro。当前 M5 本地终局夹具使用 iOS Simulator；先以 `REALTIME_PUBLIC_URL=wss://localhost:3443/game-v1 pnpm --filter @avalon/server dev` 启动 API，再以 `EXPO_PUBLIC_API_URL=http://localhost:3000 pnpm --filter @avalon/mobile dev` 启动 Metro。M5 runner 会在被 `.gitignore` 排除的 `apps/mobile/.expo/` 下生成仅供本地测试的 CA/服务端证书，将 CA 加入当前已启动模拟器，并在 `3443` 端口启动到 API `3000` 端口的临时 TLS 代理；线上协议仍只接受 `wss://`，测试不会放宽为明文 WebSocket。Android 模拟器执行 M2 流程时另需 `adb reverse tcp:8081 tcp:8081` 和 API 端口反向映射；M5 的 Android 原生矩阵仍需配置信任测试 CA 的专用构建后执行。
 
 `pnpm test:load` 针对已启动服务执行默认 20 个并发房，人数循环覆盖 5–10 人。每房完成 `SetReady → StartGame（含同 commandId 重放）→ 全员 AckRole → 五次组队/投票/任务结算`，确定性结果为成功、失败、成功、失败、成功。脚本断言：
 

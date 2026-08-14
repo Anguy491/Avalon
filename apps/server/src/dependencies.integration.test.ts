@@ -4,11 +4,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
   createDependencyChecks,
-  type DependencyChecks,
+  type RuntimeDependencies,
 } from './dependencies.js';
+import { RedisSessionPresence } from './session-presence.js';
 
 describe('M0-006 PostgreSQL and Redis test containers', () => {
-  let dependencies: DependencyChecks | undefined;
+  let dependencies: RuntimeDependencies | undefined;
   let stopContainers: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
@@ -36,5 +37,34 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
     }
     await expect(dependencies.checkPostgres()).resolves.toBeUndefined();
     await expect(dependencies.checkRedis()).resolves.toBeUndefined();
+  });
+
+  it('M5-004 tracks and clears terminal delivery presence without raw tokens', async () => {
+    if (dependencies === undefined) {
+      throw new Error('Integration dependencies not started');
+    }
+    const presence = new RedisSessionPresence(dependencies.redis);
+    const context = {
+      sessionId: '10000000-0000-4000-8000-000000000001',
+      tokenFamily: '10000000-0000-4000-8000-000000000002',
+      roomId: '10000000-0000-4000-8000-000000000003',
+      playerId: '10000000-0000-4000-8000-000000000004',
+      tokenDigest: 'digest-only',
+      expiresAt: new Date('2026-08-14T12:00:00.000Z'),
+    };
+    await presence.markOnline(context);
+    await expect(presence.onlineSessionIds(context.roomId)).resolves.toEqual([
+      context.sessionId,
+    ]);
+    await presence.markOffline(context);
+    await expect(presence.onlineSessionIds(context.roomId)).resolves.toEqual(
+      [],
+    );
+    await presence.markOnline(context);
+    await presence.refresh(context);
+    await presence.clearRoom(context.roomId);
+    await expect(presence.onlineSessionIds(context.roomId)).resolves.toEqual(
+      [],
+    );
   });
 });

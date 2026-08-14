@@ -103,7 +103,11 @@ export function LobbyScreen() {
   }, [session.status]);
 
   useEffect(() => {
-    if (roomView?.public.phase === 'ROLE_REVEAL') router.replace('/role');
+    const phase = roomView?.public.phase;
+    if (phase === 'ROLE_REVEAL') router.replace('/role');
+    else if (phase === 'ASSASSINATION') router.replace('/assassination');
+    else if (phase === 'GAME_OVER') router.replace('/result');
+    else if (phase !== undefined && phase !== 'LOBBY') router.replace('/game');
   }, [roomView?.public.phase]);
 
   useEffect(() => {

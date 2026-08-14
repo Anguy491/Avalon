@@ -41,5 +41,10 @@ export function useGameCommands() {
         { type: 'SubmitQuestChoice', payload: { choice } },
         '你的任务行动已安全提交。',
       ),
+    selectMerlinTarget: (targetPlayerId: string) =>
+      run(
+        { type: 'SelectMerlinTarget', payload: { targetPlayerId } },
+        '刺杀目标已提交，正在等待最终裁决。',
+      ),
   } as const;
 }
