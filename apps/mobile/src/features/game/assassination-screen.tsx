@@ -40,7 +40,11 @@ export function AssassinationScreen() {
   useEffect(() => {
     setTargetPlayerId(undefined);
     setConfirming(false);
-  }, [roomView?.public.phaseStage, roomView?.public.stateVersion]);
+  }, [
+    roomView?.public.phaseStage,
+    roomView?.public.stateVersion,
+    session.resyncEpoch,
+  ]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {

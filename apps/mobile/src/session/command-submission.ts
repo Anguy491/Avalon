@@ -48,6 +48,15 @@ export type RoomCommandInput =
   | {
       readonly type: 'SelectMerlinTarget';
       readonly payload: { readonly targetPlayerId: string };
+    }
+  | {
+      readonly type: 'PauseGame';
+      readonly payload: { readonly reason?: string };
+    }
+  | { readonly type: 'ResumeGame'; readonly payload: Record<string, never> }
+  | {
+      readonly type: 'ReplayAudioCue';
+      readonly payload: { readonly audioCueId: string };
     };
 
 interface PendingCommand {

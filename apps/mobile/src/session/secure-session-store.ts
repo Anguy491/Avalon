@@ -62,6 +62,16 @@ export async function saveBootstrap(
   return session;
 }
 
+export async function updateSessionExpiry(
+  store: SecureKeyValueStore,
+  session: StoredSession,
+  sessionExpiresAt: string,
+): Promise<StoredSession> {
+  const updated = { ...session, sessionExpiresAt };
+  await store.setItem(SESSION_STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
 export async function beginResume(
   store: SecureKeyValueStore,
   session: StoredSession,

@@ -4,7 +4,9 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 
 import { PublicDraftProvider } from '@/session/public-draft-provider';
+import { HostPauseControl } from '@/session/host-pause-control';
 import { SessionProvider } from '@/session/session-provider';
+import { SessionStatusLayer } from '@/session/session-status-layer';
 import { useAppTheme } from '@/theme/use-app-theme';
 
 function RootNavigator() {
@@ -45,6 +47,8 @@ export default function RootLayout() {
       <PublicDraftProvider>
         <SessionProvider>
           <RootNavigator />
+          <HostPauseControl />
+          <SessionStatusLayer />
         </SessionProvider>
       </PublicDraftProvider>
     </QueryClientProvider>

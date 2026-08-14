@@ -31,6 +31,7 @@ const localized: Record<ErrorCode, string> = {
   PLAYERS_NOT_READY: '仍有玩家尚未准备。',
   PLAYERS_OFFLINE: '仍有玩家离线。',
   AUDIO_CUE_NOT_FOUND: '当前没有可重播的提示。',
+  INVALID_PAUSE_REASON: '暂停原因包含不支持的字符，请修改后重试。',
   UPGRADE_REQUIRED: '应用版本过旧，请升级后继续。',
   RATE_LIMITED: '尝试次数过多，请稍后再试。',
   VALIDATION_ERROR: '输入内容无效，请检查后重试。',

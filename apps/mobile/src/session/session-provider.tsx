@@ -1,5 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import NetInfo from '@react-native-community/netinfo';
 import {
   createContext,
   useCallback,
@@ -16,13 +17,17 @@ import { io, type Socket } from 'socket.io-client';
 import {
   isCommandResult,
   isRoomViewMessage,
+  isServerMaintenance,
+  isSessionPong,
   isSessionReady,
+  isSessionRevoked,
   isTerminalViewAckResult,
   type CommandResult,
   type CommandType,
   type CreateRoomRequest,
   type RoomConfigInput,
   type RoomView,
+  type RoomViewMessage,
   type SessionBootstrap,
 } from '@avalon/protocol/mobile';
 
@@ -53,6 +58,7 @@ import {
   getOrCreateInstallationId,
   loadStoredSession,
   saveBootstrap,
+  updateSessionExpiry,
   type StoredSession,
 } from './secure-session-store';
 
@@ -75,6 +81,10 @@ interface SessionContextValue {
   readonly status: SessionStatus;
   readonly summary?: SessionSummary;
   readonly roomView?: RoomView;
+  readonly lastProjection?: RoomViewMessage;
+  readonly connectionGapStartedAt?: number;
+  readonly networkReachable: boolean;
+  readonly resyncEpoch: number;
   readonly error?: string;
   readonly pendingCommandType?: CommandType;
   readonly createRoom: (
@@ -120,6 +130,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const [summary, setSummary] = useState<SessionSummary>();
   const [error, setError] = useState<string>();
   const [pendingCommandType, setPendingCommandType] = useState<CommandType>();
+  const [lastProjection, setLastProjection] = useState<RoomViewMessage>();
+  const [connectionGapStartedAt, setConnectionGapStartedAt] =
+    useState<number>();
+  const [networkReachable, setNetworkReachable] = useState(true);
+  const [resyncEpoch, setResyncEpoch] = useState(0);
 
   const roomViewQuery = useQuery<RoomView>({
     queryKey: ROOM_VIEW_KEY,
@@ -171,6 +186,8 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setSummary(undefined);
     setError(undefined);
     setPendingCommandType(undefined);
+    setLastProjection(undefined);
+    setConnectionGapStartedAt(undefined);
     queryClient.removeQueries({ queryKey: ROOM_VIEW_KEY, exact: true });
     commandAttempts.current = new RoomCommandAttempts();
     await clearStoredSession(expoSecureStore);
@@ -202,35 +219,62 @@ export function SessionProvider({ children }: PropsWithChildren) {
         },
         forceNew: true,
         reconnection: true,
+        reconnectionAttempts: 6,
+        reconnectionDelay: 500,
+        reconnectionDelayMax: 5_000,
+        randomizationFactor: 0.4,
         transports: ['websocket'],
       });
       socket.current = nextSocket;
       nextSocket.on('connect', () => {
-        setStatus('CONNECTED');
+        setStatus('RECOVERING');
         if (heartbeat.current !== undefined) clearInterval(heartbeat.current);
-        heartbeat.current = setInterval(() => {
+        const ping = () => {
           if (nextSocket.connected) {
-            nextSocket.emit('session.ping', {
-              clientTime: new Date().toISOString(),
-            });
+            nextSocket.emit(
+              'session.ping',
+              { protocolVersion: 1 },
+              (payload: unknown) => {
+                if (!isSessionPong(payload)) return;
+                const current = sessionRecord.current;
+                if (current === undefined) return;
+                void updateSessionExpiry(
+                  expoSecureStore,
+                  current,
+                  payload.sessionExpiresAt,
+                ).then((updated) => {
+                  sessionRecord.current = updated;
+                  setSummary(summaryFrom(updated));
+                });
+              },
+            );
           }
-        }, 5_000);
+        };
+        ping();
+        heartbeat.current = setInterval(ping, 2_000);
       });
       nextSocket.on('disconnect', () => {
+        setConnectionGapStartedAt((current) => current ?? Date.now());
         setStatus('OFFLINE');
       });
       nextSocket.on('connect_error', () => {
+        setConnectionGapStartedAt((current) => current ?? Date.now());
         setStatus('OFFLINE');
       });
       nextSocket.on('session.ready', (payload: unknown) => {
         if (!isSessionReady(payload)) return;
         acceptRoomView(payload.roomView);
+        setResyncEpoch((current) => current + 1);
+        setConnectionGapStartedAt(undefined);
+        setStatus('CONNECTED');
       });
       nextSocket.on('room.view', (payload: unknown) => {
         if (!isRoomViewMessage(payload)) return;
+        setLastProjection(payload);
         acceptRoomView(payload.roomView);
       });
-      nextSocket.on('session.revoked', () => {
+      nextSocket.on('session.revoked', (payload: unknown) => {
+        if (!isSessionRevoked(payload)) return;
         const isTerminal =
           queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY)?.public.phase ===
           'GAME_OVER';
@@ -241,6 +285,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
             }
           },
         );
+      });
+      nextSocket.on('server.maintenance', (payload: unknown) => {
+        if (!isServerMaintenance(payload)) return;
+        setError(`服务器维护中，请稍后重试。诊断码：${payload.diagnosticId}`);
+        setConnectionGapStartedAt((current) => current ?? Date.now());
+        setStatus('OFFLINE');
       });
     },
     [
@@ -277,6 +327,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     sessionToken.current = record.sessionToken;
     setSummary(summaryFrom(record));
     setStatus('RECOVERING');
+    stopSocket();
     try {
       record = await beginResume(expoSecureStore, record, randomUUID);
       sessionRecord.current = record;
@@ -296,7 +347,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setStatus('OFFLINE');
       }
     }
-  }, [forgetSession, getInstallationId, installBootstrap]);
+  }, [forgetSession, getInstallationId, installBootstrap, stopSocket]);
 
   const recover = useCallback(() => {
     recovery.current ??= runRecovery().finally(() => {
@@ -309,6 +360,23 @@ export function SessionProvider({ children }: PropsWithChildren) {
     void recover();
     return stopSocket;
   }, [recover, stopSocket]);
+
+  useEffect(() => {
+    return NetInfo.addEventListener((state) => {
+      const reachable =
+        state.isConnected === true && state.isInternetReachable !== false;
+      setNetworkReachable(reachable);
+      if (!reachable && sessionRecord.current !== undefined) {
+        setConnectionGapStartedAt((current) => current ?? Date.now());
+        setStatus('OFFLINE');
+        return;
+      }
+      if (reachable && sessionRecord.current !== undefined) {
+        const activeSocket = socket.current;
+        if (activeSocket?.connected !== true) activeSocket?.connect();
+      }
+    });
+  }, []);
 
   useEffect(() => {
     const view = roomViewQuery.data;
@@ -411,6 +479,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     try {
       const result = await roomViewQuery.refetch();
       if (result.error) throw result.error;
+      setResyncEpoch((current) => current + 1);
       setError(undefined);
     } catch (caught) {
       setError(userFacingError(caught));
@@ -434,7 +503,11 @@ export function SessionProvider({ children }: PropsWithChildren) {
       }
       const roomView = queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY);
       const activeSocket = socket.current;
-      if (roomView === undefined || activeSocket?.connected !== true) {
+      if (
+        status !== 'CONNECTED' ||
+        roomView === undefined ||
+        activeSocket?.connected !== true
+      ) {
         const offlineError = new ApiError(
           {
             code: 'INTERNAL_ERROR',
@@ -513,7 +586,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         setPendingCommandType(undefined);
       }
     },
-    [forgetSession, queryClient, refreshView],
+    [forgetSession, queryClient, refreshView, status],
   );
 
   const value = useMemo<SessionContextValue>(
@@ -523,6 +596,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
       ...(roomViewQuery.data === undefined
         ? {}
         : { roomView: roomViewQuery.data }),
+      ...(lastProjection === undefined ? {} : { lastProjection }),
+      ...(connectionGapStartedAt === undefined
+        ? {}
+        : { connectionGapStartedAt }),
+      networkReachable,
+      resyncEpoch,
       ...(error === undefined ? {} : { error }),
       ...(pendingCommandType === undefined ? {} : { pendingCommandType }),
       createRoom,
@@ -537,11 +616,15 @@ export function SessionProvider({ children }: PropsWithChildren) {
     }),
     [
       createRoom,
+      connectionGapStartedAt,
       error,
       forgetSession,
       joinRoom,
+      lastProjection,
+      networkReachable,
       pendingCommandType,
       recover,
+      resyncEpoch,
       refreshView,
       roomViewQuery.data,
       status,

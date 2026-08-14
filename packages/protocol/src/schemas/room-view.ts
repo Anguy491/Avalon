@@ -146,6 +146,18 @@ export const PublicSnapshotSchema = Type.Object(
       ]),
       { uniqueItems: true },
     ),
+    manualPauseReason: Type.Union([
+      Type.String({ minLength: 1, maxLength: 80 }),
+      Type.Null(),
+    ]),
+    recoveryStartedAt: Type.Union([
+      Type.String({ format: 'date-time' }),
+      Type.Null(),
+    ]),
+    recoveryExpiresAt: Type.Union([
+      Type.String({ format: 'date-time' }),
+      Type.Null(),
+    ]),
     currentAudioCue: Type.Optional(
       Type.Union([AudioCueViewSchema, Type.Null()]),
     ),

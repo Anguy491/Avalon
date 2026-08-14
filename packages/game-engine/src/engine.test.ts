@@ -668,6 +668,35 @@ describe('M1-006 / RULE-020–RULE-022 / SM-014–SM-016 SM-020 SM-021', () => {
     expect(state.pauseReasons).toEqual([]);
   });
 
+  it('SM-014 validates and publishes a normalized manual reason even during a connection pause', () => {
+    const ports = fixedPorts();
+    let state = startAndAcknowledge(5, ports);
+    const invalid = executeCommand(
+      state,
+      command(state, state.hostPlayerId, {
+        type: 'PauseGame',
+        reason: 'bad\u202Ereason',
+      }),
+      ports,
+    );
+    expect(invalid.result).toMatchObject({
+      accepted: false,
+      errorCode: 'INVALID_PAUSE_REASON',
+    });
+    state = applyConnectionChanged(state, 'player-2', false).state;
+    state = accepted(
+      state,
+      state.hostPlayerId,
+      { type: 'PauseGame', reason: '  A\u0301休息  ' },
+      ports,
+    );
+    expect(state.pauseReasons).toEqual(['PLAYER_DISCONNECTED', 'MANUAL']);
+    expect(buildPublicGameState(state).manualPauseReason).toBe('Á休息');
+    state = applyConnectionChanged(state, 'player-2', true).state;
+    expect(state.phase).toBe('PAUSED');
+    expect(state.pauseReasons).toEqual(['MANUAL']);
+  });
+
   it('does not transfer host control on disconnect and expires a paused game as ABORTED', () => {
     const ports = fixedPorts();
     const active = startAndAcknowledge(5, ports);

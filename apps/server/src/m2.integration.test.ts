@@ -297,7 +297,7 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       databaseUrl,
       dir: migrationsDirectory,
       direction: 'down',
-      count: 1,
+      count: 2,
       migrationsTable: 'pgmigrations',
       log: () => undefined,
     });

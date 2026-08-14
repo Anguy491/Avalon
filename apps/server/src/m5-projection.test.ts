@@ -78,6 +78,48 @@ function viewFor(state: GameState, playerId: string) {
 }
 
 describe('M5 assassination and terminal projections', () => {
+  it('SM-016 enables a matching new LIVE audio instance only for the host', () => {
+    const state = assassinationState();
+    const withCue: GameState = {
+      ...state,
+      currentAudioCue: {
+        audioCueId: 'cue-live-1',
+        audioCueKey: 'game.assassination',
+        subtitleKey: 'game.assassination',
+        voicePackVersion: 'zh-CN-v1',
+        phase: 'ASSASSINATION',
+        createdAt: '2026-08-14T12:00:00.000Z',
+      },
+    };
+    const hostLive = projectRoom(
+      '20000000-0000-4000-8000-000000000001',
+      '7K3M9Q',
+      withCue,
+      playerIds[0],
+      new Date('2026-08-14T12:30:00.000Z'),
+      { delivery: 'LIVE', liveAudioCueId: 'cue-live-1' },
+    );
+    const playerLive = projectRoom(
+      '20000000-0000-4000-8000-000000000001',
+      '7K3M9Q',
+      withCue,
+      playerIds[1],
+      new Date('2026-08-14T12:30:00.000Z'),
+      { delivery: 'LIVE', liveAudioCueId: 'cue-live-1' },
+    );
+    const hostResync = projectRoom(
+      '20000000-0000-4000-8000-000000000001',
+      '7K3M9Q',
+      withCue,
+      playerIds[0],
+      new Date('2026-08-14T12:30:00.000Z'),
+      'RESYNC',
+    );
+    expect(hostLive.private.shouldPlayAudio).toBe(true);
+    expect(playerLive.private.shouldPlayAudio).toBe(false);
+    expect(hostResync.private.shouldPlayAudio).toBe(false);
+  });
+
   it('RULE-017/RULE-018 keeps roles secret and authorizes every non-assassin target', () => {
     const state = assassinationState();
     const assassin = viewFor(state, playerIds[3]);
@@ -94,7 +136,9 @@ describe('M5 assassination and terminal projections', () => {
         ],
       },
     ]);
-    expect(bystander.private.availableActions).toEqual([]);
+    expect(bystander.private.availableActions).toEqual([
+      { commandType: 'PauseGame' },
+    ]);
     expect(
       createProtocolValidator().compile(RoomViewMessageSchema)({
         protocolVersion: 1,

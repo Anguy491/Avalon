@@ -36,6 +36,52 @@ interface ProcessedRow {
 
 interface RoomRow {
   readonly aggregate: unknown;
+  readonly recovery_started_at: Date | null;
+  readonly recovery_expires_at: Date | null;
+}
+
+const RECOVERY_WINDOW_MS = 30 * 60 * 1_000;
+
+function withRecoveryWindow(
+  state: GameState,
+  now: Date,
+  persisted: Pick<RoomRow, 'recovery_started_at' | 'recovery_expires_at'>,
+): GameState {
+  if (state.phase !== 'PAUSED') {
+    return {
+      ...state,
+      recoveryStartedAt: undefined,
+      recoveryExpiresAt: undefined,
+    };
+  }
+  if (
+    (state.recoveryStartedAt !== undefined ||
+      persisted.recovery_started_at !== null) &&
+    (state.recoveryExpiresAt !== undefined ||
+      persisted.recovery_expires_at !== null)
+  ) {
+    return {
+      ...state,
+      recoveryStartedAt:
+        state.recoveryStartedAt ?? persisted.recovery_started_at?.toISOString(),
+      recoveryExpiresAt:
+        state.recoveryExpiresAt ?? persisted.recovery_expires_at?.toISOString(),
+    };
+  }
+  return {
+    ...state,
+    recoveryStartedAt: now.toISOString(),
+    recoveryExpiresAt: new Date(
+      now.getTime() + RECOVERY_WINDOW_MS,
+    ).toISOString(),
+  };
+}
+
+function liveAudioCueId(effects: readonly DomainEffect[]): string | null {
+  return (
+    effects.find((effect) => effect.type === 'AUDIO_CUE_REQUESTED')?.cue
+      .audioCueId ?? null
+  );
 }
 
 function enginePorts(ports: RuntimePorts): EnginePorts {
@@ -114,7 +160,11 @@ function toEngineCommand(
           .targetPlayerId,
       };
     case 'PauseGame':
-      return { ...envelope, type: command.type };
+      return {
+        ...envelope,
+        type: command.type,
+        reason: (command.payload as { readonly reason?: string }).reason,
+      };
     case 'ReplayAudioCue':
       return {
         ...envelope,
@@ -223,7 +273,8 @@ export class CommandService {
       }
 
       const [room] = await sql<RoomRow[]>`
-        select aggregate from ${sql(SCHEMA)}.rooms
+        select aggregate, recovery_started_at, recovery_expires_at
+          from ${sql(SCHEMA)}.rooms
          where room_id = ${context.roomId}
          for update
       `;
@@ -251,11 +302,21 @@ export class CommandService {
         );
       }
 
+      const now = this.ports.clock.now();
+      const windowed = withRecoveryWindow(transition.state, now, room);
+      const recoveryStartedAt =
+        windowed.phase === 'PAUSED' ? (room.recovery_started_at ?? now) : null;
+      const recoveryExpiresAt =
+        recoveryStartedAt === null
+          ? null
+          : (room.recovery_expires_at ??
+            new Date(recoveryStartedAt.getTime() + RECOVERY_WINDOW_MS));
       const storedState: GameState = {
-        ...transition.state,
+        ...windowed,
+        recoveryStartedAt: recoveryStartedAt?.toISOString(),
+        recoveryExpiresAt: recoveryExpiresAt?.toISOString(),
         processedCommands: {},
       };
-      const now = this.ports.clock.now();
       const response: CommandResult = {
         commandId: command.commandId,
         accepted: true,
@@ -283,14 +344,28 @@ export class CommandService {
         this.config.idempotencyEncryptionSecret,
         this.ports.random,
       );
-      await sql`
-        update ${sql(SCHEMA)}.rooms
-           set state_version = ${storedState.stateVersion},
-               phase = ${storedState.phase},
-               aggregate = ${sql.json(storedState as unknown as postgres.JSONValue)},
-               last_active_at = ${now}
-         where room_id = ${context.roomId}
-      `;
+      if (recoveryStartedAt === null || recoveryExpiresAt === null) {
+        await sql`
+          update ${sql(SCHEMA)}.rooms
+             set state_version = ${storedState.stateVersion},
+                 phase = ${storedState.phase},
+                 aggregate = ${sql.json(storedState as unknown as postgres.JSONValue)},
+                 recovery_started_at = null, recovery_expires_at = null,
+                 last_active_at = ${now}
+           where room_id = ${context.roomId}
+        `;
+      } else {
+        await sql`
+          update ${sql(SCHEMA)}.rooms
+             set state_version = ${storedState.stateVersion},
+                 phase = ${storedState.phase},
+                 aggregate = ${sql.json(storedState as unknown as postgres.JSONValue)},
+                 recovery_started_at = coalesce(recovery_started_at, ${now}),
+                 recovery_expires_at = coalesce(recovery_expires_at, ${recoveryExpiresAt}),
+                 last_active_at = ${now}
+           where room_id = ${context.roomId}
+        `;
+      }
       await sql`
         insert into ${sql(SCHEMA)}.processed_commands
           (scope, command_id, room_id, token_family, auth_token_digest,
@@ -305,10 +380,12 @@ export class CommandService {
       await sql`
         insert into ${sql(SCHEMA)}.outbox
           (outbox_id, event_id, room_id, state_version, event_type,
+           live_audio_cue_id,
            created_at, available_at)
         values
           (${this.ports.ids.next()}, ${this.ports.ids.next()}, ${context.roomId},
-           ${storedState.stateVersion}, 'ROOM_VIEW_CHANGED', ${now}, ${now})
+           ${storedState.stateVersion}, 'ROOM_VIEW_CHANGED',
+           ${liveAudioCueId(transition.effects)}, ${now}, ${now})
         on conflict (room_id, state_version, event_type) do nothing
       `;
       await this.revokeSessionEffects(

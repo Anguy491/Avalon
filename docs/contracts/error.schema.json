@@ -129,6 +129,10 @@
               "type": "string"
             },
             {
+              "const": "INVALID_PAUSE_REASON",
+              "type": "string"
+            },
+            {
               "const": "UPGRADE_REQUIRED",
               "type": "string"
             },

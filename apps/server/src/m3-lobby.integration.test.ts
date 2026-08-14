@@ -10,6 +10,7 @@ import type { Command, CreateRoomRequest } from '@avalon/protocol';
 import type { GameState, RoleId } from '@avalon/game-engine';
 
 import { CommandService } from './command-service.js';
+import { ConnectionService } from './connection-service.js';
 import type { ServerConfig } from './config.js';
 import {
   OutboxWorker,
@@ -18,6 +19,7 @@ import {
 } from './outbox-worker.js';
 import { RoomService } from './room-service.js';
 import type { RuntimePorts } from './runtime-ports.js';
+import type { SessionPresencePort } from './session-presence.js';
 
 const migrationsDirectory = resolve(import.meta.dirname, '../migrations');
 const id = (value: number): string =>
@@ -212,6 +214,10 @@ function lobbyCommand(
     | {
         readonly type: 'SubmitQuestChoice';
         readonly payload: { readonly choice: 'SUCCESS' | 'FAIL' };
+      }
+    | {
+        readonly type: 'PauseGame';
+        readonly payload: { readonly reason?: string };
       },
 ): Command {
   return {
@@ -533,7 +539,7 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       hostHeld.roomView.private.availableActions.map(
         (action) => action.commandType,
       ),
-    ).toEqual(['ContinuePhase']);
+    ).toEqual(['ContinuePhase', 'PauseGame', 'ReplayAudioCue']);
     expect(guestHeld.roomView.private.availableActions).toEqual([]);
 
     const continued = await commands.submit(
@@ -554,7 +560,11 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
         collecting.roomView.private.availableActions.map(
           (action) => action.commandType,
         ),
-      ).toEqual(['AckRole']);
+      ).toEqual(
+        current.playerId === host.playerId
+          ? ['AckRole', 'PauseGame', 'ReplayAudioCue']
+          : ['AckRole'],
+      );
     }
 
     const firstAck = await commands.submit(
@@ -603,6 +613,108 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       phaseStage: 'HOST_HELD',
     });
     expect(afterAll.roomView.private.selfRole).not.toBeNull();
+  });
+
+  it('SM-020/SM-021 persists one 30 minute recovery window, resumes exactly, and expires as neutral ABORTED', async () => {
+    const testPorts = createTestPorts();
+    const roomService = new RoomService(sql, config, testPorts.ports);
+    const commands = new CommandService(sql, config, testPorts.ports);
+    const roster = await prepareLobbyRoster(roomService, 5, 395);
+    const started = await readyRosterAndStart(
+      roomService,
+      commands,
+      roster,
+      405,
+    );
+    const guest = started.contexts[1];
+    const host = started.contexts[0];
+    if (guest === undefined || host === undefined) {
+      throw new Error('Missing recovery test contexts');
+    }
+    let expired = true;
+    const presence: SessionPresencePort = {
+      markOnline: () => Promise.resolve(),
+      refresh: () => Promise.resolve(true),
+      markOffline: () => Promise.resolve(),
+      onlineSessionIds: () => Promise.resolve([]),
+      clearRoom: () => Promise.resolve(),
+      claimExpired: () => {
+        if (!expired) return Promise.resolve([]);
+        expired = false;
+        return Promise.resolve([
+          {
+            sessionId: guest.sessionId,
+            roomId: guest.roomId,
+            playerId: guest.playerId,
+          },
+        ]);
+      },
+    };
+    const connections = new ConnectionService(sql, testPorts.ports, presence);
+    await connections.tick();
+    const [persistedPause] = await sql<
+      {
+        readonly recovery_started_at: Date | null;
+        readonly recovery_expires_at: Date | null;
+        readonly aggregate_started_at: string | null;
+        readonly aggregate_expires_at: string | null;
+      }[]
+    >`
+      select recovery_started_at, recovery_expires_at,
+             aggregate ->> 'recoveryStartedAt' as aggregate_started_at,
+             aggregate ->> 'recoveryExpiresAt' as aggregate_expires_at
+        from avalon_runtime.rooms where room_id = ${roster.roomId}
+    `;
+    expect(persistedPause).toMatchObject({
+      recovery_started_at: new Date('2026-08-13T10:00:00.000Z'),
+      recovery_expires_at: new Date('2026-08-13T10:30:00.000Z'),
+      aggregate_started_at: '2026-08-13T10:00:00.000Z',
+      aggregate_expires_at: '2026-08-13T10:30:00.000Z',
+    });
+    const paused = (
+      await roomService.readCurrentView(roster.members[0]?.sessionToken ?? '')
+    ).roomView;
+    expect(paused.public).toMatchObject({
+      phase: 'PAUSED',
+      pauseReasons: ['PLAYER_DISCONNECTED'],
+      recoveryStartedAt: '2026-08-13T10:00:00.000Z',
+      recoveryExpiresAt: '2026-08-13T10:30:00.000Z',
+    });
+    expect(paused.private.selfRole).not.toBeNull();
+
+    await connections.markConnected(roster.roomId, guest.playerId);
+    const resumed = (
+      await roomService.readCurrentView(roster.members[0]?.sessionToken ?? '')
+    ).roomView;
+    expect(resumed.public).toMatchObject({
+      phase: 'ROLE_REVEAL',
+      pauseReasons: [],
+      recoveryStartedAt: null,
+      recoveryExpiresAt: null,
+    });
+    expect(resumed.private.selfRole).toBe(paused.private.selfRole);
+
+    const manual = await commands.submit(
+      host,
+      lobbyCommand(id(420), roster.roomId, resumed.public.stateVersion, {
+        type: 'PauseGame',
+        payload: { reason: '休息' },
+      }),
+    );
+    if (!manual.accepted) throw new Error('Expected manual pause');
+    testPorts.advance(30 * 60 * 1_000);
+    await connections.tick();
+    const [terminal] = await sql<{ readonly aggregate: unknown }[]>`
+      select aggregate from avalon_runtime.rooms where room_id = ${roster.roomId}
+    `;
+    const terminalState =
+      typeof terminal?.aggregate === 'string'
+        ? (JSON.parse(terminal.aggregate) as GameState)
+        : (terminal?.aggregate as GameState);
+    expect(terminalState).toMatchObject({
+      phase: 'GAME_OVER',
+      gameOutcome: { winner: 'NONE', reason: 'ABORTED' },
+    });
   });
 
   it('RULE-006–RULE-007 / AC-008 sends each 10-player special-role knowledge projection only to its bound session', async () => {
@@ -1248,7 +1360,7 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       heldViews[0]?.roomView.private.availableActions.map(
         (action) => action.commandType,
       ),
-    ).toEqual(['ContinuePhase']);
+    ).toEqual(['ContinuePhase', 'PauseGame', 'ReplayAudioCue']);
 
     const proposalOpened = await commandsA.submit(
       host,
@@ -1271,7 +1383,11 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
     ).toEqual(['SubmitTeam']);
     for (const [index, view] of collectingViews.entries()) {
       if (index !== leaderIndex) {
-        expect(view.roomView.private.availableActions).toEqual([]);
+        expect(view.roomView.private.availableActions).toEqual(
+          index === 0
+            ? [{ commandType: 'PauseGame' }, { commandType: 'ReplayAudioCue' }]
+            : [],
+        );
       }
     }
 
@@ -1320,6 +1436,12 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
           commandType: 'SubmitTeamVote',
           allowedTeamVotes: ['APPROVE', 'REJECT'],
         },
+        ...(current.playerId === host.playerId
+          ? [
+              { commandType: 'PauseGame' as const },
+              { commandType: 'ReplayAudioCue' as const },
+            ]
+          : []),
       ]);
     }
 
@@ -1392,6 +1514,8 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
     expect(revealedProposal?.votes).toHaveLength(5);
     expect(voteResult.roomView.private.availableActions).toEqual([
       { commandType: 'ContinuePhase' },
+      { commandType: 'PauseGame' },
+      { commandType: 'ReplayAudioCue' },
     ]);
 
     const questHeld = await commandsA.submit(
@@ -1422,12 +1546,18 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
         commandType: 'SubmitQuestChoice',
         allowedQuestChoices: ['SUCCESS'],
       },
+      ...(roster.members[goodIndex]?.playerId === host.playerId
+        ? [{ commandType: 'PauseGame' }, { commandType: 'ReplayAudioCue' }]
+        : []),
     ]);
     expect(questViews[evilIndex]?.roomView.private.availableActions).toEqual([
       {
         commandType: 'SubmitQuestChoice',
         allowedQuestChoices: ['SUCCESS', 'FAIL'],
       },
+      ...(roster.members[evilIndex]?.playerId === host.playerId
+        ? [{ commandType: 'PauseGame' }, { commandType: 'ReplayAudioCue' }]
+        : []),
     ]);
     const nonTeamIndex = roster.members.findIndex(
       (current) => !teamPlayerIds.includes(current.playerId),
@@ -1524,6 +1654,8 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
     expect(settledQuest).not.toHaveProperty('choicesByPlayer');
     expect(questResult.roomView.private.availableActions).toEqual([
       { commandType: 'ContinuePhase' },
+      { commandType: 'PauseGame' },
+      { commandType: 'ReplayAudioCue' },
     ]);
   });
 

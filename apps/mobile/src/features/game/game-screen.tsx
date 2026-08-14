@@ -83,7 +83,7 @@ export function GameScreen() {
     setConfirmation(undefined);
     setQuestChoicesVisible(false);
     setLocallySubmittedAction(undefined);
-  }, [phaseIdentity]);
+  }, [phaseIdentity, session.resyncEpoch]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (next) => {

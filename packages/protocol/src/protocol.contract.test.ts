@@ -148,6 +148,7 @@ describe('TEST-contract / M3 lobby command and error code drift guard', () => {
     'ALREADY_SUBMITTED',
     'HOST_CANNOT_LEAVE',
     'AUDIO_CUE_NOT_FOUND',
+    'INVALID_PAUSE_REASON',
   ] as const;
 
   function literalsOf(schema: unknown): string[] {

@@ -64,6 +64,9 @@ function terminalView(reason: 'MERLIN_ASSASSINATED' | 'ABORTED'): RoomView {
       successCount: reason === 'ABORTED' ? 1 : 3,
       failureCount: 0,
       pauseReasons: [],
+      manualPauseReason: null,
+      recoveryStartedAt: null,
+      recoveryExpiresAt: null,
       currentAudioCue: null,
       gameOutcome:
         reason === 'ABORTED'

@@ -80,7 +80,16 @@ const commandVariants = Type.Union([
   commandVariant(
     'PauseGame',
     Type.Object(
-      { reason: Type.Optional(Type.String({ minLength: 1, maxLength: 80 })) },
+      {
+        reason: Type.Optional(
+          Type.String({
+            minLength: 1,
+            maxLength: 80,
+            pattern:
+              '^[^\\u0000-\\u001F\\u007F-\\u009F\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u206F\\uFEFF]+$',
+          }),
+        ),
+      },
       { additionalProperties: false },
     ),
   ),

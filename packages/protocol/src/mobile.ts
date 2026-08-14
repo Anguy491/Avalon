@@ -1,11 +1,16 @@
 import generatedContracts from './generated/mobile-contracts.json' with { type: 'json' };
 import type {
+  AudioTelemetry,
   CommandResult,
   ErrorResponse,
   ReadRoomViewResponse,
   RoomViewMessage,
   SessionBootstrap,
+  SessionPing,
+  SessionPong,
   SessionReady,
+  SessionRevoked,
+  ServerMaintenance,
   TerminalViewAckResult,
 } from './schemas/index.js';
 
@@ -37,9 +42,14 @@ interface JsonSchema {
 }
 
 interface MobileContracts {
+  readonly audioTelemetry: JsonSchema;
   readonly errorResponse: JsonSchema;
   readonly readRoomViewResponse: JsonSchema;
   readonly roomViewMessage: JsonSchema;
+  readonly sessionPing: JsonSchema;
+  readonly sessionPong: JsonSchema;
+  readonly sessionRevoked: JsonSchema;
+  readonly serverMaintenance: JsonSchema;
   readonly sessionBootstrap: JsonSchema;
   readonly sessionReady: JsonSchema;
   readonly commandResult: JsonSchema;
@@ -200,6 +210,28 @@ export function isErrorResponse(value: unknown): value is ErrorResponse {
   return matchesSchema(contracts.errorResponse, value);
 }
 
+export function isAudioTelemetry(value: unknown): value is AudioTelemetry {
+  return matchesSchema(contracts.audioTelemetry, value);
+}
+
+export function isSessionPing(value: unknown): value is SessionPing {
+  return matchesSchema(contracts.sessionPing, value);
+}
+
+export function isSessionPong(value: unknown): value is SessionPong {
+  return matchesSchema(contracts.sessionPong, value);
+}
+
+export function isSessionRevoked(value: unknown): value is SessionRevoked {
+  return matchesSchema(contracts.sessionRevoked, value);
+}
+
+export function isServerMaintenance(
+  value: unknown,
+): value is ServerMaintenance {
+  return matchesSchema(contracts.serverMaintenance, value);
+}
+
 export function isReadRoomViewResponse(
   value: unknown,
 ): value is ReadRoomViewResponse {
@@ -229,6 +261,7 @@ export function isTerminalViewAckResult(
 }
 
 export type {
+  AudioTelemetry,
   ClientCapabilities,
   Command,
   CommandResult,
@@ -242,6 +275,10 @@ export type {
   RoomView,
   RoomViewMessage,
   SessionBootstrap,
+  SessionPing,
+  SessionPong,
   SessionReady,
+  SessionRevoked,
+  ServerMaintenance,
   TerminalViewAckResult,
 } from './schemas/index.js';

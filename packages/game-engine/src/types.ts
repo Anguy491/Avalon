@@ -244,6 +244,9 @@ export interface GameState {
   readonly gameOutcome?: GameOutcome | undefined;
   readonly resumePoint?: ResumePoint | undefined;
   readonly pauseReasons: readonly PauseReason[];
+  readonly manualPauseReason?: string | undefined;
+  readonly recoveryStartedAt?: string | undefined;
+  readonly recoveryExpiresAt?: string | undefined;
   readonly currentAudioCue?: AudioCue | undefined;
   readonly processedCommands: Readonly<Record<string, ProcessedCommand>>;
 }
@@ -293,7 +296,10 @@ export type GameCommand =
       readonly type: 'SelectMerlinTarget';
       readonly targetPlayerId: string;
     })
-  | (CommandEnvelope & { readonly type: 'PauseGame' })
+  | (CommandEnvelope & {
+      readonly type: 'PauseGame';
+      readonly reason?: string | undefined;
+    })
   | (CommandEnvelope & { readonly type: 'ResumeGame' })
   | (CommandEnvelope & {
       readonly type: 'ReplayAudioCue';
@@ -337,7 +343,8 @@ export type EngineErrorCode =
   | 'GOOD_CANNOT_FAIL'
   | 'ALREADY_SUBMITTED'
   | 'HOST_CANNOT_LEAVE'
-  | 'AUDIO_CUE_NOT_FOUND';
+  | 'AUDIO_CUE_NOT_FOUND'
+  | 'INVALID_PAUSE_REASON';
 
 export interface AcceptedCommandResult {
   readonly accepted: true;
@@ -389,6 +396,9 @@ export interface PublicGameState {
   readonly successCount: number;
   readonly failureCount: number;
   readonly pauseReasons: readonly PauseReason[];
+  readonly manualPauseReason?: string | undefined;
+  readonly recoveryStartedAt?: string | undefined;
+  readonly recoveryExpiresAt?: string | undefined;
   readonly currentAudioCue?: Pick<
     AudioCue,
     'audioCueId' | 'audioCueKey' | 'subtitleKey' | 'voicePackVersion'

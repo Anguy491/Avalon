@@ -5,6 +5,11 @@ import {
   isErrorResponse,
   isReadRoomViewResponse,
   isRoomViewMessage,
+  isAudioTelemetry,
+  isServerMaintenance,
+  isSessionPing,
+  isSessionPong,
+  isSessionRevoked,
   isSessionBootstrap,
   isSessionReady,
   isTerminalViewAckResult,
@@ -54,6 +59,38 @@ describe('M2 mobile-safe protocol boundary', () => {
       }),
     ).toBe(true);
     expect(isTerminalViewAckResult({ accepted: true })).toBe(true);
+    expect(isSessionPing({ protocolVersion: 1 })).toBe(true);
+    expect(
+      isSessionPong({
+        protocolVersion: 1,
+        serverTime: '2026-08-13T12:00:00.000Z',
+        sessionExpiresAt: '2026-08-13T12:30:00.000Z',
+      }),
+    ).toBe(true);
+    expect(
+      isSessionRevoked({
+        protocolVersion: 1,
+        reason: 'SESSION_REPLACED',
+        diagnosticId: 'diagnostic-1234',
+      }),
+    ).toBe(true);
+    expect(
+      isServerMaintenance({
+        protocolVersion: 1,
+        startsAt: '2026-08-13T12:00:00.000Z',
+        retryAfterMs: 1_000,
+        diagnosticId: 'diagnostic-1234',
+      }),
+    ).toBe(true);
+    expect(
+      isAudioTelemetry({
+        protocolVersion: 1,
+        category: 'LOAD_FAILED',
+        platform: 'ios',
+        appVersion: '1.0.0',
+        voicePackVersion: 'zh-CN-v1',
+      }),
+    ).toBe(true);
   });
 
   it('rejects drift, extra fields, and audible RESYNC payloads', () => {
@@ -88,6 +125,19 @@ describe('M2 mobile-safe protocol boundary', () => {
     ).toBe(false);
     expect(
       isTerminalViewAckResult({ accepted: true, unexpected: 'secret' }),
+    ).toBe(false);
+    expect(isSessionPing({ protocolVersion: 1, clientTime: 'untrusted' })).toBe(
+      false,
+    );
+    expect(
+      isAudioTelemetry({
+        protocolVersion: 1,
+        category: 'LOAD_FAILED',
+        platform: 'ios',
+        appVersion: '1.0.0',
+        voicePackVersion: 'zh-CN-v1',
+        roomId: UUIDS.room,
+      }),
     ).toBe(false);
   });
 });

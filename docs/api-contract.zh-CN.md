@@ -197,7 +197,8 @@ session.ready → { protocolVersion: 1, delivery: "RESYNC", roomView }
 | --- | --- | --- | --- |
 | `command.submit` | `command.schema.json` | `CommandResult` | 每会话 10 次/秒突发、2 次/秒持续 |
 | `room.terminalAck` | `{ stateVersion }` | `{ accepted: true }` | 每个终局版本最多一次有效确认 |
-| `session.ping` | `{ clientTime }` | `{ serverTime }` | 最快每 2 秒一次 |
+| `session.ping` | `SessionPing = { protocolVersion: 1 }` | `SessionPong = { protocolVersion, serverTime, sessionExpiresAt }` | 最快每 2 秒一次；只使用服务端接收时间续期 |
+| `audio.telemetry` | `AudioTelemetry` | 无 | 仅错误类别、平台、应用版本、语音包版本；不得含房间/玩家/安装标识 |
 
 `roomId` 虽在命令信封中存在，仍必须与 token 绑定房间一致；操作者身份只能从 token 得到。客户端可在 ack 超时后重发完全相同的 `commandId` 与载荷，但不得修改动作后复用 ID。
 
@@ -207,8 +208,8 @@ session.ready → { protocolVersion: 1, delivery: "RESYNC", roomView }
 | --- | --- | --- |
 | `session.ready` | `SessionReady` | 初始/恢复完整投影，`delivery=RESYNC` |
 | `room.view` | `RoomViewMessage` | 提交后的个性化完整投影，`LIVE` 或恢复性 `RESYNC` |
-| `session.revoked` | `{ code, diagnosticId }` | token 轮换、被大厅移除或房间关闭；客户端清理会话 |
-| `server.maintenance` | `{ retryAfterMs }` | 计划排空；客户端保留安全会话并重连 |
+| `session.revoked` | `SessionRevoked` | token 轮换、被大厅移除或房间关闭；客户端清理会话 |
+| `server.maintenance` | `ServerMaintenance` | 计划排空；客户端保留安全会话并重连 |
 
 内部 `DomainEvent` 名称不属于公开传输 API。服务器可以用领域事件触发投影，但网络只能出现上表事件。
 
@@ -251,6 +252,7 @@ ack 表示事务已提交或明确拒绝；`room.view` 可能先于或后于 ack
 - 投票结算前只提供总进度，不提供提交者；
 - 任务提交永不提供行动归属；
 - `availableActions` 由服务器生成，但服务端仍对命令重复授权；
+- `manualPauseReason`、`recoveryStartedAt`、`recoveryExpiresAt` 是可空公开字段；恢复期限只由服务端裁决；
 - 游戏结束前，`revealedAssignments` 必须为空；
 - `shouldPlayAudio=true` 只可出现在房主、`delivery=LIVE`、新 `audioCueId` 的投影；
 - 客户端按 `audioCueId` 保存有界内存去重集合，恢复不依赖其持久化正确性。
@@ -318,7 +320,7 @@ flowchart LR
 | 公开与私密投影 | 状态机第 6 节、`FR-017`–`FR-039`、`NFR-014` | `room-view.schema.json` + 角色矩阵测试 |
 | 音频去重 | `SM-016`、`FR-035`–`FR-039`、`NFR-021` | `AudioCueView` + `delivery` |
 | 错误 | 状态机第 8 节、`FR-047` | `error.schema.json` |
-| 断线恢复 | `SM-003`、`SM-020`–`SM-021`、`FR-041`–`FR-044` | `SessionBootstrap`、`SessionReady` |
+| 断线恢复 | `SM-003`、`SM-020`–`SM-021`、`FR-041`–`FR-044` | `SessionBootstrap`、`SessionReady`、`SessionPing/Pong`、公开恢复期限 |
 | 终局清除 | 状态机 9.1、`FR-034`、`NFR-016` | `RoomViewMessage`、`TerminalViewAck` |
 
 ## 8. 契约验收

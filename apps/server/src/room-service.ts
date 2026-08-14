@@ -67,6 +67,8 @@ interface RoomRow {
   readonly phase: string;
   readonly aggregate: unknown;
   readonly terminal_published_at?: Date | null;
+  readonly recovery_started_at?: Date | null;
+  readonly recovery_expires_at?: Date | null;
 }
 
 interface SessionRow {
@@ -110,6 +112,19 @@ export function stateFrom(value: unknown): GameState {
     throw new ServiceError('INTERNAL_ERROR', 500, true);
   }
   return value as GameState;
+}
+
+function withPersistedRecovery(
+  state: GameState,
+  row: Pick<RoomRow, 'recovery_started_at' | 'recovery_expires_at'>,
+): GameState {
+  return {
+    ...state,
+    recoveryStartedAt:
+      row.recovery_started_at?.toISOString() ?? state.recoveryStartedAt,
+    recoveryExpiresAt:
+      row.recovery_expires_at?.toISOString() ?? state.recoveryExpiresAt,
+  };
 }
 
 function chooseVoicePack(client: ClientCapabilities): string | undefined {
@@ -169,6 +184,17 @@ function computeAvailableActions(
   hasSubmitted: boolean,
 ): readonly AvailableAction[] {
   const isHost = state.hostPlayerId === playerId;
+
+  if (state.phase === 'PAUSED') {
+    const actions: AvailableAction[] = [];
+    if (isHost && state.pauseReasons.includes('MANUAL')) {
+      actions.push({ commandType: 'ResumeGame' });
+    }
+    if (isHost && state.currentAudioCue !== undefined) {
+      actions.push({ commandType: 'ReplayAudioCue' });
+    }
+    return actions;
+  }
 
   if (state.phase === 'LOBBY') {
     const actions: AvailableAction[] = [{ commandType: 'SetReady' }];
@@ -266,7 +292,19 @@ function computeAvailableActions(
     ];
   }
 
-  return [];
+  const actions: AvailableAction[] = [];
+  if (isHost && state.phase !== 'GAME_OVER') {
+    actions.push({ commandType: 'PauseGame' });
+  }
+  if (isHost && state.currentAudioCue !== undefined) {
+    actions.push({ commandType: 'ReplayAudioCue' });
+  }
+  return actions;
+}
+
+interface ProjectionOptions {
+  readonly delivery: 'LIVE' | 'RESYNC';
+  readonly liveAudioCueId?: string | null;
 }
 
 function projectRoom(
@@ -275,10 +313,33 @@ function projectRoom(
   state: GameState,
   playerId: string,
   sessionExpiresAt: Date,
-  delivery: 'LIVE' | 'RESYNC',
+  deliveryOrOptions: 'LIVE' | 'RESYNC' | ProjectionOptions,
 ): RoomView {
+  const options: ProjectionOptions =
+    typeof deliveryOrOptions === 'string'
+      ? { delivery: deliveryOrOptions }
+      : deliveryOrOptions;
   const publicGame = buildPublicGameState(state);
   const privateGame = buildPrivatePlayerState(state, playerId);
+  const availableActions = [
+    ...computeAvailableActions(state, playerId, privateGame.hasSubmitted),
+  ];
+  if (
+    playerId === state.hostPlayerId &&
+    state.phase !== 'LOBBY' &&
+    state.phase !== 'GAME_OVER' &&
+    !state.pauseReasons.includes('MANUAL') &&
+    !availableActions.some((action) => action.commandType === 'PauseGame')
+  ) {
+    availableActions.push({ commandType: 'PauseGame' });
+  }
+  if (
+    playerId === state.hostPlayerId &&
+    state.currentAudioCue !== undefined &&
+    !availableActions.some((action) => action.commandType === 'ReplayAudioCue')
+  ) {
+    availableActions.push({ commandType: 'ReplayAudioCue' });
+  }
   const publicSnapshot: PublicSnapshot = {
     roomId,
     roomCode,
@@ -311,6 +372,9 @@ function projectRoom(
     successCount: publicGame.successCount,
     failureCount: publicGame.failureCount,
     pauseReasons: [...publicGame.pauseReasons],
+    manualPauseReason: publicGame.manualPauseReason ?? null,
+    recoveryStartedAt: publicGame.recoveryStartedAt ?? null,
+    recoveryExpiresAt: publicGame.recoveryExpiresAt ?? null,
     currentAudioCue: publicGame.currentAudioCue ?? null,
     gameOutcome: publicGame.gameOutcome ?? null,
     revealedAssignments: [...publicGame.revealedAssignments],
@@ -320,11 +384,14 @@ function projectRoom(
     selfRole: privateGame.selfRole ?? null,
     selfAlignment: privateGame.selfAlignment ?? null,
     knownPlayers: [...privateGame.knownPlayers],
-    availableActions: [
-      ...computeAvailableActions(state, playerId, privateGame.hasSubmitted),
-    ],
+    availableActions,
     hasSubmitted: privateGame.hasSubmitted,
-    shouldPlayAudio: delivery === 'LIVE' && false,
+    shouldPlayAudio:
+      options.delivery === 'LIVE' &&
+      playerId === state.hostPlayerId &&
+      options.liveAudioCueId !== undefined &&
+      options.liveAudioCueId !== null &&
+      options.liveAudioCueId === state.currentAudioCue?.audioCueId,
     sessionExpiresAt: sessionExpiresAt.toISOString(),
   };
   return { public: publicSnapshot, private: privateProjection };
@@ -797,11 +864,42 @@ export class RoomService {
     };
   }
 
+  async renewSession(context: SessionContext): Promise<Date> {
+    const now = this.ports.clock.now();
+    const expiresAt = addSeconds(now, this.config.sessionTtlSeconds);
+    const refreshThreshold = addSeconds(
+      now,
+      Math.floor(this.config.sessionTtlSeconds / 2),
+    );
+    const [renewed] = await this.sql<{ readonly expires_at: Date }[]>`
+      update ${this.sql(SCHEMA)}.sessions
+         set expires_at = ${expiresAt}
+       where session_id = ${context.sessionId}
+         and token_digest = ${context.tokenDigest}
+         and revoked_at is null
+         and expires_at > ${now}
+         and expires_at <= ${refreshThreshold}
+       returning expires_at
+    `;
+    if (renewed !== undefined) return renewed.expires_at;
+    const [current] = await this.sql<{ readonly expires_at: Date }[]>`
+      select expires_at from ${this.sql(SCHEMA)}.sessions
+       where session_id = ${context.sessionId}
+         and token_digest = ${context.tokenDigest}
+         and revoked_at is null
+         and expires_at > ${now}
+    `;
+    if (current === undefined) {
+      throw new ServiceError('SESSION_INVALID', 401, false);
+    }
+    return current.expires_at;
+  }
+
   async readCurrentView(token: string): Promise<ReadRoomViewResponse> {
     const context = await this.authenticate(token);
     const [room] = await this.sql<RoomRow[]>`
       select room_id, room_code, state_version, phase, aggregate,
-             terminal_published_at
+             terminal_published_at, recovery_started_at, recovery_expires_at
         from ${this.sql(SCHEMA)}.rooms
        where room_id = ${context.roomId}
     `;
@@ -816,7 +914,7 @@ export class RoomService {
       roomView: projectRoom(
         room.room_id,
         room.room_code,
-        stateFrom(room.aggregate),
+        withPersistedRecovery(stateFrom(room.aggregate), room),
         context.playerId,
         context.expiresAt,
         'RESYNC',
@@ -830,7 +928,7 @@ export class RoomService {
   ): Promise<RoomView> {
     const [room] = await this.sql<RoomRow[]>`
       select room_id, room_code, state_version, phase, aggregate,
-             terminal_published_at
+             terminal_published_at, recovery_started_at, recovery_expires_at
         from ${this.sql(SCHEMA)}.rooms
        where room_id = ${context.roomId}
     `;
@@ -844,7 +942,7 @@ export class RoomService {
     return projectRoom(
       room.room_id,
       room.room_code,
-      stateFrom(room.aggregate),
+      withPersistedRecovery(stateFrom(room.aggregate), room),
       context.playerId,
       context.expiresAt,
       delivery,

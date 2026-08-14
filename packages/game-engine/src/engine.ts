@@ -54,6 +54,21 @@ function success(
   return { ok: true, state, effects };
 }
 
+function hasForbiddenPauseCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const code = character.codePointAt(0);
+    return (
+      code !== undefined &&
+      ((code >= 0x00 && code <= 0x1f) ||
+        (code >= 0x7f && code <= 0x9f) ||
+        (code >= 0x200b && code <= 0x200f) ||
+        (code >= 0x202a && code <= 0x202e) ||
+        (code >= 0x2060 && code <= 0x206f) ||
+        code === 0xfeff)
+    );
+  });
+}
+
 function hostPlayerId(players: readonly Player[]): string {
   const hosts = players.filter((player) => player.isHost);
   if (hosts.length !== 1 || hosts[0] === undefined) {
@@ -544,20 +559,35 @@ function pauseGame(
   if (command.actorPlayerId !== state.hostPlayerId) return failure('NOT_HOST');
   if (
     state.phase === 'LOBBY' ||
-    state.phase === 'PAUSED' ||
     state.phase === 'GAME_OVER' ||
-    state.gameOutcome !== undefined
+    state.gameOutcome !== undefined ||
+    state.pauseReasons.includes('MANUAL')
   ) {
     return failure('INVALID_PHASE');
+  }
+  const reason = command.reason?.normalize('NFC').trim();
+  if (
+    reason !== undefined &&
+    (reason.length === 0 ||
+      Array.from(reason).length > 80 ||
+      hasForbiddenPauseCharacter(reason))
+  ) {
+    return failure('INVALID_PAUSE_REASON');
   }
   return success({
     ...state,
     phase: 'PAUSED',
-    resumePoint: {
-      phase: state.phase as ActiveGamePhase,
-      phaseStage: state.phaseStage,
-    },
+    resumePoint:
+      state.phase === 'PAUSED'
+        ? state.resumePoint
+        : {
+            phase: state.phase as ActiveGamePhase,
+            phaseStage: state.phaseStage,
+          },
     pauseReasons: [...state.pauseReasons, 'MANUAL'],
+    ...(reason === undefined
+      ? { manualPauseReason: undefined }
+      : { manualPauseReason: reason }),
   });
 }
 
@@ -577,13 +607,20 @@ function resumeGame(
     (reason) => reason !== 'MANUAL',
   );
   if (pauseReasons.length > 0) {
-    return success({ ...state, pauseReasons });
+    return success({
+      ...state,
+      pauseReasons,
+      manualPauseReason: undefined,
+    });
   }
   return success({
     ...state,
     phase: state.resumePoint.phase,
     phaseStage: state.resumePoint.phaseStage,
     pauseReasons: [],
+    manualPauseReason: undefined,
+    recoveryStartedAt: undefined,
+    recoveryExpiresAt: undefined,
     resumePoint: undefined,
   });
 }
@@ -898,6 +935,7 @@ export function applyConnectionChanged(
         phase: 'PAUSED',
         resumePoint,
         pauseReasons,
+        ...(manual.length === 0 ? { manualPauseReason: undefined } : {}),
       };
     } else if (state.phase === 'PAUSED' && state.resumePoint !== undefined) {
       changed = {
@@ -905,6 +943,9 @@ export function applyConnectionChanged(
         phase: state.resumePoint.phase,
         phaseStage: state.resumePoint.phaseStage,
         pauseReasons: [],
+        manualPauseReason: undefined,
+        recoveryStartedAt: undefined,
+        recoveryExpiresAt: undefined,
         resumePoint: undefined,
       };
     }
@@ -927,6 +968,9 @@ export function expirePausedGame(
     phase: 'GAME_OVER',
     phaseStage: 'RESOLVED',
     pauseReasons: [],
+    manualPauseReason: undefined,
+    recoveryStartedAt: undefined,
+    recoveryExpiresAt: undefined,
     resumePoint: undefined,
     gameOutcome: outcome,
     currentAudioCue: created.audioCue,

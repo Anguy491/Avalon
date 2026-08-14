@@ -56,6 +56,15 @@ export function buildPublicGameState(state: GameState): PublicGameState {
     successCount: state.successCount,
     failureCount: state.failureCount,
     pauseReasons: state.pauseReasons,
+    ...(state.manualPauseReason === undefined
+      ? {}
+      : { manualPauseReason: state.manualPauseReason }),
+    ...(state.recoveryStartedAt === undefined
+      ? {}
+      : { recoveryStartedAt: state.recoveryStartedAt }),
+    ...(state.recoveryExpiresAt === undefined
+      ? {}
+      : { recoveryExpiresAt: state.recoveryExpiresAt }),
     ...(state.currentAudioCue === undefined
       ? {}
       : {

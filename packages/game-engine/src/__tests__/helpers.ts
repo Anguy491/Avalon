@@ -78,7 +78,7 @@ export type TestCommandBody =
   | { readonly type: 'SubmitTeamVote'; readonly vote: TeamVote }
   | { readonly type: 'SubmitQuestChoice'; readonly choice: QuestChoice }
   | { readonly type: 'SelectMerlinTarget'; readonly targetPlayerId: string }
-  | { readonly type: 'PauseGame' }
+  | { readonly type: 'PauseGame'; readonly reason?: string }
   | { readonly type: 'ResumeGame' }
   | { readonly type: 'ReplayAudioCue'; readonly audioCueId: string }
   | { readonly type: 'ConfigureRoom'; readonly configInput: RoomConfigInput }

@@ -6,6 +6,7 @@ import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import { Server as SocketIoServer } from 'socket.io';
 
 import { CommandService } from './command-service.js';
+import { ConnectionService } from './connection-service.js';
 import type { ServerConfig } from './config.js';
 import {
   isRuntimeDependencies,
@@ -110,11 +111,17 @@ export async function createServer(
   const gameNamespace = io.of('/game-v1');
   let projectionBus: RedisProjectionBus | undefined;
   let outboxWorker: OutboxWorker | undefined;
+  let connectionService: ConnectionService | undefined;
   if (isRuntimeDependencies(dependencies)) {
     const roomService = new RoomService(dependencies.sql, config, ports);
     const commandService = new CommandService(dependencies.sql, config, ports);
     registerRoomRoutes(app, roomService, config);
     const presence = new RedisSessionPresence(dependencies.redis);
+    connectionService = new ConnectionService(
+      dependencies.sql,
+      ports,
+      presence,
+    );
     projectionBus = new RedisProjectionBus(dependencies.redis, gameNamespace);
     await projectionBus.start();
     outboxWorker = new OutboxWorker(dependencies.sql, projectionBus, ports, {
@@ -135,8 +142,12 @@ export async function createServer(
       dependencies.redis,
       ports,
       presence,
+      connectionService,
     );
-    if (options.startBackgroundWorkers !== false) outboxWorker.start();
+    if (options.startBackgroundWorkers !== false) {
+      outboxWorker.start();
+      connectionService.start();
+    }
   } else {
     gameNamespace.use((_socket, next) => {
       next(new Error('UNAUTHORIZED'));
@@ -148,6 +159,7 @@ export async function createServer(
     io,
     async close() {
       await outboxWorker?.stop();
+      await connectionService?.stop();
       await io.close();
       await projectionBus?.close();
       await app.close();

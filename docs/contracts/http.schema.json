@@ -69,7 +69,10 @@
                 "questHistory",
                 "successCount",
                 "failureCount",
-                "pauseReasons"
+                "pauseReasons",
+                "manualPauseReason",
+                "recoveryStartedAt",
+                "recoveryExpiresAt"
               ],
               "properties": {
                 "roomId": {
@@ -527,6 +530,40 @@
                       }
                     ]
                   }
+                },
+                "manualPauseReason": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "maxLength": 80,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recoveryStartedAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recoveryExpiresAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "currentAudioCue": {
                   "anyOf": [
@@ -1328,7 +1365,10 @@
                 "questHistory",
                 "successCount",
                 "failureCount",
-                "pauseReasons"
+                "pauseReasons",
+                "manualPauseReason",
+                "recoveryStartedAt",
+                "recoveryExpiresAt"
               ],
               "properties": {
                 "roomId": {
@@ -1786,6 +1826,40 @@
                       }
                     ]
                   }
+                },
+                "manualPauseReason": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "maxLength": 80,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recoveryStartedAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recoveryExpiresAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "currentAudioCue": {
                   "anyOf": [

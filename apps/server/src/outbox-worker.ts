@@ -16,6 +16,7 @@ interface OutboxRow {
   readonly room_id: string;
   readonly state_version: number;
   readonly event_type: string;
+  readonly live_audio_cue_id: string | null;
 }
 
 interface DeliveryRow {
@@ -29,6 +30,8 @@ interface RoomRow {
   readonly aggregate: unknown;
   readonly phase: string;
   readonly state_version: number;
+  readonly recovery_started_at: Date | null;
+  readonly recovery_expires_at: Date | null;
 }
 
 export interface ProjectionDelivery {
@@ -111,7 +114,8 @@ export class OutboxWorker {
           ) claimable
          where target.outbox_id = claimable.outbox_id
          returning target.outbox_id, target.event_id, target.room_id,
-                   target.state_version, target.event_type
+                   target.state_version, target.event_type,
+                   target.live_audio_cue_id
       `,
     );
   }
@@ -132,7 +136,8 @@ export class OutboxWorker {
   private async publishRow(row: OutboxRow): Promise<void> {
     try {
       const [room] = await this.sql<RoomRow[]>`
-        select room_code, aggregate, phase, state_version
+        select room_code, aggregate, phase, state_version,
+               recovery_started_at, recovery_expires_at
           from ${this.sql(SCHEMA)}.rooms
          where room_id = ${row.room_id}
       `;
@@ -145,7 +150,16 @@ export class OutboxWorker {
            and expires_at > ${this.ports.clock.now()}
          order by session_id
       `;
-      const state = stateFrom(room.aggregate);
+      const aggregateState = stateFrom(room.aggregate);
+      const state: ReturnType<typeof stateFrom> = {
+        ...aggregateState,
+        recoveryStartedAt:
+          room.recovery_started_at?.toISOString() ??
+          aggregateState.recoveryStartedAt,
+        recoveryExpiresAt:
+          room.recovery_expires_at?.toISOString() ??
+          aggregateState.recoveryExpiresAt,
+      };
       let targetedDeliveries: readonly DeliveryRow[] = deliveries;
       if (room.phase === 'GAME_OVER') {
         const onlineSessionIds =
@@ -213,7 +227,10 @@ export class OutboxWorker {
             state,
             delivery.player_id,
             delivery.expires_at,
-            'LIVE',
+            {
+              delivery: 'LIVE',
+              liveAudioCueId: row.live_audio_cue_id,
+            },
           ),
         };
         await this.publisher.publish({

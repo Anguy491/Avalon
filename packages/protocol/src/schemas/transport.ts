@@ -62,6 +62,59 @@ export const RoomViewMessageSchema = Type.Union([
   resyncRoomViewMessage,
 ]);
 
+export const SessionPingSchema = Type.Object(
+  { protocolVersion: Type.Literal(1) },
+  { additionalProperties: false },
+);
+
+export const SessionPongSchema = Type.Object(
+  {
+    protocolVersion: Type.Literal(1),
+    serverTime: Type.String({ format: 'date-time' }),
+    sessionExpiresAt: Type.String({ format: 'date-time' }),
+  },
+  { additionalProperties: false },
+);
+
+export const SessionRevokedSchema = Type.Object(
+  {
+    protocolVersion: Type.Literal(1),
+    reason: Type.Union([
+      Type.Literal('SESSION_REPLACED'),
+      Type.Literal('SESSION_INVALID'),
+      Type.Literal('ROOM_EXPIRED'),
+    ]),
+    diagnosticId: Type.String({ minLength: 8, maxLength: 64 }),
+  },
+  { additionalProperties: false },
+);
+
+export const ServerMaintenanceSchema = Type.Object(
+  {
+    protocolVersion: Type.Literal(1),
+    startsAt: Type.String({ format: 'date-time' }),
+    retryAfterMs: Type.Integer({ minimum: 0, maximum: 3_600_000 }),
+    diagnosticId: Type.String({ minLength: 8, maxLength: 64 }),
+  },
+  { additionalProperties: false },
+);
+
+export const AudioTelemetrySchema = Type.Object(
+  {
+    protocolVersion: Type.Literal(1),
+    category: Type.Union([
+      Type.Literal('ASSET_MISSING'),
+      Type.Literal('HASH_MISMATCH'),
+      Type.Literal('LOAD_FAILED'),
+      Type.Literal('PLAYBACK_INTERRUPTED'),
+    ]),
+    platform: Type.Union([Type.Literal('ios'), Type.Literal('android')]),
+    appVersion: Type.String({ minLength: 1, maxLength: 32 }),
+    voicePackVersion: Type.String({ pattern: '^zh-CN-v[1-9][0-9]*$' }),
+  },
+  { additionalProperties: false },
+);
+
 export const TerminalViewAckSchema = Type.Object(
   { stateVersion: Type.Integer({ minimum: 0 }) },
   { additionalProperties: false },
@@ -103,6 +156,11 @@ export const TransportSchemaDocument = {
     RealtimeAuth: RealtimeAuthSchema,
     SessionReady: SessionReadySchema,
     RoomViewMessage: RoomViewMessageSchema,
+    SessionPing: SessionPingSchema,
+    SessionPong: SessionPongSchema,
+    SessionRevoked: SessionRevokedSchema,
+    ServerMaintenance: ServerMaintenanceSchema,
+    AudioTelemetry: AudioTelemetrySchema,
     TerminalViewAck: TerminalViewAckSchema,
     TerminalViewAckResult: TerminalViewAckResultSchema,
     CommandAccepted: CommandAcceptedSchema,
@@ -114,6 +172,11 @@ export const TransportSchemaDocument = {
 export type RealtimeAuth = Static<typeof RealtimeAuthSchema>;
 export type SessionReady = Static<typeof SessionReadySchema>;
 export type RoomViewMessage = Static<typeof RoomViewMessageSchema>;
+export type SessionPing = Static<typeof SessionPingSchema>;
+export type SessionPong = Static<typeof SessionPongSchema>;
+export type SessionRevoked = Static<typeof SessionRevokedSchema>;
+export type ServerMaintenance = Static<typeof ServerMaintenanceSchema>;
+export type AudioTelemetry = Static<typeof AudioTelemetrySchema>;
 export type TerminalViewAck = Static<typeof TerminalViewAckSchema>;
 export type TerminalViewAckResult = Static<typeof TerminalViewAckResultSchema>;
 export type CommandResult = Static<typeof CommandResultSchema>;

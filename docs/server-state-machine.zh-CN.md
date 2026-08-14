@@ -99,6 +99,8 @@ PAUSED
 | `phase` / `phaseStage` | 枚举 | 当前主状态与阶段门。 |
 | `resumePoint` | 可空对象 | `PAUSED` 时保存原 `phase`、`stage`。 |
 | `pauseReasons` | 集合 | `MANUAL`、`PLAYER_DISCONNECTED`、`HOST_DISCONNECTED`。 |
+| `manualPauseReason` | 可空文本 | NFC 规范化后的公开手动原因；禁止控制和双向格式字符。 |
+| `recoveryStartedAt` / `recoveryExpiresAt` | 可空时间 | 首次服务端确认暂停时建立；原因叠加不延长，全部清除后清空。 |
 | `players` | 有序数组 | 包含玩家标识、昵称、座次、房主标志、准备与连接状态。 |
 | `hostPlayerId` | `PlayerId` | 开局前后均不可自动转移。 |
 | `leaderSeatIndex` | 整数 | 当前队长的固定座次索引。 |
@@ -345,6 +347,10 @@ else:
   "questHistory": [],
   "successCount": 1,
   "failureCount": 0,
+  "pauseReasons": [],
+  "manualPauseReason": null,
+  "recoveryStartedAt": null,
+  "recoveryExpiresAt": null,
   "currentAudioCue": { "audioCueId": "cue-occurrence-51", "subtitleKey": "team.vote.prompt" }
 }
 ```

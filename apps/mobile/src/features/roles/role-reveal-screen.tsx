@@ -60,6 +60,10 @@ export function RoleRevealScreen() {
   }, [roleState?.hasSubmitted]);
 
   useEffect(() => {
+    dispatchPrivacy({ type: 'conceal' });
+  }, [session.resyncEpoch]);
+
+  useEffect(() => {
     const phase = roomView?.public.phase;
     if (phase === undefined) return;
     if (phase === 'LOBBY') router.replace('/lobby');

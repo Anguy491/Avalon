@@ -3,17 +3,23 @@ import type { RedisClientType } from 'redis';
 
 import {
   CommandSchema,
+  AudioTelemetrySchema,
   RealtimeAuthSchema,
+  SessionPingSchema,
   TerminalViewAckSchema,
   createProtocolValidator,
   type Command,
+  type AudioTelemetry,
   type CommandResult,
   type RealtimeAuth,
+  type SessionPong,
+  type SessionRevoked,
   type TerminalViewAck,
   type TerminalViewAckResult,
 } from '@avalon/protocol';
 
 import type { CommandService } from './command-service.js';
+import type { ConnectionService } from './connection-service.js';
 import type { OutboxWorker } from './outbox-worker.js';
 import { sessionSocketRoom } from './projection-bus.js';
 import type { RoomService } from './room-service.js';
@@ -38,12 +44,14 @@ interface ClientToServerEvents {
   ) => void;
   'session.ping': (
     payload: unknown,
-    ack?: (result: { readonly serverTime: string }) => void,
+    ack?: (result: SessionPong) => void,
   ) => void;
+  'audio.telemetry': (payload: unknown) => void;
 }
 
 interface ServerToClientEvents {
   'session.ready': (payload: unknown) => void;
+  'session.revoked': (payload: SessionRevoked) => void;
 }
 
 type GameSocket = Socket<
@@ -112,6 +120,18 @@ async function withinCommandRate(
   return burst <= 10 && sustained <= 10;
 }
 
+async function withinHeartbeatRate(
+  redis: RedisClientType,
+  sessionId: string,
+): Promise<boolean> {
+  if (!redis.isOpen) await redis.connect();
+  const result = await redis.set(`avalon:heartbeat-rate:${sessionId}`, '1', {
+    condition: 'NX',
+    expiration: { type: 'PX', value: 1_500 },
+  });
+  return result === 'OK';
+}
+
 export function registerRealtime(
   namespace: Namespace,
   roomService: RoomService,
@@ -120,11 +140,14 @@ export function registerRealtime(
   redis: RedisClientType,
   ports: RuntimePorts,
   presence: SessionPresencePort,
+  connections: ConnectionService,
 ): void {
   const validator = createProtocolValidator();
   const validateAuth = validator.compile(RealtimeAuthSchema);
   const validateCommand = validator.compile(CommandSchema);
   const validateTerminalAck = validator.compile(TerminalViewAckSchema);
+  const validateSessionPing = validator.compile(SessionPingSchema);
+  const validateAudioTelemetry = validator.compile(AudioTelemetrySchema);
 
   const authenticateSocket = async (
     untypedSocket: Socket,
@@ -151,18 +174,25 @@ export function registerRealtime(
   namespace.on('connection', (untypedSocket) => {
     const socket = untypedSocket as unknown as GameSocket;
     const context = socket.data.session;
-    socket.on('disconnect', () => {
-      void presence.markOffline(context).catch(() => undefined);
-    });
+    const leaseStartedAt = ports.clock.now();
     void (async () => {
       try {
         await socket.join(sessionSocketRoom(context.sessionId));
         if (!namespace.sockets.has(socket.id)) return;
-        await presence.markOnline(context);
-        if (!namespace.sockets.has(socket.id)) {
-          await presence.markOffline(context);
+        const leaseAccepted = await presence.markOnline(
+          context,
+          socket.id,
+          leaseStartedAt,
+        );
+        if (leaseAccepted === false) {
+          socket.disconnect(true);
           return;
         }
+        if (!namespace.sockets.has(socket.id)) {
+          await presence.markOffline(context, socket.id);
+          return;
+        }
+        await connections.markConnected(context.roomId, context.playerId);
         const roomView = await roomService.readViewForSession(
           context,
           'RESYNC',
@@ -226,17 +256,67 @@ export function registerRealtime(
 
     socket.on(
       'session.ping',
-      async (
-        _payload: unknown,
-        ack?: (result: { readonly serverTime: string }) => void,
-      ) => {
+      async (payload: unknown, ack?: (result: SessionPong) => void) => {
+        if (!validateSessionPing(payload)) {
+          socket.disconnect(true);
+          return;
+        }
         try {
-          await presence.refresh(context);
-          ack?.({ serverTime: ports.clock.now().toISOString() });
+          if (!(await withinHeartbeatRate(redis, context.sessionId))) return;
+          const now = ports.clock.now();
+          let refreshed = await presence.refresh(context, socket.id, now);
+          if (refreshed === false) {
+            refreshed = await presence.markOnline(
+              context,
+              socket.id,
+              leaseStartedAt,
+            );
+            if (refreshed !== false) {
+              await connections.markConnected(context.roomId, context.playerId);
+            }
+          }
+          if (refreshed === false) {
+            socket.emit('session.revoked', {
+              protocolVersion: 1,
+              reason: 'SESSION_REPLACED',
+              diagnosticId: diagnosticId(ports),
+            });
+            socket.disconnect(true);
+            return;
+          }
+          const sessionExpiresAt = await roomService.renewSession(context);
+          ack?.({
+            protocolVersion: 1,
+            serverTime: now.toISOString(),
+            sessionExpiresAt: sessionExpiresAt.toISOString(),
+          });
         } catch {
+          socket.emit('session.revoked', {
+            protocolVersion: 1,
+            reason: 'SESSION_INVALID',
+            diagnosticId: diagnosticId(ports),
+          });
           socket.disconnect(true);
         }
       },
     );
+
+    socket.on('audio.telemetry', async (payload: unknown) => {
+      if (!validateAudioTelemetry(payload)) return;
+      const metric = payload as AudioTelemetry;
+      try {
+        if (!redis.isOpen) await redis.connect();
+        const key = [
+          'avalon:audio-metric',
+          metric.category,
+          metric.platform,
+          metric.appVersion,
+          metric.voicePackVersion,
+        ].join(':');
+        await redis.incr(key);
+      } catch {
+        // Telemetry is deliberately best-effort and never affects gameplay.
+      }
+    });
   });
 }

@@ -1,12 +1,22 @@
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import { clearTimeout, setTimeout } from 'node:timers';
+import {
+  clearInterval,
+  clearTimeout,
+  setInterval,
+  setTimeout,
+} from 'node:timers';
 
 import { io } from 'socket.io-client';
 
 const baseUrl = process.env.LOAD_BASE_URL ?? 'http://127.0.0.1:3000';
 const roomCount = Number.parseInt(process.env.LOAD_ROOM_COUNT ?? '20', 10);
-const playerCountForRoom = (roomIndex) => 5 + (roomIndex % 6);
+const fixedPlayerCount =
+  process.env.LOAD_PLAYERS_PER_ROOM === undefined
+    ? undefined
+    : Number.parseInt(process.env.LOAD_PLAYERS_PER_ROOM, 10);
+const playerCountForRoom = (roomIndex) =>
+  fixedPlayerCount ?? 5 + (roomIndex % 6);
 const maximumHttpP95Milliseconds = 2_000;
 const maximumRealtimeP95Milliseconds = 1_000;
 const realtimeTimeoutMilliseconds = 10_000;
@@ -24,6 +34,14 @@ const forbiddenPublicKeys = new Set([
 
 if (!Number.isInteger(roomCount) || roomCount < 1 || roomCount > 1_000) {
   throw new Error('LOAD_ROOM_COUNT must be an integer between 1 and 1000');
+}
+if (
+  fixedPlayerCount !== undefined &&
+  (!Number.isInteger(fixedPlayerCount) ||
+    fixedPlayerCount < 5 ||
+    fixedPlayerCount > 10)
+) {
+  throw new Error('LOAD_PLAYERS_PER_ROOM must be an integer between 5 and 10');
 }
 
 const client = (platform, installationId) => ({
@@ -193,6 +211,22 @@ function connectMember(bootstrap) {
       member.projectionErrors.push('malformed room.view message');
     }
   });
+  const heartbeat = setInterval(() => {
+    if (socket.connected) {
+      socket.emit('session.ping', { protocolVersion: 1 }, (pong) => {
+        if (
+          typeof pong !== 'object' ||
+          pong === null ||
+          typeof pong.serverTime !== 'string' ||
+          typeof pong.sessionExpiresAt !== 'string'
+        ) {
+          member.projectionErrors.push('malformed session.pong');
+        }
+      });
+    }
+  }, 2_000);
+  heartbeat.unref();
+  heartbeats.push(heartbeat);
 
   return new Promise((resolve, reject) => {
     const startedAt = performance.now();
@@ -399,6 +433,7 @@ async function playFiveQuests(room, initialStateVersion, commandTimings) {
 }
 
 const sockets = [];
+const heartbeats = [];
 try {
   const createdRooms = await Promise.all(
     Array.from({ length: roomCount }, (_, roomIndex) =>
@@ -535,7 +570,7 @@ try {
   process.stdout.write(
     [
       'M4 multi-room five-quest load smoke (zero request/command errors)',
-      `rooms=${String(roomCount)}, connections=${String(rooms.reduce((total, room) => total + room.playerCount, 0))}, playerCounts=5-10, projectionIsolation=passed, publicSecretScan=passed`,
+      `rooms=${String(roomCount)}, connections=${String(rooms.reduce((total, room) => total + room.playerCount, 0))}, playerCounts=${fixedPlayerCount === undefined ? '5-10' : String(fixedPlayerCount)}, projectionIsolation=passed, publicSecretScan=passed`,
       summarize(
         'create',
         createdRooms.map(({ elapsed }) => elapsed),
@@ -560,5 +595,6 @@ try {
     ].join('\n') + '\n',
   );
 } finally {
+  for (const heartbeat of heartbeats) clearInterval(heartbeat);
   for (const socket of sockets) socket.disconnect();
 }

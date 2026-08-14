@@ -70,7 +70,10 @@
                 "questHistory",
                 "successCount",
                 "failureCount",
-                "pauseReasons"
+                "pauseReasons",
+                "manualPauseReason",
+                "recoveryStartedAt",
+                "recoveryExpiresAt"
               ],
               "properties": {
                 "roomId": {
@@ -528,6 +531,40 @@
                       }
                     ]
                   }
+                },
+                "manualPauseReason": {
+                  "anyOf": [
+                    {
+                      "minLength": 1,
+                      "maxLength": 80,
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recoveryStartedAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "recoveryExpiresAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
                 "currentAudioCue": {
                   "anyOf": [
@@ -1261,7 +1298,10 @@
                     "questHistory",
                     "successCount",
                     "failureCount",
-                    "pauseReasons"
+                    "pauseReasons",
+                    "manualPauseReason",
+                    "recoveryStartedAt",
+                    "recoveryExpiresAt"
                   ],
                   "properties": {
                     "roomId": {
@@ -1719,6 +1759,40 @@
                           }
                         ]
                       }
+                    },
+                    "manualPauseReason": {
+                      "anyOf": [
+                        {
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recoveryStartedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recoveryExpiresAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "currentAudioCue": {
                       "anyOf": [
@@ -2191,7 +2265,10 @@
                     "questHistory",
                     "successCount",
                     "failureCount",
-                    "pauseReasons"
+                    "pauseReasons",
+                    "manualPauseReason",
+                    "recoveryStartedAt",
+                    "recoveryExpiresAt"
                   ],
                   "properties": {
                     "roomId": {
@@ -2649,6 +2726,40 @@
                           }
                         ]
                       }
+                    },
+                    "manualPauseReason": {
+                      "anyOf": [
+                        {
+                          "minLength": 1,
+                          "maxLength": 80,
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recoveryStartedAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "recoveryExpiresAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "currentAudioCue": {
                       "anyOf": [
@@ -3333,6 +3444,166 @@
         }
       ]
     },
+    "SessionPing": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        }
+      }
+    },
+    "SessionPong": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "serverTime",
+        "sessionExpiresAt"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "serverTime": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sessionExpiresAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      }
+    },
+    "SessionRevoked": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "reason",
+        "diagnosticId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "const": "SESSION_REPLACED",
+              "type": "string"
+            },
+            {
+              "const": "SESSION_INVALID",
+              "type": "string"
+            },
+            {
+              "const": "ROOM_EXPIRED",
+              "type": "string"
+            }
+          ]
+        },
+        "diagnosticId": {
+          "minLength": 8,
+          "maxLength": 64,
+          "type": "string"
+        }
+      }
+    },
+    "ServerMaintenance": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "startsAt",
+        "retryAfterMs",
+        "diagnosticId"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "startsAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "retryAfterMs": {
+          "minimum": 0,
+          "maximum": 3600000,
+          "type": "integer"
+        },
+        "diagnosticId": {
+          "minLength": 8,
+          "maxLength": 64,
+          "type": "string"
+        }
+      }
+    },
+    "AudioTelemetry": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "category",
+        "platform",
+        "appVersion",
+        "voicePackVersion"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 1,
+          "type": "number"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "const": "ASSET_MISSING",
+              "type": "string"
+            },
+            {
+              "const": "HASH_MISMATCH",
+              "type": "string"
+            },
+            {
+              "const": "LOAD_FAILED",
+              "type": "string"
+            },
+            {
+              "const": "PLAYBACK_INTERRUPTED",
+              "type": "string"
+            }
+          ]
+        },
+        "platform": {
+          "anyOf": [
+            {
+              "const": "ios",
+              "type": "string"
+            },
+            {
+              "const": "android",
+              "type": "string"
+            }
+          ]
+        },
+        "appVersion": {
+          "minLength": 1,
+          "maxLength": 32,
+          "type": "string"
+        },
+        "voicePackVersion": {
+          "pattern": "^zh-CN-v[1-9][0-9]*$",
+          "type": "string"
+        }
+      }
+    },
     "TerminalViewAck": {
       "additionalProperties": false,
       "type": "object",
@@ -3519,6 +3790,10 @@
                 },
                 {
                   "const": "AUDIO_CUE_NOT_FOUND",
+                  "type": "string"
+                },
+                {
+                  "const": "INVALID_PAUSE_REASON",
                   "type": "string"
                 },
                 {
@@ -3778,6 +4053,10 @@
                     },
                     {
                       "const": "AUDIO_CUE_NOT_FOUND",
+                      "type": "string"
+                    },
+                    {
+                      "const": "INVALID_PAUSE_REASON",
                       "type": "string"
                     },
                     {
