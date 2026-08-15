@@ -1,0 +1,93 @@
+{
+  "version": "zh-CN-v1",
+  "locale": "zh-CN",
+  "status": "pending_assets",
+  "rightsReviewed": false,
+  "rightsRecord": "docs/assets/audio-zh-CN-v1-rights.zh-CN.md",
+  "entries": [
+    {
+      "key": "game.role.reveal",
+      "subtitle": "请各位玩家查看并确认自己的身份。",
+      "subtitleSha256": "33d6d6375f2412f5d8940851587dbd53f15ed1f0e01a9d4fd8786137d256ca11",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.team.proposal",
+      "subtitle": "请队长提出本次任务队伍。",
+      "subtitleSha256": "709817ac393d8f322374509f90305df6bfcf0dd8cbac850e836a1f5ae80027e0",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.team.vote",
+      "subtitle": "请所有玩家秘密提交同意或否决。",
+      "subtitleSha256": "ff2027ad5555657183af2b98b47795ca3f61a5bae8dc82da79e4c3e088760c6f",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.team.approved",
+      "subtitle": "队伍已通过，准备执行任务。",
+      "subtitleSha256": "1a130cd276da9c88cdff72e5721cf35105903fc6941c355728dec38442db3e52",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.team.rejected",
+      "subtitle": "队伍未通过，队长顺位轮换。",
+      "subtitleSha256": "198b146724f4194354972b00b726c1fe5f4dead5e671ffc999236ba37fd06919",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.quest.submission",
+      "subtitle": "请任务队员秘密提交任务行动。",
+      "subtitleSha256": "90a8e1d40701ca08f11c6b3a33bdbf2f2126abe5ec6d729d2a0507d9ed17b841",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.quest.success",
+      "subtitle": "本次任务成功。",
+      "subtitleSha256": "749532eb28fdf36bfaf7e8eb1d296ccd47d7fb89c5db3c45bdeb0d5fe96cd1df",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.quest.failure",
+      "subtitle": "本次任务失败。",
+      "subtitleSha256": "406aa2ef9108409971211f1f850fea48552ef48bfb9b1b16b9ff537c082c18ff",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.assassination",
+      "subtitle": "三次任务成功，请刺客选择梅林。",
+      "subtitleSha256": "3b697b18ecba7b73adbe3a1b235e0b190bc34d694562adccdb9c86b3e90da632",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.good.wins",
+      "subtitle": "善方获得最终胜利。",
+      "subtitleSha256": "039cbbd47e6bd7e0709b6eaa90c27c33fa03c4d369fb9cc0c085f233fe8e33a6",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.evil.wins",
+      "subtitle": "邪恶方获得最终胜利。",
+      "subtitleSha256": "9bb47c2c27cd78568086ef7ad6d2aedd83816e990c480ffce23b1fd5cfbaf08e",
+      "file": null,
+      "sha256": null
+    },
+    {
+      "key": "game.aborted",
+      "subtitle": "恢复时间已结束，本局已中止。",
+      "subtitleSha256": "8f36ffba7da0f51d0cacf6e6d525d09f0ab0ee5f9024ba5bbbc776aee737eccc",
+      "file": null,
+      "sha256": null
+    }
+  ]
+}

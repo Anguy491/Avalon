@@ -4,10 +4,15 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 
 import { PublicDraftProvider } from '@/session/public-draft-provider';
+import { HostAudioControl } from '@/audio/host-audio-control';
+import { initializeSentry } from '@/observability/sentry';
+import { AppPrivacyShield } from '@/privacy/app-privacy-shield';
 import { HostPauseControl } from '@/session/host-pause-control';
 import { SessionProvider } from '@/session/session-provider';
 import { SessionStatusLayer } from '@/session/session-status-layer';
 import { useAppTheme } from '@/theme/use-app-theme';
+
+initializeSentry();
 
 function RootNavigator() {
   const { color, isDark } = useAppTheme();
@@ -46,9 +51,12 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <PublicDraftProvider>
         <SessionProvider>
-          <RootNavigator />
-          <HostPauseControl />
-          <SessionStatusLayer />
+          <AppPrivacyShield>
+            <RootNavigator />
+            <HostPauseControl />
+            <HostAudioControl />
+            <SessionStatusLayer />
+          </AppPrivacyShield>
         </SessionProvider>
       </PublicDraftProvider>
     </QueryClientProvider>

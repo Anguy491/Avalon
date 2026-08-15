@@ -1,0 +1,46 @@
+groups:
+  - name: avalon-m7-security
+    rules:
+      - alert: AvalonProjectionRecipientMismatch
+        expr: increase(avalon_projection_recipient_mismatch_total[1m]) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations: { summary: 'Personalized projection recipient mismatch' }
+      - alert: AvalonSecretCanaryDetected
+        expr: increase(avalon_secret_canary_total[1m]) > 0
+        for: 0m
+        labels: { severity: critical }
+        annotations: { summary: 'Secret canary reached telemetry or logs' }
+  - name: avalon-m7-capacity
+    rules:
+      - alert: AvalonConnectionBudget80Percent
+        expr: avalon_realtime_active_connections / 12000 >= 0.8
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: 'Realtime connection budget is at least 80%' }
+      - alert: AvalonOperationErrorRate
+        expr: avalon_operation_error_ratio >= 0.01
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: 'Operation error rate is at least 1%' }
+      - alert: AvalonCommandP95
+        expr: avalon_command_duration_ms_p95 > 1000
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: 'Command p95 exceeds one second' }
+      - alert: AvalonCreateJoinP95
+        expr: avalon_http_duration_ms_p95{operation=~"create|join"} > 2000
+        for: 5m
+        labels: { severity: warning }
+        annotations: { summary: 'Create/join p95 exceeds two seconds' }
+      - alert: AvalonOutboxAge
+        expr: avalon_outbox_age_ms_p95 > 2000
+        for: 2m
+        labels: { severity: warning }
+        annotations: { summary: 'Outbox age exceeds two seconds' }
+      - alert: AvalonTerminalCleanupLate
+        expr: avalon_terminal_cleanup_delay_ms_max > 60000
+        for: 0m
+        labels: { severity: critical }
+        annotations:
+          { summary: 'Terminal room data exceeded deletion deadline' }

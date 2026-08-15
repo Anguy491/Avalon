@@ -11,6 +11,7 @@ interface StoredLease {
   readonly sessionId: string;
   readonly roomId: string;
   readonly playerId: string;
+  readonly credentialGeneration: number;
   readonly deadlineMs: number;
   readonly issuedAtMs: number;
 }
@@ -58,6 +59,7 @@ function decodeLease(value: string | null): StoredLease | undefined {
       typeof decoded.sessionId !== 'string' ||
       typeof decoded.roomId !== 'string' ||
       typeof decoded.playerId !== 'string' ||
+      typeof decoded.credentialGeneration !== 'number' ||
       typeof decoded.deadlineMs !== 'number' ||
       typeof decoded.issuedAtMs !== 'number'
     ) {
@@ -87,6 +89,7 @@ export class RedisSessionPresence implements SessionPresencePort {
       sessionId: context.sessionId,
       roomId: context.roomId,
       playerId: context.playerId,
+      credentialGeneration: context.credentialGeneration,
       deadlineMs: now.getTime() + HEARTBEAT_TIMEOUT_MS,
       issuedAtMs: now.getTime(),
     };
@@ -119,7 +122,11 @@ export class RedisSessionPresence implements SessionPresencePort {
     await this.ensureConnected();
     const key = leaseKey(context.sessionId);
     const current = decodeLease(await this.redis.get(key));
-    if (current?.leaseId !== leaseId) return false;
+    if (
+      current?.leaseId !== leaseId ||
+      current.credentialGeneration !== context.credentialGeneration
+    )
+      return false;
     const next: StoredLease = {
       ...current,
       deadlineMs: now.getTime() + HEARTBEAT_TIMEOUT_MS,

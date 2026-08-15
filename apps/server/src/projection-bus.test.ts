@@ -8,6 +8,7 @@ const delivery: ProjectionDelivery = {
   playerId: '10000000-0000-4000-8000-000000000002',
   roomId: '10000000-0000-4000-8000-000000000003',
   eventId: '10000000-0000-4000-8000-000000000004',
+  credentialGeneration: 1,
   message: {
     protocolVersion: 1,
     delivery: 'LIVE',
@@ -82,6 +83,14 @@ describe('personalized projection bus boundary', () => {
     expect(
       parseProjectionDelivery(
         JSON.stringify({ ...delivery, playerId: delivery.roomId }),
+      ),
+    ).toBeUndefined();
+    expect(
+      parseProjectionDelivery(JSON.stringify({ ...delivery, role: 'MERLIN' })),
+    ).toBeUndefined();
+    expect(
+      parseProjectionDelivery(
+        JSON.stringify({ ...delivery, credentialGeneration: 0 }),
       ),
     ).toBeUndefined();
     expect(

@@ -14,13 +14,18 @@ import {
 } from './dependencies.js';
 import { installSafeErrorHandler, registerRoomRoutes } from './http-routes.js';
 import { createLoggerOptions } from './observability.js';
+import { createMetricsPort } from './metrics.js';
 import { OutboxWorker } from './outbox-worker.js';
 import { RedisProjectionBus } from './projection-bus.js';
+import { RealtimeAdmission } from './realtime-admission.js';
 import { createRedisRateLimitStore } from './rate-limit-store.js';
 import { registerRealtime } from './realtime.js';
+import type { RealtimeLifecycle } from './realtime.js';
 import { RoomService, ServiceError } from './room-service.js';
 import { createRuntimePorts, type RuntimePorts } from './runtime-ports.js';
 import { RedisSessionPresence } from './session-presence.js';
+import { RedisSessionRevocationBus } from './session-revocation.js';
+import { TrustedProxyPolicy } from './trusted-client-ip.js';
 
 const healthSchema = Type.Object(
   { status: Type.Union([Type.Literal('ok'), Type.Literal('ready')]) },
@@ -48,11 +53,15 @@ export async function createServer(
   options: CreateServerOptions = {},
 ): Promise<AvalonServer> {
   const ports = options.ports ?? createRuntimePorts();
+  const metrics = createMetricsPort(config);
+  const trustedProxies = new TrustedProxyPolicy(config.trustedProxyCidrs);
+  let draining = false;
   const app = Fastify({
     bodyLimit: 32 * 1024,
     logController: new LogController({ disableRequestLogging: true }),
     logger: createLoggerOptions(config),
-    trustProxy: config.nodeEnv === 'production',
+    trustProxy:
+      config.nodeEnv === 'production' ? [...config.trustedProxyCidrs] : false,
   });
 
   await app.register(rateLimit, {
@@ -78,6 +87,18 @@ export async function createServer(
     done(null, payload);
   });
 
+  app.addHook('onRequest', (request, _reply, done) => {
+    if (
+      draining &&
+      request.url !== '/v1/health/live' &&
+      request.url !== '/v1/health/ready'
+    ) {
+      done(new ServiceError('INTERNAL_ERROR', 503, true));
+      return;
+    }
+    done();
+  });
+
   app.get(
     '/v1/health/live',
     { schema: { response: { 200: healthSchema } } },
@@ -93,6 +114,7 @@ export async function createServer(
     },
     async (_request, reply) => {
       try {
+        if (draining) throw new Error('draining');
         await Promise.all([
           dependencies.checkPostgres(),
           dependencies.checkRedis(),
@@ -104,37 +126,111 @@ export async function createServer(
     },
   );
 
+  let admission: RealtimeAdmission | undefined;
+  if (isRuntimeDependencies(dependencies)) {
+    admission = new RealtimeAdmission(
+      dependencies.redis,
+      config,
+      ports.ids.next(),
+    );
+  }
   const io = new SocketIoServer(app.server, {
     maxHttpBufferSize: 64 * 1024,
     serveClient: false,
+    allowRequest: (request, callback) => {
+      const currentAdmission = admission;
+      const clientIp = trustedProxies.clientIp(
+        request.socket.remoteAddress,
+        request.headers['x-forwarded-for'],
+      );
+      if (
+        draining ||
+        currentAdmission === undefined ||
+        clientIp === undefined
+      ) {
+        callback(null, false);
+        return;
+      }
+      void currentAdmission
+        .allowEngineHandshake(clientIp, ports.clock.now())
+        .then((allowed) => {
+          callback(null, allowed);
+        })
+        .catch(() => {
+          callback(null, false);
+        });
+    },
   });
   const gameNamespace = io.of('/game-v1');
   let projectionBus: RedisProjectionBus | undefined;
   let outboxWorker: OutboxWorker | undefined;
   let connectionService: ConnectionService | undefined;
+  let revocationBus: RedisSessionRevocationBus | undefined;
+  let realtimeLifecycle: RealtimeLifecycle | undefined;
   if (isRuntimeDependencies(dependencies)) {
-    const roomService = new RoomService(dependencies.sql, config, ports);
+    if (admission === undefined) {
+      throw new Error('Realtime admission was not initialized');
+    }
+    revocationBus = new RedisSessionRevocationBus(
+      dependencies.redis,
+      gameNamespace,
+      ports,
+    );
+    await revocationBus.start();
+    const roomService = new RoomService(
+      dependencies.sql,
+      config,
+      ports,
+      revocationBus,
+    );
     const commandService = new CommandService(dependencies.sql, config, ports);
-    registerRoomRoutes(app, roomService, config);
+    registerRoomRoutes(
+      app,
+      roomService,
+      config,
+      dependencies.redis,
+      ports,
+      metrics,
+    );
     const presence = new RedisSessionPresence(dependencies.redis);
     connectionService = new ConnectionService(
       dependencies.sql,
       ports,
       presence,
     );
-    projectionBus = new RedisProjectionBus(dependencies.redis, gameNamespace);
+    projectionBus = new RedisProjectionBus(
+      dependencies.redis,
+      gameNamespace,
+      () => {
+        metrics.recordProjectionRecipientMismatch();
+      },
+    );
     await projectionBus.start();
     outboxWorker = new OutboxWorker(dependencies.sql, projectionBus, ports, {
       workerId: ports.ids.next(),
+      batchSize: config.outboxBatchSize,
       presence,
       onTerminalCleanup: (observation) => {
+        metrics.recordTerminalCleanup(observation.delayMs, observation.trigger);
         app.log.info(observation, 'terminal room data deleted');
+      },
+      onOutboxAge: (ageMs) => {
+        metrics.recordOutboxAge(ageMs);
+      },
+      onProjection: (durationMs, outcome) => {
+        metrics.recordProjection(durationMs, outcome);
+      },
+      onGameEnd: (reason) => {
+        metrics.recordGameEnd(reason);
+      },
+      onPause: () => {
+        metrics.recordPause();
       },
       onError: (operation) => {
         app.log.error({ operation }, 'outbox worker operation failed');
       },
     });
-    registerRealtime(
+    realtimeLifecycle = registerRealtime(
       gameNamespace,
       roomService,
       commandService,
@@ -143,6 +239,10 @@ export async function createServer(
       ports,
       presence,
       connectionService,
+      config,
+      admission,
+      metrics,
+      trustedProxies,
     );
     if (options.startBackgroundWorkers !== false) {
       outboxWorker.start();
@@ -158,10 +258,31 @@ export async function createServer(
     app,
     io,
     async close() {
-      await outboxWorker?.stop();
-      await connectionService?.stop();
+      if (draining) return;
+      draining = true;
+      gameNamespace.emit('server.maintenance', {
+        protocolVersion: 1,
+        startsAt: ports.clock.now().toISOString(),
+        retryAfterMs: 30_000,
+        diagnosticId: `diag_${ports.ids.next()}`,
+      });
+      let timeout: NodeJS.Timeout | undefined;
+      await Promise.race([
+        Promise.all([
+          outboxWorker?.stop(),
+          connectionService?.stop(),
+          realtimeLifecycle?.stopAcceptingAndWait(),
+        ]),
+        new Promise<void>((resolve) => {
+          timeout = setTimeout(resolve, 30_000);
+        }),
+      ]).finally(() => {
+        if (timeout !== undefined) clearTimeout(timeout);
+      });
       await io.close();
       await projectionBus?.close();
+      await revocationBus?.close();
+      await metrics.shutdown();
       await app.close();
       await dependencies.close();
     },

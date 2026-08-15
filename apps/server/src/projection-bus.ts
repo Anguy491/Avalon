@@ -36,10 +36,23 @@ export function parseProjectionDelivery(
   if (typeof value !== 'object' || value === null) return undefined;
   const candidate = value as Record<string, unknown>;
   if (
+    Object.keys(candidate).some(
+      (key) =>
+        ![
+          'sessionId',
+          'playerId',
+          'roomId',
+          'eventId',
+          'credentialGeneration',
+          'message',
+        ].includes(key),
+    ) ||
     typeof candidate.sessionId !== 'string' ||
     typeof candidate.playerId !== 'string' ||
     typeof candidate.roomId !== 'string' ||
     typeof candidate.eventId !== 'string' ||
+    !Number.isSafeInteger(candidate.credentialGeneration) ||
+    (candidate.credentialGeneration as number) < 1 ||
     !UUID_PATTERN.test(candidate.sessionId) ||
     !UUID_PATTERN.test(candidate.playerId) ||
     !UUID_PATTERN.test(candidate.roomId) ||
@@ -70,6 +83,7 @@ export class RedisProjectionBus implements ProjectionPublisher {
   constructor(
     private readonly publisher: RedisClientType,
     private readonly namespace: Namespace,
+    private readonly onRejectedEnvelope?: () => void,
   ) {
     this.subscriber = publisher.duplicate();
   }
@@ -80,13 +94,17 @@ export class RedisProjectionBus implements ProjectionPublisher {
     if (!this.subscriber.isOpen) await this.subscriber.connect();
     await this.subscriber.subscribe(CHANNEL, (serialized) => {
       const delivery = parseProjectionDelivery(serialized);
-      if (delivery === undefined) return;
+      if (delivery === undefined) {
+        this.onRejectedEnvelope?.();
+        return;
+      }
       const targetRoom = sessionSocketRoom(delivery.sessionId);
       for (const socket of this.namespace.sockets.values()) {
         const context = (socket.data as SocketData).session;
         if (
           socket.rooms.has(targetRoom) &&
           context?.sessionId === delivery.sessionId &&
+          context.credentialGeneration === delivery.credentialGeneration &&
           context.roomId === delivery.roomId &&
           context.playerId === delivery.playerId
         ) {

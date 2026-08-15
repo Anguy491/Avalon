@@ -64,7 +64,7 @@ const presetConfig = {
   locale: 'zh-CN',
 } as const;
 
-const testSessionToken = 'M0_test_session_token_01';
+const testSessionToken = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg';
 
 describe('TEST-contract / M0-005 command schemas', () => {
   it.each(commandFixtures)('accepts a valid $type command', (command) => {

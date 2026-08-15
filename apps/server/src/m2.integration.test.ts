@@ -189,6 +189,12 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
   let redisUrl: string;
   let sql: postgres.Sql;
   let stopContainers: () => Promise<void>;
+  let restoreFixedDatabase:
+    | (() => Promise<{
+        readonly restoredDatabaseUrl: string;
+        readonly elapsedMs: number;
+      }>)
+    | undefined;
   let config: ServerConfig;
 
   beforeAll(async () => {
@@ -200,6 +206,54 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     redisUrl = redisContainer.getConnectionUrl();
     stopContainers = async () => {
       await Promise.all([postgresContainer.stop(), redisContainer.stop()]);
+    };
+    restoreFixedDatabase = async () => {
+      const restoredDatabase = 'avalon_restore';
+      const commands = [
+        [
+          'dropdb',
+          '--if-exists',
+          '-U',
+          postgresContainer.getUsername(),
+          restoredDatabase,
+        ],
+        ['createdb', '-U', postgresContainer.getUsername(), restoredDatabase],
+        [
+          'pg_dump',
+          '--format=custom',
+          '--no-owner',
+          '-U',
+          postgresContainer.getUsername(),
+          '-d',
+          postgresContainer.getDatabase(),
+          '-f',
+          '/tmp/avalon-m7.dump',
+        ],
+        [
+          'pg_restore',
+          '--no-owner',
+          '-U',
+          postgresContainer.getUsername(),
+          '-d',
+          restoredDatabase,
+          '/tmp/avalon-m7.dump',
+        ],
+      ];
+      const started = performance.now();
+      for (const command of commands) {
+        const result = await postgresContainer.exec(command);
+        if (result.exitCode !== 0) {
+          throw new Error(
+            `Backup/restore command failed: ${command[0] ?? 'unknown'}`,
+          );
+        }
+      }
+      const restoredUrl = new URL(databaseUrl);
+      restoredUrl.pathname = `/${restoredDatabase}`;
+      return {
+        restoredDatabaseUrl: restoredUrl.toString(),
+        elapsedMs: performance.now() - started,
+      };
     };
     await runner({
       databaseUrl,
@@ -223,6 +277,20 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       idempotencyEncryptionSecret: 'integration-idempotency-encryption-0001',
       sessionTtlSeconds: 1_800,
       realtimePublicUrl: 'wss://localhost.invalid/game-v1',
+      trustedProxyCidrs: [],
+      handshakeIpRateLimit: 30,
+      pendingAuthLimit: 100,
+      authTimeoutMs: 3_000,
+      instanceConnectionLimit: 6_000,
+      globalConnectionLimit: 12_000,
+      sessionSocketLimit: 2,
+      terminalAckRateLimit: 3,
+      audioTelemetryRateLimit: 6,
+      createJoinIpRateLimit: 30,
+      createJoinGlobalRateLimit: 600,
+      databasePoolMax: 10,
+      databaseQueryTimeoutMs: 2_000,
+      outboxBatchSize: 25,
     };
   }, 120_000);
 
@@ -297,7 +365,7 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       databaseUrl,
       dir: migrationsDirectory,
       direction: 'down',
-      count: 2,
+      count: 3,
       migrationsTable: 'pgmigrations',
       log: () => undefined,
     });
@@ -430,9 +498,20 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
   });
 
   it('SM-003 stores only digests, atomically rotates, replays its key, and permits one concurrent recovery', async () => {
-    const service = new RoomService(sql, config, createTestPorts().ports);
+    const rotations: Array<{
+      readonly sessionId: string;
+      readonly credentialGeneration: number;
+    }> = [];
+    const service = new RoomService(sql, config, createTestPorts().ports, {
+      publishSessionRotation(rotation) {
+        rotations.push(rotation);
+        return Promise.resolve();
+      },
+    });
     const created = await service.createRoom(id(40), createRequest());
     const token = created.body.sessionToken;
+    const oldContext = await service.authenticate(token);
+    expect(oldContext.credentialGeneration).toBe(1);
     const databaseText = await sql<
       {
         readonly aggregate: string;
@@ -457,9 +536,23 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     await expect(service.authenticate(token)).rejects.toMatchObject({
       code: 'SESSION_INVALID',
     });
+    await expect(service.renewSession(oldContext)).rejects.toMatchObject({
+      code: 'SESSION_INVALID',
+    });
+    expect(
+      (await service.authenticate(resumed.body.sessionToken))
+        .credentialGeneration,
+    ).toBe(2);
+    expect(rotations).toEqual([
+      {
+        sessionId: oldContext.sessionId,
+        credentialGeneration: 2,
+      },
+    ]);
     expect(
       (await service.resumeSession(id(41), token, resumeRequest)).body,
     ).toEqual(resumed.body);
+    expect(rotations).toHaveLength(1);
 
     const outcomes = await Promise.allSettled([
       service.resumeSession(id(42), resumed.body.sessionToken, resumeRequest),
@@ -471,6 +564,8 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     expect(
       outcomes.filter((result) => result.status === 'rejected'),
     ).toHaveLength(1);
+    expect(rotations).toHaveLength(2);
+    expect(rotations[1]?.credentialGeneration).toBe(3);
   });
 
   it('M2-004 commits state, processed response, and Outbox atomically; ack retry has one effect', async () => {
@@ -526,6 +621,59 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       accepted: false,
       error: { code: 'UNAUTHORIZED' },
     });
+  });
+
+  it('M7-005 pg_dump/restore keeps confirmed commands at RPO 0 and resumes within five seconds', async () => {
+    if (restoreFixedDatabase === undefined) {
+      throw new Error('Backup/restore fixture was not initialized');
+    }
+    const testPorts = createTestPorts();
+    const service = new RoomService(sql, config, testPorts.ports);
+    const commandId = id(350);
+    const request = createRequest();
+    const created = await service.createRoom(commandId, request);
+
+    const restored = await restoreFixedDatabase();
+    expect(restored.elapsedMs).toBeLessThan(5_000);
+    const restoredSql = postgres(restored.restoredDatabaseUrl, {
+      max: 2,
+      onnotice: () => undefined,
+    });
+    try {
+      const restoredService = new RoomService(
+        restoredSql,
+        { ...config, databaseUrl: restored.restoredDatabaseUrl },
+        testPorts.ports,
+      );
+      const replay = await restoredService.createRoom(commandId, request);
+      expect(replay.idempotentReplay).toBe(true);
+      expect(replay.body.roomView.public.roomId).toBe(
+        created.body.roomView.public.roomId,
+      );
+      await expect(
+        restoredService.authenticate(created.body.sessionToken),
+      ).resolves.toMatchObject({
+        roomId: created.body.roomView.public.roomId,
+        playerId: created.body.playerId,
+      });
+      const [counts] = await restoredSql<
+        {
+          readonly rooms: number;
+          readonly sessions: number;
+          readonly commands: number;
+          readonly outbox: number;
+        }[]
+      >`
+        select
+          (select count(*)::integer from avalon_runtime.rooms) as rooms,
+          (select count(*)::integer from avalon_runtime.sessions) as sessions,
+          (select count(*)::integer from avalon_runtime.processed_commands) as commands,
+          (select count(*)::integer from avalon_runtime.outbox) as outbox
+      `;
+      expect(counts).toEqual({ rooms: 1, sessions: 1, commands: 1, outbox: 1 });
+    } finally {
+      await restoredSql.end({ timeout: 2 });
+    }
   });
 
   it('M2-006 rolls back a pre-commit crash and safely republishes the same event after a post-publish crash', async () => {
@@ -956,6 +1104,18 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       true,
     );
     expect(deliveries).not.toHaveLength(0);
+    const firstTerminalEventIds = new Set(
+      deliveries.map((delivery) => delivery.eventId),
+    );
+    const firstTerminalDeliveryCount = deliveries.length;
+    testPorts.advance(2_001);
+    await worker.drainOnce();
+    expect(deliveries.length).toBeGreaterThan(firstTerminalDeliveryCount);
+    expect(
+      deliveries
+        .slice(firstTerminalDeliveryCount)
+        .every((delivery) => firstTerminalEventIds.has(delivery.eventId)),
+    ).toBe(true);
     expect(
       deliveries.every(
         (delivery) =>
@@ -993,7 +1153,7 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     `;
     expect(counts).toEqual({ rooms: 0, sessions: 0, receipts: 0 });
     expect(presence.clearedRoomIds).toContain(roomId);
-    expect(cleanupObservations).toEqual([{ trigger: 'ACK', delayMs: 0 }]);
+    expect(cleanupObservations).toEqual([{ trigger: 'ACK', delayMs: 2_001 }]);
     await expect(
       service.authenticate(joined.body.sessionToken),
     ).rejects.toMatchObject({ code: 'SESSION_INVALID' });

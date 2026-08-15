@@ -77,9 +77,17 @@ interface SessionRow {
   readonly room_id: string;
   readonly player_id: string;
   readonly token_digest: string;
+  readonly credential_generation: number;
   readonly expires_at: Date;
   readonly room_code: string;
   readonly aggregate: unknown;
+}
+
+export interface SessionRotationPublisher {
+  publishSessionRotation(rotation: {
+    readonly sessionId: string;
+    readonly credentialGeneration: number;
+  }): Promise<void>;
 }
 
 export interface ServiceResponse<T> {
@@ -437,6 +445,7 @@ export class RoomService {
     private readonly sql: postgres.Sql,
     private readonly config: ServerConfig,
     private readonly ports: RuntimePorts,
+    private readonly rotationPublisher?: SessionRotationPublisher,
   ) {}
 
   private async replay(
@@ -767,7 +776,10 @@ export class RoomService {
     const requestHash = sha256Digest({ tokenDigest: oldDigest, request });
     const scope = 'POST /v1/sessions/resume';
 
-    return this.sql.begin(async (sql) => {
+    let rotation:
+      | { readonly sessionId: string; readonly credentialGeneration: number }
+      | undefined;
+    const response = await this.sql.begin(async (sql) => {
       await advisoryLock(sql, scope, commandId);
       const replay = await this.replay(
         sql,
@@ -780,7 +792,8 @@ export class RoomService {
 
       const [session] = await sql<SessionRow[]>`
         select s.session_id, s.token_family, s.room_id, s.player_id,
-               s.token_digest, s.expires_at, r.room_code, r.aggregate
+               s.token_digest, s.credential_generation, s.expires_at,
+               r.room_code, r.aggregate
           from ${sql(SCHEMA)}.sessions s
           join ${sql(SCHEMA)}.rooms r on r.room_id = s.room_id
          where s.token_digest = ${oldDigest}
@@ -808,12 +821,15 @@ export class RoomService {
       const newToken = issueSessionToken(this.ports.random);
       const newDigest = tokenDigest(newToken, this.config.sessionTokenPepper);
       const expiresAt = addSeconds(now, this.config.sessionTtlSeconds);
+      const credentialGeneration = session.credential_generation + 1;
       await sql`
         update ${sql(SCHEMA)}.sessions
            set token_digest = ${newDigest}, expires_at = ${expiresAt},
-               rotated_at = ${now}
+               rotated_at = ${now},
+               credential_generation = ${credentialGeneration}
          where session_id = ${session.session_id}
       `;
+      rotation = { sessionId: session.session_id, credentialGeneration };
       const state = stateFrom(lockedRoom.aggregate);
       const body = bootstrap(
         this.config,
@@ -838,13 +854,24 @@ export class RoomService {
       });
       return { status: 200, body, idempotentReplay: false };
     });
+    if (rotation !== undefined) {
+      try {
+        await this.rotationPublisher?.publishSessionRotation(rotation);
+      } catch {
+        // The committed database generation remains authoritative. Projection,
+        // command, ACK, and heartbeat checks reject the stale generation even
+        // when the best-effort immediate disconnect notification is unavailable.
+      }
+    }
+    return response;
   }
 
   async authenticate(token: string): Promise<SessionContext> {
     const digest = tokenDigest(token, this.config.sessionTokenPepper);
     const [session] = await this.sql<SessionRow[]>`
       select s.session_id, s.token_family, s.room_id, s.player_id,
-             s.token_digest, s.expires_at, r.room_code, r.aggregate
+             s.token_digest, s.credential_generation, s.expires_at,
+             r.room_code, r.aggregate
         from ${this.sql(SCHEMA)}.sessions s
         join ${this.sql(SCHEMA)}.rooms r on r.room_id = s.room_id
        where s.token_digest = ${digest}
@@ -860,6 +887,7 @@ export class RoomService {
       roomId: session.room_id,
       playerId: session.player_id,
       tokenDigest: session.token_digest,
+      credentialGeneration: session.credential_generation,
       expiresAt: session.expires_at,
     };
   }
@@ -876,6 +904,7 @@ export class RoomService {
          set expires_at = ${expiresAt}
        where session_id = ${context.sessionId}
          and token_digest = ${context.tokenDigest}
+         and credential_generation = ${context.credentialGeneration}
          and revoked_at is null
          and expires_at > ${now}
          and expires_at <= ${refreshThreshold}
@@ -886,6 +915,7 @@ export class RoomService {
       select expires_at from ${this.sql(SCHEMA)}.sessions
        where session_id = ${context.sessionId}
          and token_digest = ${context.tokenDigest}
+         and credential_generation = ${context.credentialGeneration}
          and revoked_at is null
          and expires_at > ${now}
     `;

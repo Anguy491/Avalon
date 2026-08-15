@@ -33,7 +33,7 @@ const firstBootstrap = {
   protocolVersion: 1 as const,
   roomCode: 'ABC234',
   playerId: '00000000-0000-4000-8000-000000000001',
-  sessionToken: 'first_session_token_value_1234',
+  sessionToken: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg',
   sessionExpiresAt: '2026-08-13T12:30:00.000Z',
   realtimeUrl: 'wss://example.test/game-v1',
   roomView: {} as never,
@@ -68,10 +68,10 @@ describe('secure session persistence', () => {
 
     await saveBootstrap(store, {
       ...firstBootstrap,
-      sessionToken: 'rotated_session_token_value_5678',
+      sessionToken: 'gfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA9876543210',
     });
     expect(await loadStoredSession(store)).toMatchObject({
-      sessionToken: 'rotated_session_token_value_5678',
+      sessionToken: 'gfedcbaZYXWVUTSRQPONMLKJIHGFEDCBA9876543210',
     });
     expect(
       (await loadStoredSession(store))?.pendingResumeIdempotencyKey,

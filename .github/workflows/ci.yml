@@ -46,3 +46,25 @@ jobs:
         run: pnpm docs:check
       - name: Secret scan
         run: pnpm secret:scan
+      - name: Security regression tests
+        run: pnpm test:security
+      - name: Preview validator fixtures
+        run: node --test scripts/preview-config.test.mjs
+      - name: Build immutable server OCI artifact with SBOM and provenance
+        run: >-
+          docker buildx build . --file apps/server/Dockerfile
+          --output type=oci,dest=avalon-server.oci
+          --metadata-file=avalon-server-metadata.json
+          --sbom=true --provenance=mode=max
+      - name: Record server image digest
+        run: sha256sum avalon-server.oci > avalon-server.oci.sha256
+      - name: Upload OCI, SBOM and provenance artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: avalon-server-oci-${{ github.sha }}
+          path: |
+            avalon-server.oci
+            avalon-server.oci.sha256
+            avalon-server-metadata.json
+          if-no-files-found: error
+          retention-days: 14

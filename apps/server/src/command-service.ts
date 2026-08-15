@@ -231,6 +231,7 @@ export class CommandService {
         select session_id from ${sql(SCHEMA)}.sessions
          where session_id = ${context.sessionId}
            and token_digest = ${context.tokenDigest}
+           and credential_generation = ${context.credentialGeneration}
            and revoked_at is null
            and expires_at > ${this.ports.clock.now()}
          for update

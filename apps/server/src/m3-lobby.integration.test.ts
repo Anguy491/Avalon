@@ -344,6 +344,20 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       idempotencyEncryptionSecret: 'integration-idempotency-encryption-0002',
       sessionTtlSeconds: 1_800,
       realtimePublicUrl: 'wss://localhost.invalid/game-v1',
+      trustedProxyCidrs: [],
+      handshakeIpRateLimit: 30,
+      pendingAuthLimit: 100,
+      authTimeoutMs: 3_000,
+      instanceConnectionLimit: 6_000,
+      globalConnectionLimit: 12_000,
+      sessionSocketLimit: 2,
+      terminalAckRateLimit: 3,
+      audioTelemetryRateLimit: 6,
+      createJoinIpRateLimit: 30,
+      createJoinGlobalRateLimit: 600,
+      databasePoolMax: 10,
+      databaseQueryTimeoutMs: 2_000,
+      outboxBatchSize: 25,
     };
   }, 120_000);
 

@@ -27,6 +27,9 @@
     "test:e2e:mobile": "pnpm --filter @avalon/mobile test:e2e",
     "test:integration": "pnpm --filter @avalon/server test:integration",
     "test:load": "node scripts/load-smoke.mjs",
+    "test:load:release": "node scripts/load-release.mjs",
+    "test:security": "node --test scripts/preview-config.test.mjs && pnpm --filter @avalon/server exec vitest run src/security.test.ts src/session-revocation.test.ts src/projection-bus.test.ts src/trusted-client-ip.test.ts src/realtime-admission.test.ts && pnpm --filter @avalon/mobile exec vitest run src/observability/sentry.test.ts src/privacy/app-privacy-shield.test.ts",
+    "preview:check": "node scripts/preview-check.mjs",
     "typecheck": "pnpm -r --if-present typecheck"
   },
   "devDependencies": {

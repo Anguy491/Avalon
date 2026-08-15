@@ -226,6 +226,17 @@ flowchart LR
 | M7 Preview | 攻击面复扫、授权/枚举/DoS/日志代理测试、删除 SLI、供应链和 EAS 权限审查 |
 | 未来公开发布前 | 重新建模账号/公开滥用/大规模 DDoS/未成年人和商店合规，不直接复用邀请测试评级 |
 
+## M7 实现复核（2026-08-15）
+
+- `TM-001/TM-002`：会话轮换使用单调 `credential_generation`；跨实例 Redis 通知立即撤销旧 Socket，命令、投影、终局 ACK 与续期再次核对代际。
+- `TM-004`：移动 Sentry 使用 DE DSN 门槛和事件允许列表，禁用 breadcrumbs、截图、Replay、附件、用户与请求正文；无 DSN 时 SDK 禁用。
+- `TM-005/TM-006`：创建/加入使用组合、独立可信 IP 和全局桶；握手在 PostgreSQL 查询前执行 IP、待认证、超时与连接预算。
+- `TM-008`：基础镜像固定 tag+digest，CI 生成 OCI SBOM/provenance；EAS/云端凭证仍是人工门槛。
+- `TM-009`：终局用同 eventId 每 2 秒重投至全部 ACK 或 60 秒清除；ACK 未命中不再取得房间锁。
+- `TM-010`：根 AppState 中性遮罩覆盖所有路由；真机任务切换器与录屏证据仍待 iOS/Android 执行。
+
+剩余风险：入口私网和覆盖转发头、真实 DDoS/WAF、Sentry DE 出站、供应商备份/WAL 残余、30 分钟容量与真机隐私/音频均需真实 Preview 人工验证；延期的无障碍要求不视为已缓解。
+
 ## Quality check
 
 - [x] 覆盖了当前规范中发现的 HTTP、Socket.IO、QR、移动本地、存储、遥测和供应链入口；

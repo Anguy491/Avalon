@@ -33,6 +33,7 @@ interface ReconciliationRow {
   readonly room_id: string;
   readonly player_id: string;
   readonly token_digest: string;
+  readonly credential_generation: number;
   readonly expires_at: Date;
 }
 
@@ -141,7 +142,7 @@ export class ConnectionService {
     const rows = await this.sql<ReconciliationRow[]>`
       select distinct on (p.room_id, p.player_id)
              s.session_id, s.token_family, s.room_id, s.player_id,
-             s.token_digest, s.expires_at
+             s.token_digest, s.credential_generation, s.expires_at
         from ${this.sql(SCHEMA)}.players p
         join ${this.sql(SCHEMA)}.rooms r on r.room_id = p.room_id
         join ${this.sql(SCHEMA)}.sessions s
@@ -160,6 +161,7 @@ export class ConnectionService {
         roomId: row.room_id,
         playerId: row.player_id,
         tokenDigest: row.token_digest,
+        credentialGeneration: row.credential_generation,
         expiresAt: row.expires_at,
       };
       await this.presence.markOnline(

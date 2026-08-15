@@ -17,12 +17,14 @@ interface OutboxRow {
   readonly state_version: number;
   readonly event_type: string;
   readonly live_audio_cue_id: string | null;
+  readonly created_at: Date;
 }
 
 interface DeliveryRow {
   readonly session_id: string;
   readonly player_id: string;
   readonly expires_at: Date;
+  readonly credential_generation: number;
 }
 
 interface RoomRow {
@@ -32,6 +34,7 @@ interface RoomRow {
   readonly state_version: number;
   readonly recovery_started_at: Date | null;
   readonly recovery_expires_at: Date | null;
+  readonly terminal_published_at: Date | null;
 }
 
 export interface ProjectionDelivery {
@@ -39,6 +42,7 @@ export interface ProjectionDelivery {
   readonly playerId: string;
   readonly roomId: string;
   readonly eventId: string;
+  readonly credentialGeneration: number;
   readonly message: RoomViewMessage;
 }
 
@@ -56,6 +60,13 @@ export interface OutboxWorkerOptions {
     readonly delayMs: number;
   }) => void;
   readonly onError?: (operation: 'DRAIN' | 'PUBLISH') => void;
+  readonly onOutboxAge?: (ageMs: number) => void;
+  readonly onProjection?: (
+    durationMs: number,
+    outcome: 'accepted' | 'error',
+  ) => void;
+  readonly onGameEnd?: (reason: string) => void;
+  readonly onPause?: () => void;
 }
 
 export class OutboxWorker {
@@ -115,7 +126,7 @@ export class OutboxWorker {
          where target.outbox_id = claimable.outbox_id
          returning target.outbox_id, target.event_id, target.room_id,
                    target.state_version, target.event_type,
-                   target.live_audio_cue_id
+                   target.live_audio_cue_id, target.created_at
       `,
     );
   }
@@ -134,16 +145,23 @@ export class OutboxWorker {
   }
 
   private async publishRow(row: OutboxRow): Promise<void> {
+    const started = performance.now();
     try {
+      this.options.onOutboxAge?.(
+        Math.max(
+          0,
+          this.ports.clock.now().getTime() - row.created_at.getTime(),
+        ),
+      );
       const [room] = await this.sql<RoomRow[]>`
         select room_code, aggregate, phase, state_version,
-               recovery_started_at, recovery_expires_at
+               recovery_started_at, recovery_expires_at, terminal_published_at
           from ${this.sql(SCHEMA)}.rooms
          where room_id = ${row.room_id}
       `;
       if (room === undefined) return;
       const deliveries = await this.sql<DeliveryRow[]>`
-        select session_id, player_id, expires_at
+        select session_id, player_id, expires_at, credential_generation
          from ${this.sql(SCHEMA)}.sessions
          where room_id = ${row.room_id}
            and revoked_at is null
@@ -160,6 +178,14 @@ export class OutboxWorker {
           room.recovery_expires_at?.toISOString() ??
           aggregateState.recoveryExpiresAt,
       };
+      if (
+        room.phase === 'GAME_OVER' &&
+        room.terminal_published_at === null &&
+        state.gameOutcome !== undefined
+      ) {
+        this.options.onGameEnd?.(state.gameOutcome.reason);
+      }
+      if (room.phase === 'PAUSED') this.options.onPause?.();
       let targetedDeliveries: readonly DeliveryRow[] = deliveries;
       if (room.phase === 'GAME_OVER') {
         const onlineSessionIds =
@@ -177,13 +203,21 @@ export class OutboxWorker {
              for update
           `;
           if (locked === undefined) return undefined;
-          const existing = await sql<{ readonly session_id: string }[]>`
-            select session_id from ${sql(SCHEMA)}.terminal_receipts
+          const existing = await sql<
+            {
+              readonly session_id: string;
+              readonly acknowledged_at: Date | null;
+            }[]
+          >`
+            select session_id, acknowledged_at
+              from ${sql(SCHEMA)}.terminal_receipts
              where room_id = ${row.room_id}
              order by session_id
           `;
           if (existing.length > 0) {
-            return existing.map((receipt) => receipt.session_id);
+            return existing
+              .filter((receipt) => receipt.acknowledged_at === null)
+              .map((receipt) => receipt.session_id);
           }
           if (candidates.length === 0) {
             await sql`
@@ -194,9 +228,10 @@ export class OutboxWorker {
           for (const delivery of candidates) {
             await sql`
               insert into ${sql(SCHEMA)}.terminal_receipts
-                (room_id, session_id, state_version)
+                (room_id, session_id, state_version, credential_generation)
               values
-                (${row.room_id}, ${delivery.session_id}, ${room.state_version})
+                (${row.room_id}, ${delivery.session_id}, ${room.state_version},
+                 ${delivery.credential_generation})
               on conflict do nothing
             `;
           }
@@ -238,19 +273,15 @@ export class OutboxWorker {
           playerId: delivery.player_id,
           roomId: row.room_id,
           eventId: row.event_id,
+          credentialGeneration: delivery.credential_generation,
           message,
         });
       }
       this.options.afterPublish?.();
+      this.options.onProjection?.(performance.now() - started, 'accepted');
 
       const now = this.ports.clock.now();
       await this.sql.begin(async (sql) => {
-        await sql`
-          update ${sql(SCHEMA)}.outbox
-             set published_at = ${now}, claimed_by = null, claimed_until = null
-           where outbox_id = ${row.outbox_id}
-             and claimed_by = ${this.options.workerId}
-        `;
         if (room.phase === 'GAME_OVER') {
           const cleanupAfter = new Date(now.getTime() + 60_000);
           await sql`
@@ -259,9 +290,24 @@ export class OutboxWorker {
                    cleanup_after = coalesce(cleanup_after, ${cleanupAfter})
              where room_id = ${row.room_id}
           `;
+          await sql`
+            update ${sql(SCHEMA)}.outbox
+               set available_at = ${new Date(now.getTime() + 2_000)},
+                   claimed_by = null, claimed_until = null
+             where outbox_id = ${row.outbox_id}
+               and claimed_by = ${this.options.workerId}
+          `;
+        } else {
+          await sql`
+            update ${sql(SCHEMA)}.outbox
+               set published_at = ${now}, claimed_by = null, claimed_until = null
+             where outbox_id = ${row.outbox_id}
+               and claimed_by = ${this.options.workerId}
+          `;
         }
       });
     } catch {
+      this.options.onProjection?.(performance.now() - started, 'error');
       this.options.onError?.('PUBLISH');
       const retryAt = new Date(this.ports.clock.now().getTime() + 250);
       await this.sql`
@@ -278,6 +324,25 @@ export class OutboxWorker {
     stateVersion: number,
   ): Promise<boolean> {
     const result = await this.sql.begin(async (sql) => {
+      const updated = await sql<{ readonly room_id: string }[]>`
+        update ${sql(SCHEMA)}.terminal_receipts receipt
+           set acknowledged_at = ${this.ports.clock.now()}
+         where receipt.room_id = ${context.roomId}
+           and receipt.session_id = ${context.sessionId}
+           and receipt.state_version = ${stateVersion}
+           and receipt.credential_generation = ${context.credentialGeneration}
+           and receipt.acknowledged_at is null
+           and exists (
+             select 1 from ${sql(SCHEMA)}.sessions session
+              where session.session_id = ${context.sessionId}
+                and session.credential_generation = ${context.credentialGeneration}
+                and session.revoked_at is null
+           )
+         returning room_id
+      `;
+      if (updated.length === 0) {
+        return { accepted: false, deleted: false, delayMs: 0 };
+      }
       const [room] = await sql<
         {
           readonly room_id: string;
@@ -289,18 +354,6 @@ export class OutboxWorker {
          for update
       `;
       if (room === undefined) {
-        return { accepted: false, deleted: false, delayMs: 0 };
-      }
-      const updated = await sql<{ readonly room_id: string }[]>`
-        update ${sql(SCHEMA)}.terminal_receipts
-           set acknowledged_at = ${this.ports.clock.now()}
-         where room_id = ${context.roomId}
-           and session_id = ${context.sessionId}
-           and state_version = ${stateVersion}
-           and acknowledged_at is null
-         returning room_id
-      `;
-      if (updated.length === 0) {
         return { accepted: false, deleted: false, delayMs: 0 };
       }
       const [pending] = await sql<{ readonly count: number }[]>`

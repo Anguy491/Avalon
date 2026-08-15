@@ -29,8 +29,9 @@
           "type": "string"
         },
         "sessionToken": {
-          "minLength": 22,
-          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$",
           "type": "string"
         },
         "sessionExpiresAt": {

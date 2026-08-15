@@ -15,6 +15,21 @@ export const CONFIG_KEYS = [
   'IDEMPOTENCY_ENCRYPTION_SECRET',
   'SESSION_TTL_SECONDS',
   'REALTIME_PUBLIC_URL',
+  'TRUSTED_PROXY_CIDRS',
+  'HANDSHAKE_IP_RATE_LIMIT',
+  'PENDING_AUTH_LIMIT',
+  'AUTH_TIMEOUT_MS',
+  'INSTANCE_CONNECTION_LIMIT',
+  'GLOBAL_CONNECTION_LIMIT',
+  'SESSION_SOCKET_LIMIT',
+  'TERMINAL_ACK_RATE_LIMIT',
+  'AUDIO_TELEMETRY_RATE_LIMIT',
+  'CREATE_JOIN_IP_RATE_LIMIT',
+  'CREATE_JOIN_GLOBAL_RATE_LIMIT',
+  'DATABASE_POOL_MAX',
+  'DATABASE_QUERY_TIMEOUT_MS',
+  'OUTBOX_BATCH_SIZE',
+  'OTLP_METRICS_ENDPOINT',
 ] as const;
 
 type ConfigKey = (typeof CONFIG_KEYS)[number];
@@ -46,6 +61,26 @@ const ConfigSchema = Type.Object(
     idempotencyEncryptionSecret: Type.String({ minLength: 32 }),
     sessionTtlSeconds: Type.Integer({ minimum: 60, maximum: 86_400 }),
     realtimePublicUrl: Type.String({ pattern: '^wss://' }),
+    trustedProxyCidrs: Type.Array(Type.String({ minLength: 3 }), {
+      maxItems: 32,
+      uniqueItems: true,
+    }),
+    handshakeIpRateLimit: Type.Integer({ minimum: 1, maximum: 10_000 }),
+    pendingAuthLimit: Type.Integer({ minimum: 1, maximum: 10_000 }),
+    authTimeoutMs: Type.Integer({ minimum: 100, maximum: 30_000 }),
+    instanceConnectionLimit: Type.Integer({ minimum: 1, maximum: 100_000 }),
+    globalConnectionLimit: Type.Integer({ minimum: 1, maximum: 1_000_000 }),
+    sessionSocketLimit: Type.Integer({ minimum: 1, maximum: 10 }),
+    terminalAckRateLimit: Type.Integer({ minimum: 1, maximum: 60 }),
+    audioTelemetryRateLimit: Type.Integer({ minimum: 1, maximum: 600 }),
+    createJoinIpRateLimit: Type.Integer({ minimum: 1, maximum: 10_000 }),
+    createJoinGlobalRateLimit: Type.Integer({ minimum: 1, maximum: 100_000 }),
+    databasePoolMax: Type.Integer({ minimum: 1, maximum: 1_000 }),
+    databaseQueryTimeoutMs: Type.Integer({ minimum: 100, maximum: 60_000 }),
+    outboxBatchSize: Type.Integer({ minimum: 1, maximum: 1_000 }),
+    otlpMetricsEndpoint: Type.Optional(
+      Type.String({ pattern: '^https?://', maxLength: 2_048 }),
+    ),
   },
   { additionalProperties: false },
 );
@@ -71,6 +106,21 @@ export interface ServerConfig {
   readonly idempotencyEncryptionSecret: string;
   readonly sessionTtlSeconds: number;
   readonly realtimePublicUrl: string;
+  readonly trustedProxyCidrs: readonly string[];
+  readonly handshakeIpRateLimit: number;
+  readonly pendingAuthLimit: number;
+  readonly authTimeoutMs: number;
+  readonly instanceConnectionLimit: number;
+  readonly globalConnectionLimit: number;
+  readonly sessionSocketLimit: number;
+  readonly terminalAckRateLimit: number;
+  readonly audioTelemetryRateLimit: number;
+  readonly createJoinIpRateLimit: number;
+  readonly createJoinGlobalRateLimit: number;
+  readonly databasePoolMax: number;
+  readonly databaseQueryTimeoutMs: number;
+  readonly outboxBatchSize: number;
+  readonly otlpMetricsEndpoint?: string;
 }
 
 const read = (
@@ -95,8 +145,15 @@ const parseInteger = (value: string, key: ConfigKey): number => {
 export function loadConfig(
   environment: NodeJS.ProcessEnv = process.env,
 ): ServerConfig {
+  const nodeEnv = read(environment, 'NODE_ENV', 'development');
+  const trustedProxyValue = environment.TRUSTED_PROXY_CIDRS?.trim() ?? '';
+  if (nodeEnv === 'production' && trustedProxyValue.length === 0) {
+    throw new Error(
+      'Missing required server configuration: TRUSTED_PROXY_CIDRS',
+    );
+  }
   const config = {
-    nodeEnv: read(environment, 'NODE_ENV', 'development'),
+    nodeEnv,
     host: read(environment, 'HOST', '0.0.0.0'),
     port: parseInteger(read(environment, 'PORT', '3000'), 'PORT'),
     logLevel: read(environment, 'LOG_LEVEL', 'info'),
@@ -125,6 +182,66 @@ export function loadConfig(
       'REALTIME_PUBLIC_URL',
       'wss://localhost.invalid/game-v1',
     ),
+    trustedProxyCidrs:
+      trustedProxyValue.length === 0
+        ? []
+        : trustedProxyValue.split(',').map((value) => value.trim()),
+    handshakeIpRateLimit: parseInteger(
+      read(environment, 'HANDSHAKE_IP_RATE_LIMIT', '30'),
+      'HANDSHAKE_IP_RATE_LIMIT',
+    ),
+    pendingAuthLimit: parseInteger(
+      read(environment, 'PENDING_AUTH_LIMIT', '100'),
+      'PENDING_AUTH_LIMIT',
+    ),
+    authTimeoutMs: parseInteger(
+      read(environment, 'AUTH_TIMEOUT_MS', '3000'),
+      'AUTH_TIMEOUT_MS',
+    ),
+    instanceConnectionLimit: parseInteger(
+      read(environment, 'INSTANCE_CONNECTION_LIMIT', '6000'),
+      'INSTANCE_CONNECTION_LIMIT',
+    ),
+    globalConnectionLimit: parseInteger(
+      read(environment, 'GLOBAL_CONNECTION_LIMIT', '12000'),
+      'GLOBAL_CONNECTION_LIMIT',
+    ),
+    sessionSocketLimit: parseInteger(
+      read(environment, 'SESSION_SOCKET_LIMIT', '2'),
+      'SESSION_SOCKET_LIMIT',
+    ),
+    terminalAckRateLimit: parseInteger(
+      read(environment, 'TERMINAL_ACK_RATE_LIMIT', '3'),
+      'TERMINAL_ACK_RATE_LIMIT',
+    ),
+    audioTelemetryRateLimit: parseInteger(
+      read(environment, 'AUDIO_TELEMETRY_RATE_LIMIT', '6'),
+      'AUDIO_TELEMETRY_RATE_LIMIT',
+    ),
+    createJoinIpRateLimit: parseInteger(
+      read(environment, 'CREATE_JOIN_IP_RATE_LIMIT', '30'),
+      'CREATE_JOIN_IP_RATE_LIMIT',
+    ),
+    createJoinGlobalRateLimit: parseInteger(
+      read(environment, 'CREATE_JOIN_GLOBAL_RATE_LIMIT', '600'),
+      'CREATE_JOIN_GLOBAL_RATE_LIMIT',
+    ),
+    databasePoolMax: parseInteger(
+      read(environment, 'DATABASE_POOL_MAX', '10'),
+      'DATABASE_POOL_MAX',
+    ),
+    databaseQueryTimeoutMs: parseInteger(
+      read(environment, 'DATABASE_QUERY_TIMEOUT_MS', '2000'),
+      'DATABASE_QUERY_TIMEOUT_MS',
+    ),
+    outboxBatchSize: parseInteger(
+      read(environment, 'OUTBOX_BATCH_SIZE', '25'),
+      'OUTBOX_BATCH_SIZE',
+    ),
+    ...(environment.OTLP_METRICS_ENDPOINT === undefined ||
+    environment.OTLP_METRICS_ENDPOINT.length === 0
+      ? {}
+      : { otlpMetricsEndpoint: environment.OTLP_METRICS_ENDPOINT }),
   };
 
   if (!Value.Check(ConfigSchema, config)) {

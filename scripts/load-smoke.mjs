@@ -234,10 +234,14 @@ function connectMember(bootstrap) {
       socket.disconnect();
       reject(new Error('realtime session.ready timed out'));
     }, realtimeTimeoutMilliseconds);
-    socket.once('connect_error', () => {
+    socket.once('connect_error', (error) => {
       clearTimeout(timer);
       socket.disconnect();
-      reject(new Error('realtime connection was rejected'));
+      reject(
+        new Error(
+          `realtime connection was rejected: ${error instanceof Error ? error.message : 'unknown'}`,
+        ),
+      );
     });
     socket.once('session.ready', (message) => {
       clearTimeout(timer);

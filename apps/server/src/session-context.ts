@@ -4,5 +4,6 @@ export interface SessionContext {
   readonly roomId: string;
   readonly playerId: string;
   readonly tokenDigest: string;
+  readonly credentialGeneration: number;
   readonly expiresAt: Date;
 }

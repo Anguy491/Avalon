@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 
 import { Type } from '@sinclair/typebox';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { RedisClientType } from 'redis';
 
 import {
   CreateRoomRequestSchema,
@@ -21,6 +22,8 @@ import type { ServerConfig } from './config.js';
 import { ServiceError } from './room-service.js';
 import type { RoomService } from './room-service.js';
 import type { RuntimePorts } from './runtime-ports.js';
+import { withinFixedWindow } from './redis-rate-limit.js';
+import type { MetricsPort } from './metrics.js';
 
 const idempotencyHeadersSchema = Type.Object(
   {
@@ -32,7 +35,7 @@ const idempotencyHeadersSchema = Type.Object(
 
 const authenticatedHeadersSchema = Type.Object(
   {
-    authorization: Type.String({ pattern: '^Bearer [A-Za-z0-9_-]{22,}$' }),
+    authorization: Type.String({ pattern: '^Bearer [A-Za-z0-9_-]{43}$' }),
     'x-protocol-version': Type.Literal('1'),
   },
   { additionalProperties: true },
@@ -128,6 +131,9 @@ export function registerRoomRoutes(
   app: FastifyInstance,
   service: RoomService,
   config: ServerConfig,
+  redis: RedisClientType,
+  ports: RuntimePorts,
+  metrics: MetricsPort,
 ): void {
   const commonErrorResponses = {
     400: ErrorResponseSchema,
@@ -137,6 +143,7 @@ export function registerRoomRoutes(
     410: ErrorResponseSchema,
     426: ErrorResponseSchema,
     429: ErrorResponseSchema,
+    503: ErrorResponseSchema,
     500: ErrorResponseSchema,
   };
   const routeRateLimit = {
@@ -144,6 +151,31 @@ export function registerRoomRoutes(
     timeWindow: 60_000,
     keyGenerator: (request: FastifyRequest) =>
       compositeRateLimitKey(config, request),
+  };
+  const layeredCreateJoinLimit = async (
+    request: FastifyRequest,
+  ): Promise<void> => {
+    const now = ports.clock.now();
+    const ipDigest = createHmac('sha256', config.rateLimitHmacSecret)
+      .update(request.ip)
+      .digest('base64url');
+    const [withinIp, withinGlobal] = await Promise.all([
+      withinFixedWindow(
+        redis,
+        `avalon:create-join-ip:${ipDigest}`,
+        config.createJoinIpRateLimit,
+        now,
+      ),
+      withinFixedWindow(
+        redis,
+        'avalon:create-join-global',
+        config.createJoinGlobalRateLimit,
+        now,
+      ),
+    ]);
+    if (!withinIp || !withinGlobal) {
+      throw new ServiceError('RATE_LIMITED', 429, true);
+    }
   };
 
   app.post<{
@@ -153,6 +185,7 @@ export function registerRoomRoutes(
     '/v1/rooms',
     {
       config: { rateLimit: routeRateLimit },
+      preHandler: layeredCreateJoinLimit,
       schema: {
         body: CreateRoomRequestSchema,
         headers: idempotencyHeadersSchema,
@@ -160,11 +193,22 @@ export function registerRoomRoutes(
       },
     },
     async (request, reply) => {
-      const result = await service.createRoom(
-        request.headers['idempotency-key'],
-        request.body,
-      );
-      return reply.code(201).send(result.body);
+      const started = performance.now();
+      try {
+        const result = await service.createRoom(
+          request.headers['idempotency-key'],
+          request.body,
+        );
+        metrics.recordHttp('create', performance.now() - started, 'accepted');
+        return await reply.code(201).send(result.body);
+      } catch (error) {
+        metrics.recordHttp(
+          'create',
+          performance.now() - started,
+          error instanceof ServiceError ? 'rejected' : 'error',
+        );
+        throw error;
+      }
     },
   );
 
@@ -176,6 +220,7 @@ export function registerRoomRoutes(
     '/v1/rooms/:roomCode/players',
     {
       config: { rateLimit: routeRateLimit },
+      preHandler: layeredCreateJoinLimit,
       schema: {
         body: JoinRoomRequestSchema,
         params: roomCodeParamsSchema,
@@ -184,12 +229,23 @@ export function registerRoomRoutes(
       },
     },
     async (request, reply) => {
-      const result = await service.joinRoom(
-        request.headers['idempotency-key'],
-        request.params.roomCode,
-        request.body,
-      );
-      return reply.code(201).send(result.body);
+      const started = performance.now();
+      try {
+        const result = await service.joinRoom(
+          request.headers['idempotency-key'],
+          request.params.roomCode,
+          request.body,
+        );
+        metrics.recordHttp('join', performance.now() - started, 'accepted');
+        return await reply.code(201).send(result.body);
+      } catch (error) {
+        metrics.recordHttp(
+          'join',
+          performance.now() - started,
+          error instanceof ServiceError ? 'rejected' : 'error',
+        );
+        throw error;
+      }
     },
   );
 

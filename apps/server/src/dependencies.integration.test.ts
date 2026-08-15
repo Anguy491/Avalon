@@ -11,6 +11,8 @@ import { RedisSessionPresence } from './session-presence.js';
 describe('M0-006 PostgreSQL and Redis test containers', () => {
   let dependencies: RuntimeDependencies | undefined;
   let stopContainers: (() => Promise<void>) | undefined;
+  let interruptPostgres: (() => Promise<void>) | undefined;
+  let interruptRedis: (() => Promise<void>) | undefined;
 
   beforeAll(async () => {
     const [postgresContainer, redisContainer] = await Promise.all([
@@ -20,9 +22,39 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
     dependencies = createDependencyChecks({
       databaseUrl: postgresContainer.getConnectionUri(),
       redisUrl: redisContainer.getConnectionUrl(),
+      databasePoolMax: 10,
+      databaseQueryTimeoutMs: 2_000,
     });
     stopContainers = async () => {
       await Promise.all([postgresContainer.stop(), redisContainer.stop()]);
+    };
+    interruptPostgres = async () => {
+      const result = await postgresContainer.exec([
+        'psql',
+        '-U',
+        postgresContainer.getUsername(),
+        '-d',
+        postgresContainer.getDatabase(),
+        '-c',
+        'select pg_terminate_backend(pid) from pg_stat_activity where datname = current_database() and pid <> pg_backend_pid()',
+      ]);
+      if (result.exitCode !== 0) {
+        throw new Error('Could not interrupt PostgreSQL client connections');
+      }
+    };
+    interruptRedis = async () => {
+      const result = await redisContainer.exec([
+        'redis-cli',
+        'CLIENT',
+        'KILL',
+        'TYPE',
+        'normal',
+        'SKIPME',
+        'yes',
+      ]);
+      if (result.exitCode !== 0) {
+        throw new Error('Could not interrupt Redis client connections');
+      }
     };
   });
 
@@ -50,6 +82,7 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       roomId: '10000000-0000-4000-8000-000000000003',
       playerId: '10000000-0000-4000-8000-000000000004',
       tokenDigest: 'digest-only',
+      credentialGeneration: 1,
       expiresAt: new Date('2026-08-14T12:00:00.000Z'),
     };
     await presence.markOnline(context);
@@ -79,6 +112,7 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       roomId: '20000000-0000-4000-8000-000000000003',
       playerId: '20000000-0000-4000-8000-000000000004',
       tokenDigest: 'digest-only',
+      credentialGeneration: 1,
       expiresAt: new Date('2026-08-14T12:30:00.000Z'),
     };
     const connectedAt = new Date('2026-08-14T12:00:00.000Z');
@@ -127,6 +161,7 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       roomId: '30000000-0000-4000-8000-000000000003',
       playerId: '30000000-0000-4000-8000-000000000004',
       tokenDigest: 'digest-only',
+      credentialGeneration: 1,
       expiresAt: new Date('2026-08-14T12:30:00.000Z'),
     };
     const connectedAt = new Date('2026-08-14T12:00:00.000Z');
@@ -148,4 +183,39 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       context.sessionId,
     ]);
   });
+
+  it('M7-005 recovers dependency health within five seconds after PostgreSQL and Redis connection loss', async () => {
+    if (
+      dependencies === undefined ||
+      interruptPostgres === undefined ||
+      interruptRedis === undefined
+    ) {
+      throw new Error('Integration dependencies not started');
+    }
+    const runtime = dependencies;
+    const waitForHealth = async (check: () => Promise<void>) => {
+      const started = performance.now();
+      let lastError: unknown;
+      while (performance.now() - started < 5_000) {
+        try {
+          await check();
+          return performance.now() - started;
+        } catch (error) {
+          lastError = error;
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      }
+      throw lastError;
+    };
+
+    await interruptPostgres();
+    await expect(
+      waitForHealth(() => runtime.checkPostgres()),
+    ).resolves.toBeLessThan(5_000);
+
+    await interruptRedis();
+    await expect(
+      waitForHealth(() => runtime.checkRedis()),
+    ).resolves.toBeLessThan(5_000);
+  }, 20_000);
 });

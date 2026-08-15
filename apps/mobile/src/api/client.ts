@@ -13,6 +13,8 @@ import {
   type SessionBootstrap,
 } from '@avalon/protocol/mobile';
 
+import { supportedVoicePackVersions } from '@/audio/voice-pack.generated';
+
 const REQUEST_TIMEOUT_MS = 10_000;
 const API_ORIGIN = (process.env.EXPO_PUBLIC_API_URL ?? 'http://127.0.0.1:3000')
   .trim()
@@ -95,7 +97,7 @@ export function clientCapabilities(installationId: string): ClientCapabilities {
     platform: Platform.OS === 'android' ? 'ANDROID' : 'IOS',
     appVersion: Constants.expoConfig?.version ?? '0.1.0',
     installationId,
-    voicePackVersions: ['zh-CN-v1'],
+    voicePackVersions: [...supportedVoicePackVersions()],
   };
 }
 

@@ -16,6 +16,7 @@ const validEnvironment = {
   IDEMPOTENCY_ENCRYPTION_SECRET: 'test-idempotency-encryption-material-000001',
   SESSION_TTL_SECONDS: '1800',
   REALTIME_PUBLIC_URL: 'wss://api.example.invalid/game-v1',
+  TRUSTED_PROXY_CIDRS: '',
 };
 
 describe('M0-003 server configuration', () => {
@@ -29,6 +30,7 @@ describe('M0-003 server configuration', () => {
     expect(config.rateLimitMax).toBe(50);
     expect(config.joinRateLimitMax).toBe(5);
     expect(config.sessionTtlSeconds).toBe(1_800);
+    expect(config.databasePoolMax).toBe(10);
     expect(CONFIG_KEYS).not.toContain('UNRELATED_FIELD');
     expect(config).not.toHaveProperty('UNRELATED_FIELD');
   });
@@ -44,6 +46,31 @@ describe('M0-003 server configuration', () => {
       loadConfig({
         ...validEnvironment,
         DATABASE_URL: 'https://example.invalid',
+      }),
+    ).toThrow('Invalid server configuration');
+  });
+
+  it('fails closed in production without explicitly trusted proxies', () => {
+    expect(() =>
+      loadConfig({
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        TRUSTED_PROXY_CIDRS: undefined,
+      }),
+    ).toThrow('TRUSTED_PROXY_CIDRS');
+  });
+
+  it('accepts only HTTP(S) OTLP metric endpoints', () => {
+    expect(
+      loadConfig({
+        ...validEnvironment,
+        OTLP_METRICS_ENDPOINT: 'https://otel.example.invalid/v1/metrics',
+      }).otlpMetricsEndpoint,
+    ).toBe('https://otel.example.invalid/v1/metrics');
+    expect(() =>
+      loadConfig({
+        ...validEnvironment,
+        OTLP_METRICS_ENDPOINT: 'file:///tmp/metrics',
       }),
     ).toThrow('Invalid server configuration');
   });

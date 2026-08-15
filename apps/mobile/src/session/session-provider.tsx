@@ -1,4 +1,5 @@
 import { randomUUID } from 'expo-crypto';
+import Constants from 'expo-constants';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 import {
@@ -11,7 +12,7 @@ import {
   useState,
   type PropsWithChildren,
 } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 
 import {
@@ -97,6 +98,13 @@ interface SessionContextValue {
   readonly submitCommand: (command: RoomCommandInput) => Promise<CommandResult>;
   readonly forgetSession: () => Promise<void>;
   readonly dismissError: () => void;
+  readonly reportAudioTelemetry: (
+    category:
+      | 'ASSET_MISSING'
+      | 'HASH_MISMATCH'
+      | 'LOAD_FAILED'
+      | 'PLAYBACK_INTERRUPTED',
+  ) => void;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(
@@ -589,6 +597,21 @@ export function SessionProvider({ children }: PropsWithChildren) {
     [forgetSession, queryClient, refreshView, status],
   );
 
+  const reportAudioTelemetry = useCallback(
+    (category: Parameters<SessionContextValue['reportAudioTelemetry']>[0]) => {
+      const activeSocket = socket.current;
+      if (activeSocket?.connected !== true) return;
+      activeSocket.emit('audio.telemetry', {
+        protocolVersion: 1,
+        category,
+        platform: Platform.OS === 'android' ? 'android' : 'ios',
+        appVersion: Constants.expoConfig?.version ?? '0.1.0',
+        voicePackVersion: 'zh-CN-v1',
+      });
+    },
+    [],
+  );
+
   const value = useMemo<SessionContextValue>(
     () => ({
       status,
@@ -613,6 +636,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       dismissError: () => {
         setError(undefined);
       },
+      reportAudioTelemetry,
     }),
     [
       createRoom,
@@ -623,6 +647,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       lastProjection,
       networkReachable,
       pendingCommandType,
+      reportAudioTelemetry,
       recover,
       resyncEpoch,
       refreshView,

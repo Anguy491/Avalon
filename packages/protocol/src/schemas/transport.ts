@@ -110,7 +110,7 @@ export const AudioTelemetrySchema = Type.Object(
     ]),
     platform: Type.Union([Type.Literal('ios'), Type.Literal('android')]),
     appVersion: Type.String({ minLength: 1, maxLength: 32 }),
-    voicePackVersion: Type.String({ pattern: '^zh-CN-v[1-9][0-9]*$' }),
+    voicePackVersion: Type.Literal('zh-CN-v1'),
   },
   { additionalProperties: false },
 );

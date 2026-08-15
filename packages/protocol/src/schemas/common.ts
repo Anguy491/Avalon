@@ -17,8 +17,9 @@ export const RoomCodeSchema = Type.String({
 });
 export const NicknameSchema = Type.String({ minLength: 1, maxLength: 16 });
 export const SessionTokenSchema = Type.String({
-  minLength: 22,
-  pattern: '^[A-Za-z0-9_-]+$',
+  minLength: 43,
+  maxLength: 43,
+  pattern: '^[A-Za-z0-9_-]{43}$',
 });
 export const RulesVersionSchema = Type.Literal('CLASSIC_AVALON_V1');
 export const RoleIdSchema = literalUnion([

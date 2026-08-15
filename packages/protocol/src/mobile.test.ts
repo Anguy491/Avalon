@@ -24,7 +24,7 @@ describe('M2 mobile-safe protocol boundary', () => {
         protocolVersion: 1,
         roomCode: roomView.public.roomCode,
         playerId: roomView.private.playerId,
-        sessionToken: 'abcdefghijklmnopqrstuvwxyz',
+        sessionToken: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg',
         sessionExpiresAt: '2026-08-13T12:00:00.000Z',
         realtimeUrl: 'wss://example.invalid/game-v1',
         roomView,

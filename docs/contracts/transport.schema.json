@@ -17,8 +17,9 @@
           "type": "number"
         },
         "sessionToken": {
-          "minLength": 22,
-          "pattern": "^[A-Za-z0-9_-]+$",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$",
           "type": "string"
         },
         "lastStateVersion": {
@@ -3599,7 +3600,7 @@
           "type": "string"
         },
         "voicePackVersion": {
-          "pattern": "^zh-CN-v[1-9][0-9]*$",
+          "const": "zh-CN-v1",
           "type": "string"
         }
       }
