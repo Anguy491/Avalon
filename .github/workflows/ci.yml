@@ -50,6 +50,10 @@ jobs:
         run: pnpm test:security
       - name: Preview validator fixtures
         run: node --test scripts/preview-config.test.mjs
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4
+        with:
+          driver: docker-container
       - name: Build immutable server OCI artifact with SBOM and provenance
         run: >-
           docker buildx build . --file apps/server/Dockerfile
