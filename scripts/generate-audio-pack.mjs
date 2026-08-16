@@ -28,6 +28,7 @@ const complete =
   );
 
 const source = [
+  '/* eslint-disable @typescript-eslint/no-require-imports -- Expo local assets require static require() calls. */',
   "import type { AudioSource } from 'expo-audio';",
   '',
   `export const VOICE_PACK_VERSION = ${JSON.stringify(manifest.version)} as const;`,
