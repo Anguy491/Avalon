@@ -13,6 +13,10 @@ import {
   type VoicePackKey,
 } from './voice-pack.generated';
 import { audioPreferenceStore } from './audio-preference-store';
+import {
+  cueFromLiveProjection,
+  requestLiveAudioPlayback,
+} from './live-audio-playback';
 
 const MUTED_KEY = 'avalon.audio.muted.v1';
 const VOLUME_KEY = 'avalon.audio.volume.v1';
@@ -28,6 +32,8 @@ export function HostAudioControl() {
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const played = useRef(new Set<string>());
   const reportedErrors = useRef(new Set<string>());
+  const attemptedCueId = useRef<string | undefined>(undefined);
+  const liveCue = cueFromLiveProjection(session.lastProjection);
   const self = session.roomView?.public.players.find(
     (playerEntry) =>
       playerEntry.playerId === session.roomView?.private.playerId,
@@ -61,35 +67,25 @@ export function HostAudioControl() {
   }, [player, volume]);
 
   useEffect(() => {
-    if (
-      cue === null ||
-      cue === undefined ||
-      entry === undefined ||
-      session.roomView?.private.shouldPlayAudio !== true ||
-      played.current.has(cue.audioCueId)
-    ) {
-      return;
-    }
-    played.current.add(cue.audioCueId);
-    const source = audioSourceFor(cue.audioCueKey as VoicePackKey);
-    if (cue.voicePackVersion !== VOICE_PACK_VERSION || source === undefined) {
-      session.reportAudioTelemetry(
-        cue.voicePackVersion === VOICE_PACK_VERSION
-          ? 'ASSET_MISSING'
-          : 'HASH_MISMATCH',
-      );
-      return;
-    }
-    player.replace(source);
-    player.play();
-  }, [cue, entry, player, session]);
+    if (liveCue === undefined) return;
+    const requested = requestLiveAudioPlayback({
+      cue: liveCue,
+      expectedVoicePackVersion: VOICE_PACK_VERSION,
+      playedCueIds: played.current,
+      player,
+      reportError: session.reportAudioTelemetry,
+      sourceFor: (key) => audioSourceFor(key as VoicePackKey),
+    });
+    if (requested) attemptedCueId.current = liveCue.audioCueId;
+  }, [liveCue, player, session.reportAudioTelemetry]);
 
   useEffect(() => {
-    if (status.error === null || cue === null || cue === undefined) return;
-    if (reportedErrors.current.has(cue.audioCueId)) return;
-    reportedErrors.current.add(cue.audioCueId);
+    const attempted = attemptedCueId.current;
+    if (status.error === null || attempted === undefined) return;
+    if (reportedErrors.current.has(attempted)) return;
+    reportedErrors.current.add(attempted);
     session.reportAudioTelemetry('LOAD_FAILED');
-  }, [cue, session, status.error]);
+  }, [session.reportAudioTelemetry, status.error]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
