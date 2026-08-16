@@ -154,6 +154,18 @@
         }
       ]
     },
+    "PauseTerminationChoice": {
+      "anyOf": [
+        {
+          "const": "TERMINATE",
+          "type": "string"
+        },
+        {
+          "const": "CONTINUE_PAUSE",
+          "type": "string"
+        }
+      ]
+    },
     "QuestResult": {
       "anyOf": [
         {
@@ -254,6 +266,14 @@
         },
         {
           "const": "ResumeGame",
+          "type": "string"
+        },
+        {
+          "const": "StartPauseTerminationVote",
+          "type": "string"
+        },
+        {
+          "const": "SubmitPauseTerminationVote",
           "type": "string"
         },
         {
@@ -390,6 +410,18 @@
         },
         {
           "const": "INVALID_PAUSE_REASON",
+          "type": "string"
+        },
+        {
+          "const": "PAUSE_VOTE_NOT_AVAILABLE",
+          "type": "string"
+        },
+        {
+          "const": "PAUSE_VOTE_NOT_ELIGIBLE",
+          "type": "string"
+        },
+        {
+          "const": "PAUSE_VOTE_CLOSED",
           "type": "string"
         },
         {

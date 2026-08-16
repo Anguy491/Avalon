@@ -44,6 +44,20 @@ function versionedLobby() {
   return { state, ports };
 }
 
+function controllablePorts() {
+  let now = '2026-08-13T10:00:00.000Z';
+  const base = fixedPorts();
+  return {
+    ports: {
+      ...base,
+      clock: { ...base.clock, nowIso: () => now },
+    } satisfies EnginePorts,
+    setNow: (value: string) => {
+      now = value;
+    },
+  };
+}
+
 function currentLeader(state: GameState): string {
   return (
     state.players.find((player) => player.seat === state.leaderSeatIndex)
@@ -352,6 +366,55 @@ const cases: readonly ValidCommandCase[] = [
     },
   },
   {
+    name: 'StartPauseTerminationVote',
+    setup: () => {
+      const clock = controllablePorts();
+      let state = startAndAcknowledge(5, clock.ports);
+      state = accepted(
+        state,
+        state.hostPlayerId,
+        { type: 'PauseGame' },
+        clock.ports,
+      );
+      clock.setNow('2026-08-13T10:01:00.000Z');
+      return {
+        state,
+        actor: 'player-2',
+        body: { type: 'StartPauseTerminationVote' },
+        ports: clock.ports,
+      };
+    },
+  },
+  {
+    name: 'SubmitPauseTerminationVote',
+    setup: () => {
+      const clock = controllablePorts();
+      let state = startAndAcknowledge(5, clock.ports);
+      state = accepted(
+        state,
+        state.hostPlayerId,
+        { type: 'PauseGame' },
+        clock.ports,
+      );
+      clock.setNow('2026-08-13T10:01:00.000Z');
+      state = accepted(
+        state,
+        'player-2',
+        { type: 'StartPauseTerminationVote' },
+        clock.ports,
+      );
+      return {
+        state,
+        actor: 'player-2',
+        body: {
+          type: 'SubmitPauseTerminationVote',
+          choice: 'TERMINATE',
+        },
+        ports: clock.ports,
+      };
+    },
+  },
+  {
     name: 'ReplayAudioCue',
     setup: () => {
       const ports = fixedPorts();
@@ -384,6 +447,8 @@ describe('M1-007 table-driven command contract', () => {
       'SelectMerlinTarget',
       'PauseGame',
       'ResumeGame',
+      'StartPauseTerminationVote',
+      'SubmitPauseTerminationVote',
       'ReplayAudioCue',
       'LeaveLobby',
       'KickLobbyPlayer',

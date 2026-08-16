@@ -119,6 +119,8 @@ describe('TEST-contract / M3 lobby command and error code drift guard', () => {
     'SelectMerlinTarget',
     'PauseGame',
     'ResumeGame',
+    'StartPauseTerminationVote',
+    'SubmitPauseTerminationVote',
     'ReplayAudioCue',
     'LeaveLobby',
     'KickLobbyPlayer',
@@ -149,6 +151,9 @@ describe('TEST-contract / M3 lobby command and error code drift guard', () => {
     'HOST_CANNOT_LEAVE',
     'AUDIO_CUE_NOT_FOUND',
     'INVALID_PAUSE_REASON',
+    'PAUSE_VOTE_NOT_AVAILABLE',
+    'PAUSE_VOTE_NOT_ELIGIBLE',
+    'PAUSE_VOTE_CLOSED',
   ] as const;
 
   function literalsOf(schema: unknown): string[] {
@@ -315,6 +320,44 @@ describe('TEST-contract / M3 lobby command and error code drift guard', () => {
     expect(JSON.stringify(view.public)).not.toContain(
       'eligibleTargetPlayerIds',
     );
+  });
+
+  it('accepts pause termination counts while rejecting public individual choices', () => {
+    const view = roomViewForRole('LOYAL_SERVANT');
+    view.public.phase = 'PAUSED';
+    view.public.pauseReasons = ['PLAYER_DISCONNECTED'];
+    view.public.recoveryStartedAt = '2026-08-13T10:00:00.000Z';
+    view.public.recoveryExpiresAt = '2026-08-13T11:00:00.000Z';
+    view.public.pauseTerminationVoteAvailableAt = '2026-08-13T10:01:00.000Z';
+    view.public.pauseTerminationVote = {
+      startedAt: '2026-08-13T10:01:00.000Z',
+      expiresAt: '2026-08-13T10:01:30.000Z',
+      eligibleCount: 4,
+      submittedCount: 1,
+    };
+    view.private.pauseTerminationVoteStatus = 'PENDING';
+    view.private.availableActions = [
+      {
+        commandType: 'SubmitPauseTerminationVote',
+        allowedPauseTerminationChoices: ['TERMINATE', 'CONTINUE_PAUSE'],
+      },
+    ];
+    expect(
+      validateRoomView(view),
+      JSON.stringify(validateRoomView.errors),
+    ).toBe(true);
+    expect(
+      validateRoomView({
+        ...view,
+        public: {
+          ...view.public,
+          pauseTerminationVote: {
+            ...view.public.pauseTerminationVote,
+            choices: { [UUIDS.players[0]]: 'TERMINATE' },
+          },
+        },
+      }),
+    ).toBe(false);
   });
 
   it('accepts terminal role revelation without task-action attribution', () => {

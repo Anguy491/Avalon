@@ -101,6 +101,8 @@ PAUSED
 | `pauseReasons` | 集合 | `MANUAL`、`PLAYER_DISCONNECTED`、`HOST_DISCONNECTED`。 |
 | `manualPauseReason` | 可空文本 | NFC 规范化后的公开手动原因；禁止控制和双向格式字符。 |
 | `recoveryStartedAt` / `recoveryExpiresAt` | 可空时间 | 首次服务端确认暂停时建立；原因叠加不延长，全部清除后清空。 |
+| `pauseTerminationVoteAvailableAt` | 可空时间 | 暂停开始或“继续暂停”多数形成后 60 秒；到达前不得发起终止投票。 |
+| `pauseTerminationVote` | 可空对象 | 发起/截止时间、发起时在线选民快照和私密选择映射；公开投影只含选民数与提交数。 |
 | `players` | 有序数组 | 包含玩家标识、昵称、座次、房主标志、准备与连接状态。 |
 | `hostPlayerId` | `PlayerId` | 开局前后均不可自动转移。 |
 | `leaderSeatIndex` | 整数 | 当前队长的固定座次索引。 |
@@ -162,7 +164,7 @@ stateDiagram-v2
     }
     ACTIVE --> PAUSED: PauseGame 或必要玩家断线
     PAUSED --> ACTIVE: 所有暂停原因清除
-    PAUSED --> GAME_OVER: 超过 30 分钟
+    PAUSED --> GAME_OVER: 超过 60 分钟或终止投票未获继续多数
 ```
 
 - `LOBBY` 不切换为 `PAUSED`，仅更新玩家在线状态；房主离线 30 分钟后房间过期。
@@ -170,6 +172,7 @@ stateDiagram-v2
 - 所有玩家恢复在线时，系统移除连接暂停原因；若没有其他暂停原因，恢复原 `phase` 和 `stage`。
 - 手动暂停只能由房主解除。房主断线不会触发控制权转移。
 - 恢复时不清空提交、不重新发牌、不递增任务或尝试次数，也不自动重播语音。
+- 连续暂停 60 秒后任一在线玩家可发起 30 秒终止投票；选民快照固定为发起时在线玩家。严格超过半数选民选择继续暂停时清空本轮票并设置新的 60 秒冷却，否则全员提交或截止时间到达时进入 `GAME_OVER/ABORTED`。
 
 ## 4. 命令协议
 
@@ -222,12 +225,14 @@ stateDiagram-v2
 | `SM-013 SelectMerlinTarget` | 刺客；`targetPlayerId` | `ASSASSINATION/COLLECTING`；目标属于房间且不是刺客本人 | 比较目标与梅林，设置最终结果；公开全部角色、胜方和胜因 | `GAME_OVER/RESOLVED`；`NOT_ASSASSIN`、`INVALID_TARGET` |
 | `SM-014 PauseGame` | 房主；可选公开原因 | 活跃对局且不在 `GAME_OVER` | 保存恢复点并加入 `MANUAL`；公开暂停原因，不改变私密数据 | `PAUSED`；`NOT_HOST`、`INVALID_PHASE` |
 | `SM-015 ResumeGame` | 房主；无 | `PAUSED` 且包含 `MANUAL` | 移除手动原因；无其他原因时恢复原状态；不重播提示 | `PAUSED` 或恢复点；`NOT_HOST`、`PLAYERS_OFFLINE` |
+| `SM-022 StartPauseTerminationVote` | 任一当前在线玩家；无 | `PAUSED`；无进行中投票；已到 `pauseTerminationVoteAvailableAt` | 固定当前在线玩家为本轮选民，建立 30 秒截止时间；不公开选民或选择 | `PAUSED`；`PAUSE_VOTE_NOT_AVAILABLE`、`PAUSE_VOTE_NOT_ELIGIBLE` |
+| `SM-023 SubmitPauseTerminationVote` | 本轮选民；`TERMINATE/CONTINUE_PAUSE` | `PAUSED`；投票未截止；本人尚未提交 | 私密记录本人选择；严格过半继续则保持暂停并开始 60 秒冷却；全员完成但未过半则中止 | `PAUSED` 或 `GAME_OVER/ABORTED`；`PAUSE_VOTE_NOT_ELIGIBLE`、`PAUSE_VOTE_CLOSED`、`ALREADY_SUBMITTED` |
 | `SM-016 ReplayAudioCue` | 房主；当前 `audioCueId` | 房间有可重播提示，音频版本存在 | 不改变规则状态；创建新的播放实例，标记 `replayOf`；所有人看到字幕，只有房主收到播放指令 | 原状态；`NOT_HOST`、`AUDIO_CUE_NOT_FOUND` |
 | `SM-017 LeaveLobby` | 非房主玩家；无 | 仅 `LOBBY` | 删除玩家并压缩座次，重置全员准备；公开 `PlayerLeft`；撤销该会话 | `LOBBY`；`HOST_CANNOT_LEAVE`、`INVALID_PHASE` |
 | `SM-018 KickLobbyPlayer` | 房主；目标玩家 | 仅 `LOBBY`；目标不是房主 | 删除目标并重置全员准备；公开 `PlayerRemoved`；撤销目标会话 | `LOBBY`；`NOT_HOST`、`INVALID_TARGET` |
 | `SM-019 CloseRoom` | 房主；无 | 仅 `LOBBY` | 设置关闭标志，撤销连接、删除房间并释放房间号 | 终止；`NOT_HOST`、`INVALID_PHASE` |
 
-`SM-020 ConnectionChanged` 和 `SM-021 ExpireRoom` 为系统命令：前者根据心跳更新在线状态并管理暂停原因；后者在房主离线、必要玩家离线或暂停持续 30 分钟后将房间终止为 `ABORTED`。系统命令也必须通过版本化事务执行，但没有客户端 `commandId`。
+`SM-020 ConnectionChanged` 和 `SM-021 ExpireRoom` 为系统命令：前者根据心跳更新在线状态并管理暂停原因；后者在活跃对局连续暂停 60 分钟后将房间终止为 `ABORTED`（大厅房主离线过期仍为 30 分钟）。进行中的终止投票达到 30 秒截止时间时，系统同样以版本化事务执行 `SM-023` 的未过半中止裁决。系统命令没有客户端 `commandId`。
 
 `TerminalViewAcknowledged` 是传输层收据，不是游戏命令，不改变 `stateVersion`。它只记录某个当前在线会话已接收指定终局版本；不得携带或改变游戏动作。
 
@@ -295,9 +300,10 @@ else:
 | `TeamProposed` | `PUBLIC` | 队长与队伍。 |
 | `TeamVoteRevealed` | `PUBLIC` | 全体玩家票值、总数和是否通过。 |
 | `QuestResolved` | `PUBLIC` | 匿名成功/失败票数、结果和累计比分。 |
-| `GameEnded` | `PUBLIC` | 胜方、胜因、全部角色和任务历史。 |
+| `GameEnded` | `PUBLIC` | 正常胜负公开胜方、胜因、全部角色和任务历史；`ABORTED` 仅公开中止原因，不揭示角色。 |
 | `AudioCueRequested` | `PUBLIC` + 房主差异字段 | 所有人看到字幕键；只有房主的个人投影含 `shouldPlay=true`。 |
 | `PlayerConnectionChanged`、`GamePaused`、`GameResumed` | `PUBLIC` | 在线/暂停状态，不含会话信息。 |
+| `PauseTerminationVoteStarted`、`PauseTerminationVoteProgressed` | `PUBLIC` + 本人差异字段 | 公开只含选民数、提交数与截止时间；本人投票资格/已提交状态只进入个人投影，选择值不公开。 |
 | `QuestChoiceAccepted` | `PLAYER` | 仅确认本人已提交，不回显给其他玩家。 |
 | `RoleAssignmentsGenerated`、`QuestChoiceRecorded` | `SERVER_ONLY` | 严禁进入通用广播或日志正文。 |
 
@@ -454,6 +460,7 @@ else:
 8. 成功数 + 失败数 = `questHistory.length`；
 9. `gameOutcome != null` 后只允许终局投影、音频结果提示和传输层终局确认，不再接受游戏命令；
 10. `PAUSED` 必须有非空暂停原因和有效恢复点。
+11. 终止投票只能存在于 `PAUSED`；选民唯一且属于房间，选择键只能来自本轮选民。
 
 ### 9.1 终局清除与无历史原则
 
@@ -480,3 +487,4 @@ else:
 | `RULE-018`–`RULE-019` | `ASSASSINATION`、`SM-013` |
 | `RULE-020`–`RULE-021` | `PhaseStage`、`SM-008`、`AudioCue` |
 | `RULE-022` | `PAUSED`、`SM-003`、`SM-014`、`SM-015`、`SM-020`、`SM-021` |
+| `RULE-023` | `pauseTerminationVote`、`SM-022`、`SM-023`、`SM-021` |

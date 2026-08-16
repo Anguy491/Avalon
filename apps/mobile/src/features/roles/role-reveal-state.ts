@@ -1,5 +1,26 @@
 import type { RoomView } from '@avalon/protocol/mobile';
 
+type GamePhase = RoomView['public']['phase'];
+type RoleRevealRedirect = '/lobby' | '/game' | '/assassination' | '/result';
+
+export function roleRevealRedirectForPhase(
+  phase: GamePhase,
+): RoleRevealRedirect | undefined {
+  switch (phase) {
+    case 'ROLE_REVEAL':
+    case 'PAUSED':
+      return undefined;
+    case 'LOBBY':
+      return '/lobby';
+    case 'ASSASSINATION':
+      return '/assassination';
+    case 'GAME_OVER':
+      return '/result';
+    default:
+      return '/game';
+  }
+}
+
 export type RoleId = Exclude<RoomView['private']['selfRole'], null | undefined>;
 type KnowledgeLabel =
   RoomView['private']['knownPlayers'][number]['knowledgeLabel'];

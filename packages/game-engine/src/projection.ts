@@ -65,6 +65,23 @@ export function buildPublicGameState(state: GameState): PublicGameState {
     ...(state.recoveryExpiresAt === undefined
       ? {}
       : { recoveryExpiresAt: state.recoveryExpiresAt }),
+    ...(state.pauseTerminationVoteAvailableAt === undefined
+      ? {}
+      : {
+          pauseTerminationVoteAvailableAt:
+            state.pauseTerminationVoteAvailableAt,
+        }),
+    ...(state.pauseTerminationVote === undefined
+      ? {}
+      : {
+          pauseTerminationVote: {
+            startedAt: state.pauseTerminationVote.startedAt,
+            expiresAt: state.pauseTerminationVote.expiresAt,
+            eligibleCount: state.pauseTerminationVote.eligiblePlayerIds.length,
+            submittedCount: Object.keys(state.pauseTerminationVote.choices)
+              .length,
+          },
+        }),
     ...(state.currentAudioCue === undefined
       ? {}
       : {
@@ -79,7 +96,7 @@ export function buildPublicGameState(state: GameState): PublicGameState {
       ? {}
       : { gameOutcome: state.gameOutcome }),
     revealedAssignments:
-      state.phase === 'GAME_OVER'
+      state.phase === 'GAME_OVER' && state.gameOutcome?.reason !== 'ABORTED'
         ? state.players.map((player) => {
             const roleId = state.roleAssignments[player.playerId];
             if (roleId === undefined)

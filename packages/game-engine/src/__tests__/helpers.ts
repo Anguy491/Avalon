@@ -8,6 +8,7 @@ import {
   type GameState,
   type Player,
   type PlayerCount,
+  type PauseTerminationChoice,
   type QuestChoice,
   type RoleId,
   type RoomConfig,
@@ -58,7 +59,11 @@ export function fixedPorts(bytes: readonly number[] = [0]): EnginePorts {
           }),
         ),
     },
-    clock: { nowIso: () => '2026-08-13T10:00:00.000Z' },
+    clock: {
+      nowIso: () => '2026-08-13T10:00:00.000Z',
+      addMilliseconds: (iso, milliseconds) =>
+        new Date(Date.parse(iso) + milliseconds).toISOString(),
+    },
     ids: {
       nextId: () => {
         idIndex += 1;
@@ -80,6 +85,11 @@ export type TestCommandBody =
   | { readonly type: 'SelectMerlinTarget'; readonly targetPlayerId: string }
   | { readonly type: 'PauseGame'; readonly reason?: string }
   | { readonly type: 'ResumeGame' }
+  | { readonly type: 'StartPauseTerminationVote' }
+  | {
+      readonly type: 'SubmitPauseTerminationVote';
+      readonly choice: PauseTerminationChoice;
+    }
   | { readonly type: 'ReplayAudioCue'; readonly audioCueId: string }
   | { readonly type: 'ConfigureRoom'; readonly configInput: RoomConfigInput }
   | { readonly type: 'ReorderSeats'; readonly playerIds: readonly string[] }

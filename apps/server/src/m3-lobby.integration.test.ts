@@ -218,6 +218,16 @@ function lobbyCommand(
     | {
         readonly type: 'PauseGame';
         readonly payload: { readonly reason?: string };
+      }
+    | {
+        readonly type: 'StartPauseTerminationVote';
+        readonly payload: Record<string, never>;
+      }
+    | {
+        readonly type: 'SubmitPauseTerminationVote';
+        readonly payload: {
+          readonly choice: 'TERMINATE' | 'CONTINUE_PAUSE';
+        };
       },
 ): Command {
   return {
@@ -629,7 +639,7 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
     expect(afterAll.roomView.private.selfRole).not.toBeNull();
   });
 
-  it('SM-020/SM-021 persists one 30 minute recovery window, resumes exactly, and expires as neutral ABORTED', async () => {
+  it('SM-020–SM-023 persists a one-hour pause, snapshots online voters, and settles the 30-second ballot', async () => {
     const testPorts = createTestPorts();
     const roomService = new RoomService(sql, config, testPorts.ports);
     const commands = new CommandService(sql, config, testPorts.ports);
@@ -681,9 +691,9 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
     `;
     expect(persistedPause).toMatchObject({
       recovery_started_at: new Date('2026-08-13T10:00:00.000Z'),
-      recovery_expires_at: new Date('2026-08-13T10:30:00.000Z'),
+      recovery_expires_at: new Date('2026-08-13T11:00:00.000Z'),
       aggregate_started_at: '2026-08-13T10:00:00.000Z',
-      aggregate_expires_at: '2026-08-13T10:30:00.000Z',
+      aggregate_expires_at: '2026-08-13T11:00:00.000Z',
     });
     const paused = (
       await roomService.readCurrentView(roster.members[0]?.sessionToken ?? '')
@@ -692,7 +702,8 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       phase: 'PAUSED',
       pauseReasons: ['PLAYER_DISCONNECTED'],
       recoveryStartedAt: '2026-08-13T10:00:00.000Z',
-      recoveryExpiresAt: '2026-08-13T10:30:00.000Z',
+      recoveryExpiresAt: '2026-08-13T11:00:00.000Z',
+      pauseTerminationVoteAvailableAt: '2026-08-13T10:01:00.000Z',
     });
     expect(paused.private.selfRole).not.toBeNull();
 
@@ -716,7 +727,54 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       }),
     );
     if (!manual.accepted) throw new Error('Expected manual pause');
-    testPorts.advance(30 * 60 * 1_000);
+    testPorts.advance(60_000);
+    const eligible = (
+      await roomService.readCurrentView(roster.members[1]?.sessionToken ?? '')
+    ).roomView;
+    expect(eligible.private.availableActions).toContainEqual({
+      commandType: 'StartPauseTerminationVote',
+    });
+    const startedVote = await commands.submit(
+      guest,
+      lobbyCommand(id(421), roster.roomId, manual.stateVersion, {
+        type: 'StartPauseTerminationVote',
+        payload: {},
+      }),
+    );
+    if (!startedVote.accepted) throw new Error('Expected pause vote to start');
+    let voteVersion = startedVote.stateVersion;
+    for (const [index, context] of started.contexts.slice(0, 3).entries()) {
+      const continuedPause = await commands.submit(
+        context,
+        lobbyCommand(id(422 + index), roster.roomId, voteVersion, {
+          type: 'SubmitPauseTerminationVote',
+          payload: { choice: 'CONTINUE_PAUSE' },
+        }),
+      );
+      if (!continuedPause.accepted) {
+        throw new Error('Expected continue-pause vote');
+      }
+      voteVersion = continuedPause.stateVersion;
+    }
+    const continued = (
+      await roomService.readCurrentView(roster.members[0]?.sessionToken ?? '')
+    ).roomView;
+    expect(continued.public).toMatchObject({
+      phase: 'PAUSED',
+      pauseTerminationVote: null,
+      pauseTerminationVoteAvailableAt: '2026-08-13T10:02:00.000Z',
+    });
+
+    testPorts.advance(60_000);
+    const secondVote = await commands.submit(
+      host,
+      lobbyCommand(id(426), roster.roomId, voteVersion, {
+        type: 'StartPauseTerminationVote',
+        payload: {},
+      }),
+    );
+    if (!secondVote.accepted) throw new Error('Expected second pause vote');
+    testPorts.advance(30_000);
     await connections.tick();
     const [terminal] = await sql<{ readonly aggregate: unknown }[]>`
       select aggregate from avalon_runtime.rooms where room_id = ${roster.roomId}

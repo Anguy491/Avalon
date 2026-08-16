@@ -2,6 +2,10 @@ import { assertGameInvariants } from './invariants.js';
 import { calculatePrivateKnowledge } from './knowledge.js';
 import { randomIndex, shuffle } from './random.js';
 import {
+  PAUSE_TERMINATION_VOTE_DELAY_MS,
+  PAUSE_TERMINATION_VOTE_DURATION_MS,
+} from './types.js';
+import {
   alignmentForRole,
   normalizeRoomConfig,
   requiredFails,
@@ -555,6 +559,7 @@ function selectMerlinTarget(
 function pauseGame(
   state: GameState,
   command: Extract<GameCommand, { type: 'PauseGame' }>,
+  ports: EnginePorts,
 ): HandlerResult {
   if (command.actorPlayerId !== state.hostPlayerId) return failure('NOT_HOST');
   if (
@@ -585,6 +590,12 @@ function pauseGame(
             phaseStage: state.phaseStage,
           },
     pauseReasons: [...state.pauseReasons, 'MANUAL'],
+    pauseTerminationVoteAvailableAt:
+      state.pauseTerminationVoteAvailableAt ??
+      ports.clock.addMilliseconds(
+        state.recoveryStartedAt ?? ports.clock.nowIso(),
+        PAUSE_TERMINATION_VOTE_DELAY_MS,
+      ),
     ...(reason === undefined
       ? { manualPauseReason: undefined }
       : { manualPauseReason: reason }),
@@ -621,7 +632,113 @@ function resumeGame(
     manualPauseReason: undefined,
     recoveryStartedAt: undefined,
     recoveryExpiresAt: undefined,
+    pauseTerminationVoteAvailableAt: undefined,
+    pauseTerminationVote: undefined,
     resumePoint: undefined,
+  });
+}
+
+function abortPausedGame(state: GameState, ports: EnginePorts): HandlerSuccess {
+  const created = cue(state, 'GAME_OVER', 'game.aborted', ports);
+  return success(
+    {
+      ...state,
+      phase: 'GAME_OVER',
+      phaseStage: 'RESOLVED',
+      pauseReasons: [],
+      manualPauseReason: undefined,
+      recoveryStartedAt: undefined,
+      recoveryExpiresAt: undefined,
+      pauseTerminationVoteAvailableAt: undefined,
+      pauseTerminationVote: undefined,
+      resumePoint: undefined,
+      gameOutcome: { winner: 'NONE', reason: 'ABORTED' },
+      currentAudioCue: created.audioCue,
+    },
+    [created.effect],
+  );
+}
+
+function startPauseTerminationVote(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'StartPauseTerminationVote' }>,
+  ports: EnginePorts,
+): HandlerResult {
+  const availableAt = state.pauseTerminationVoteAvailableAt;
+  const now = ports.clock.nowIso();
+  if (
+    state.phase !== 'PAUSED' ||
+    state.pauseTerminationVote !== undefined ||
+    availableAt === undefined ||
+    Date.parse(now) < Date.parse(availableAt)
+  ) {
+    return failure('PAUSE_VOTE_NOT_AVAILABLE');
+  }
+  const actor = state.players.find(
+    (player) => player.playerId === command.actorPlayerId,
+  );
+  if (actor?.connected !== true) return failure('PAUSE_VOTE_NOT_ELIGIBLE');
+  const eligiblePlayerIds = state.players
+    .filter((player) => player.connected)
+    .sort((left, right) => left.seat - right.seat)
+    .map((player) => player.playerId);
+  return success({
+    ...state,
+    pauseTerminationVote: {
+      startedAt: now,
+      expiresAt: ports.clock.addMilliseconds(
+        now,
+        PAUSE_TERMINATION_VOTE_DURATION_MS,
+      ),
+      eligiblePlayerIds,
+      choices: {},
+    },
+  });
+}
+
+function submitPauseTerminationVote(
+  state: GameState,
+  command: Extract<GameCommand, { type: 'SubmitPauseTerminationVote' }>,
+  ports: EnginePorts,
+): HandlerResult {
+  const vote = state.pauseTerminationVote;
+  if (state.phase !== 'PAUSED' || vote === undefined) {
+    return failure('PAUSE_VOTE_CLOSED');
+  }
+  const now = ports.clock.nowIso();
+  if (Date.parse(now) >= Date.parse(vote.expiresAt)) {
+    return failure('PAUSE_VOTE_CLOSED');
+  }
+  if (!vote.eligiblePlayerIds.includes(command.actorPlayerId)) {
+    return failure('PAUSE_VOTE_NOT_ELIGIBLE');
+  }
+  if (vote.choices[command.actorPlayerId] !== undefined) {
+    return failure('ALREADY_SUBMITTED');
+  }
+  const choices = {
+    ...vote.choices,
+    [command.actorPlayerId]: command.choice,
+  };
+  const continueCount = Object.values(choices).filter(
+    (choice) => choice === 'CONTINUE_PAUSE',
+  ).length;
+  const strictMajority = Math.floor(vote.eligiblePlayerIds.length / 2) + 1;
+  if (continueCount >= strictMajority) {
+    return success({
+      ...state,
+      pauseTerminationVote: undefined,
+      pauseTerminationVoteAvailableAt: ports.clock.addMilliseconds(
+        now,
+        PAUSE_TERMINATION_VOTE_DELAY_MS,
+      ),
+    });
+  }
+  if (Object.keys(choices).length === vote.eligiblePlayerIds.length) {
+    return abortPausedGame(state, ports);
+  }
+  return success({
+    ...state,
+    pauseTerminationVote: { ...vote, choices },
   });
 }
 
@@ -805,9 +922,13 @@ function dispatch(
     case 'SelectMerlinTarget':
       return selectMerlinTarget(state, command, ports);
     case 'PauseGame':
-      return pauseGame(state, command);
+      return pauseGame(state, command, ports);
     case 'ResumeGame':
       return resumeGame(state, command);
+    case 'StartPauseTerminationVote':
+      return startPauseTerminationVote(state, command, ports);
+    case 'SubmitPauseTerminationVote':
+      return submitPauseTerminationVote(state, command, ports);
     case 'ReplayAudioCue':
       return replayAudioCue(state, command, ports);
     case 'ConfigureRoom':
@@ -946,6 +1067,8 @@ export function applyConnectionChanged(
         manualPauseReason: undefined,
         recoveryStartedAt: undefined,
         recoveryExpiresAt: undefined,
+        pauseTerminationVoteAvailableAt: undefined,
+        pauseTerminationVote: undefined,
         resumePoint: undefined,
       };
     }
@@ -960,21 +1083,26 @@ export function expirePausedGame(
   ports: EnginePorts,
 ): SystemTransition {
   if (state.phase !== 'PAUSED') return { state, effects: [] };
-  const outcome: GameOutcome = { winner: 'NONE', reason: 'ABORTED' };
-  const created = cue(state, 'GAME_OVER', 'game.aborted', ports);
+  const aborted = abortPausedGame(state, ports);
   const changed: GameState = {
-    ...state,
+    ...aborted.state,
     stateVersion: state.stateVersion + 1,
-    phase: 'GAME_OVER',
-    phaseStage: 'RESOLVED',
-    pauseReasons: [],
-    manualPauseReason: undefined,
-    recoveryStartedAt: undefined,
-    recoveryExpiresAt: undefined,
-    resumePoint: undefined,
-    gameOutcome: outcome,
-    currentAudioCue: created.audioCue,
   };
   assertGameInvariants(changed);
-  return { state: changed, effects: [created.effect] };
+  return { state: changed, effects: aborted.effects };
+}
+
+export function expirePauseTerminationVote(
+  state: GameState,
+  ports: EnginePorts,
+): SystemTransition {
+  const vote = state.pauseTerminationVote;
+  if (
+    state.phase !== 'PAUSED' ||
+    vote === undefined ||
+    Date.parse(ports.clock.nowIso()) < Date.parse(vote.expiresAt)
+  ) {
+    return { state, effects: [] };
+  }
+  return expirePausedGame(state, ports);
 }

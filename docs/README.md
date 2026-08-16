@@ -4,8 +4,8 @@
 
 ## 产品与规则
 
-- [游戏规则规范](./game-rules.zh-CN.md)：`RULE-001`–`RULE-022`；
-- [服务端权威状态机](./server-state-machine.zh-CN.md)：`SM-001`–`SM-021`；
+- [游戏规则规范](./game-rules.zh-CN.md)：`RULE-001`–`RULE-023`；
+- [服务端权威状态机](./server-state-machine.zh-CN.md)：`SM-001`–`SM-023`；
 - [移动端 FR/NFR](./mobile-fr-nfr.zh-CN.md)：`FR-001`–`FR-047`、`NFR-001`–`NFR-024`、`AC-001`–`AC-015`；
 - [移动端 UX 规范](./ux-spec.zh-CN.md)：页面、交互、隐私和无障碍状态。
 

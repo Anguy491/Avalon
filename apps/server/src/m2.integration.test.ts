@@ -337,6 +337,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       table_name: 'sessions',
       column_name: 'token_digest',
     });
+    expect(columns).toContainEqual({
+      table_name: 'rooms',
+      column_name: 'pause_vote_expires_at',
+    });
 
     const ports = createTestPorts().ports;
     const service = new RoomService(sql, config, ports);
@@ -365,7 +369,7 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       databaseUrl,
       dir: migrationsDirectory,
       direction: 'down',
-      count: 3,
+      count: 4,
       migrationsTable: 'pgmigrations',
       log: () => undefined,
     });

@@ -55,6 +55,16 @@ export type RoomCommandInput =
     }
   | { readonly type: 'ResumeGame'; readonly payload: Record<string, never> }
   | {
+      readonly type: 'StartPauseTerminationVote';
+      readonly payload: Record<string, never>;
+    }
+  | {
+      readonly type: 'SubmitPauseTerminationVote';
+      readonly payload: {
+        readonly choice: 'TERMINATE' | 'CONTINUE_PAUSE';
+      };
+    }
+  | {
       readonly type: 'ReplayAudioCue';
       readonly payload: { readonly audioCueId: string };
     };
@@ -173,6 +183,9 @@ const RESYNC_REJECTION_CODES = new Set([
   'PHASE_HELD',
   'STALE_VERSION',
   'ALREADY_SUBMITTED',
+  'PAUSE_VOTE_NOT_AVAILABLE',
+  'PAUSE_VOTE_NOT_ELIGIBLE',
+  'PAUSE_VOTE_CLOSED',
   'PLAYER_NOT_ON_TEAM',
   'GOOD_CANNOT_FAIL',
 ]);

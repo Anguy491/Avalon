@@ -190,11 +190,33 @@ function computeAvailableActions(
   state: GameState,
   playerId: string,
   hasSubmitted: boolean,
+  now: Date,
 ): readonly AvailableAction[] {
   const isHost = state.hostPlayerId === playerId;
 
   if (state.phase === 'PAUSED') {
     const actions: AvailableAction[] = [];
+    const pauseVote = state.pauseTerminationVote;
+    if (
+      pauseVote !== undefined &&
+      pauseVote.eligiblePlayerIds.includes(playerId) &&
+      pauseVote.choices[playerId] === undefined &&
+      now.getTime() < Date.parse(pauseVote.expiresAt)
+    ) {
+      actions.push({
+        commandType: 'SubmitPauseTerminationVote',
+        allowedPauseTerminationChoices: ['TERMINATE', 'CONTINUE_PAUSE'],
+      });
+    } else if (
+      pauseVote === undefined &&
+      state.players.some(
+        (player) => player.playerId === playerId && player.connected,
+      ) &&
+      state.pauseTerminationVoteAvailableAt !== undefined &&
+      now.getTime() >= Date.parse(state.pauseTerminationVoteAvailableAt)
+    ) {
+      actions.push({ commandType: 'StartPauseTerminationVote' });
+    }
     if (isHost && state.pauseReasons.includes('MANUAL')) {
       actions.push({ commandType: 'ResumeGame' });
     }
@@ -321,6 +343,7 @@ function projectRoom(
   state: GameState,
   playerId: string,
   sessionExpiresAt: Date,
+  now: Date,
   deliveryOrOptions: 'LIVE' | 'RESYNC' | ProjectionOptions,
 ): RoomView {
   const options: ProjectionOptions =
@@ -330,7 +353,7 @@ function projectRoom(
   const publicGame = buildPublicGameState(state);
   const privateGame = buildPrivatePlayerState(state, playerId);
   const availableActions = [
-    ...computeAvailableActions(state, playerId, privateGame.hasSubmitted),
+    ...computeAvailableActions(state, playerId, privateGame.hasSubmitted, now),
   ];
   if (
     playerId === state.hostPlayerId &&
@@ -383,6 +406,9 @@ function projectRoom(
     manualPauseReason: publicGame.manualPauseReason ?? null,
     recoveryStartedAt: publicGame.recoveryStartedAt ?? null,
     recoveryExpiresAt: publicGame.recoveryExpiresAt ?? null,
+    pauseTerminationVoteAvailableAt:
+      publicGame.pauseTerminationVoteAvailableAt ?? null,
+    pauseTerminationVote: publicGame.pauseTerminationVote ?? null,
     currentAudioCue: publicGame.currentAudioCue ?? null,
     gameOutcome: publicGame.gameOutcome ?? null,
     revealedAssignments: [...publicGame.revealedAssignments],
@@ -394,6 +420,14 @@ function projectRoom(
     knownPlayers: [...privateGame.knownPlayers],
     availableActions,
     hasSubmitted: privateGame.hasSubmitted,
+    pauseTerminationVoteStatus:
+      state.pauseTerminationVote === undefined
+        ? null
+        : !state.pauseTerminationVote.eligiblePlayerIds.includes(playerId)
+          ? 'NOT_ELIGIBLE'
+          : state.pauseTerminationVote.choices[playerId] === undefined
+            ? 'PENDING'
+            : 'SUBMITTED',
     shouldPlayAudio:
       options.delivery === 'LIVE' &&
       playerId === state.hostPlayerId &&
@@ -412,6 +446,7 @@ function bootstrap(
   playerId: string,
   token: string,
   expiresAt: Date,
+  now: Date,
   state: GameState,
 ): SessionBootstrap {
   return {
@@ -427,6 +462,7 @@ function bootstrap(
       state,
       playerId,
       expiresAt,
+      now,
       'RESYNC',
     ),
   };
@@ -630,6 +666,7 @@ export class RoomService {
         playerId,
         token,
         expiresAt,
+        now,
         state,
       );
       await this.saveProcessed(sql, {
@@ -750,6 +787,7 @@ export class RoomService {
         playerId,
         token,
         expiresAt,
+        now,
         nextState,
       );
       await this.saveProcessed(sql, {
@@ -838,6 +876,7 @@ export class RoomService {
         session.player_id,
         newToken,
         expiresAt,
+        now,
         state,
       );
       await this.saveProcessed(sql, {
@@ -947,6 +986,7 @@ export class RoomService {
         withPersistedRecovery(stateFrom(room.aggregate), room),
         context.playerId,
         context.expiresAt,
+        this.ports.clock.now(),
         'RESYNC',
       ),
     };
@@ -975,6 +1015,7 @@ export class RoomService {
       withPersistedRecovery(stateFrom(room.aggregate), room),
       context.playerId,
       context.expiresAt,
+      this.ports.clock.now(),
       delivery,
     );
   }

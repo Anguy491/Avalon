@@ -103,8 +103,11 @@ export function GameScreen() {
     if (phase === 'LOBBY') router.replace('/lobby');
     else if (phase === 'ROLE_REVEAL') router.replace('/role');
     else if (phase === 'ASSASSINATION') router.replace('/assassination');
-    else if (phase === 'GAME_OVER') router.replace('/result');
-  }, [roomView?.public.phase]);
+    else if (phase === 'GAME_OVER')
+      router.replace(
+        roomView?.public.gameOutcome?.reason === 'ABORTED' ? '/' : '/result',
+      );
+  }, [roomView?.public.gameOutcome?.reason, roomView?.public.phase]);
 
   if (roomView === undefined || table === undefined) {
     return (

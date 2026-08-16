@@ -33,9 +33,12 @@ export function AssassinationScreen() {
     if (phase === undefined || phase === 'ASSASSINATION') return;
     if (phase === 'LOBBY') router.replace('/lobby');
     else if (phase === 'ROLE_REVEAL') router.replace('/role');
-    else if (phase === 'GAME_OVER') router.replace('/result');
+    else if (phase === 'GAME_OVER')
+      router.replace(
+        roomView?.public.gameOutcome?.reason === 'ABORTED' ? '/' : '/result',
+      );
     else router.replace('/game');
-  }, [roomView?.public.phase]);
+  }, [roomView?.public.gameOutcome?.reason, roomView?.public.phase]);
 
   useEffect(() => {
     setTargetPlayerId(undefined);

@@ -8,6 +8,7 @@ import {
   deriveRoleRevealUiState,
   isRoleRevealed,
   privacyGateReducer,
+  roleRevealRedirectForPhase,
 } from './role-reveal-state';
 
 const roleView = (): RoomView =>
@@ -125,5 +126,18 @@ describe('privacyGateReducer', () => {
     expect(privacyGateReducer(toggled, { type: 'acknowledged' })).toEqual(
       INITIAL_PRIVACY_GATE,
     );
+  });
+});
+
+describe('roleRevealRedirectForPhase', () => {
+  it('keeps the role screen mounted while pause overlays it', () => {
+    expect(roleRevealRedirectForPhase('ROLE_REVEAL')).toBeUndefined();
+    expect(roleRevealRedirectForPhase('PAUSED')).toBeUndefined();
+  });
+
+  it('redirects only after the server leaves the interrupted role flow', () => {
+    expect(roleRevealRedirectForPhase('TEAM_PROPOSAL')).toBe('/game');
+    expect(roleRevealRedirectForPhase('ASSASSINATION')).toBe('/assassination');
+    expect(roleRevealRedirectForPhase('GAME_OVER')).toBe('/result');
   });
 });

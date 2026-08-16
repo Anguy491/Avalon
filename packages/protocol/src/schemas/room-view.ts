@@ -5,6 +5,7 @@ import {
   CommandTypeSchema,
   GameOutcomeReasonSchema,
   GamePhaseSchema,
+  PauseTerminationChoiceSchema,
   NicknameSchema,
   PhaseStageSchema,
   QuestChoiceSchema,
@@ -89,6 +90,16 @@ export const AudioCueViewSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const PauseTerminationVoteViewSchema = Type.Object(
+  {
+    startedAt: Type.String({ format: 'date-time' }),
+    expiresAt: Type.String({ format: 'date-time' }),
+    eligibleCount: Type.Integer({ minimum: 1, maximum: 10 }),
+    submittedCount: Type.Integer({ minimum: 0, maximum: 10 }),
+  },
+  { additionalProperties: false },
+);
+
 export const GameOutcomeSchema = Type.Object(
   {
     winner: WinnerSchema,
@@ -158,6 +169,12 @@ export const PublicSnapshotSchema = Type.Object(
       Type.String({ format: 'date-time' }),
       Type.Null(),
     ]),
+    pauseTerminationVoteAvailableAt: Type.Optional(
+      Type.Union([Type.String({ format: 'date-time' }), Type.Null()]),
+    ),
+    pauseTerminationVote: Type.Optional(
+      Type.Union([PauseTerminationVoteViewSchema, Type.Null()]),
+    ),
     currentAudioCue: Type.Optional(
       Type.Union([AudioCueViewSchema, Type.Null()]),
     ),
@@ -190,6 +207,9 @@ export const AvailableActionSchema = Type.Object(
     allowedQuestChoices: Type.Optional(
       Type.Array(QuestChoiceSchema, { uniqueItems: true }),
     ),
+    allowedPauseTerminationChoices: Type.Optional(
+      Type.Array(PauseTerminationChoiceSchema, { uniqueItems: true }),
+    ),
     eligibleTargetPlayerIds: Type.Optional(
       Type.Array(UuidSchema, { maxItems: 9, uniqueItems: true }),
     ),
@@ -205,6 +225,14 @@ export const PrivatePlayerProjectionSchema = Type.Object(
     knownPlayers: Type.Array(KnownPlayerSchema, { maxItems: 9 }),
     availableActions: Type.Array(AvailableActionSchema, { uniqueItems: true }),
     hasSubmitted: Type.Boolean(),
+    pauseTerminationVoteStatus: Type.Optional(
+      Type.Union([
+        Type.Literal('NOT_ELIGIBLE'),
+        Type.Literal('PENDING'),
+        Type.Literal('SUBMITTED'),
+        Type.Null(),
+      ]),
+    ),
     shouldPlayAudio: Type.Boolean(),
     sessionExpiresAt: Type.String({ format: 'date-time' }),
   },

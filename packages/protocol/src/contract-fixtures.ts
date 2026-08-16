@@ -202,6 +202,12 @@ export const commandFixtures: readonly Command[] = [
   },
   { ...baseCommand, type: 'PauseGame', payload: { reason: 'break' } },
   { ...baseCommand, type: 'ResumeGame', payload: {} },
+  { ...baseCommand, type: 'StartPauseTerminationVote', payload: {} },
+  {
+    ...baseCommand,
+    type: 'SubmitPauseTerminationVote',
+    payload: { choice: 'TERMINATE' },
+  },
   {
     ...baseCommand,
     type: 'ReplayAudioCue',

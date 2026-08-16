@@ -567,6 +567,54 @@
                     }
                   ]
                 },
+                "pauseTerminationVoteAvailableAt": {
+                  "anyOf": [
+                    {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "pauseTerminationVote": {
+                  "anyOf": [
+                    {
+                      "additionalProperties": false,
+                      "type": "object",
+                      "required": [
+                        "startedAt",
+                        "expiresAt",
+                        "eligibleCount",
+                        "submittedCount"
+                      ],
+                      "properties": {
+                        "startedAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "expiresAt": {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "eligibleCount": {
+                          "minimum": 1,
+                          "maximum": 10,
+                          "type": "integer"
+                        },
+                        "submittedCount": {
+                          "minimum": 0,
+                          "maximum": 10,
+                          "type": "integer"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
                 "currentAudioCue": {
                   "anyOf": [
                     {
@@ -916,6 +964,14 @@
                                 "type": "string"
                               },
                               {
+                                "const": "StartPauseTerminationVote",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitPauseTerminationVote",
+                                "type": "string"
+                              },
+                              {
                                 "const": "ReplayAudioCue",
                                 "type": "string"
                               },
@@ -965,6 +1021,22 @@
                               ]
                             }
                           },
+                          "allowedPauseTerminationChoices": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "TERMINATE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "CONTINUE_PAUSE",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
                           "eligibleTargetPlayerIds": {
                             "maxItems": 9,
                             "uniqueItems": true,
@@ -979,6 +1051,25 @@
                     },
                     "hasSubmitted": {
                       "type": "boolean"
+                    },
+                    "pauseTerminationVoteStatus": {
+                      "anyOf": [
+                        {
+                          "const": "NOT_ELIGIBLE",
+                          "type": "string"
+                        },
+                        {
+                          "const": "PENDING",
+                          "type": "string"
+                        },
+                        {
+                          "const": "SUBMITTED",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "shouldPlayAudio": {
                       "type": "boolean"
@@ -1161,6 +1252,14 @@
                                 "type": "string"
                               },
                               {
+                                "const": "StartPauseTerminationVote",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitPauseTerminationVote",
+                                "type": "string"
+                              },
+                              {
                                 "const": "ReplayAudioCue",
                                 "type": "string"
                               },
@@ -1210,6 +1309,22 @@
                               ]
                             }
                           },
+                          "allowedPauseTerminationChoices": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "TERMINATE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "CONTINUE_PAUSE",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
                           "eligibleTargetPlayerIds": {
                             "maxItems": 9,
                             "uniqueItems": true,
@@ -1224,6 +1339,25 @@
                     },
                     "hasSubmitted": {
                       "type": "boolean"
+                    },
+                    "pauseTerminationVoteStatus": {
+                      "anyOf": [
+                        {
+                          "const": "NOT_ELIGIBLE",
+                          "type": "string"
+                        },
+                        {
+                          "const": "PENDING",
+                          "type": "string"
+                        },
+                        {
+                          "const": "SUBMITTED",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "shouldPlayAudio": {
                       "allOf": [
@@ -1795,6 +1929,54 @@
                         }
                       ]
                     },
+                    "pauseTerminationVoteAvailableAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pauseTerminationVote": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "startedAt",
+                            "expiresAt",
+                            "eligibleCount",
+                            "submittedCount"
+                          ],
+                          "properties": {
+                            "startedAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "eligibleCount": {
+                              "minimum": 1,
+                              "maximum": 10,
+                              "type": "integer"
+                            },
+                            "submittedCount": {
+                              "minimum": 0,
+                              "maximum": 10,
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "currentAudioCue": {
                       "anyOf": [
                         {
@@ -2141,6 +2323,14 @@
                                 "type": "string"
                               },
                               {
+                                "const": "StartPauseTerminationVote",
+                                "type": "string"
+                              },
+                              {
+                                "const": "SubmitPauseTerminationVote",
+                                "type": "string"
+                              },
+                              {
                                 "const": "ReplayAudioCue",
                                 "type": "string"
                               },
@@ -2190,6 +2380,22 @@
                               ]
                             }
                           },
+                          "allowedPauseTerminationChoices": {
+                            "uniqueItems": true,
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "const": "TERMINATE",
+                                  "type": "string"
+                                },
+                                {
+                                  "const": "CONTINUE_PAUSE",
+                                  "type": "string"
+                                }
+                              ]
+                            }
+                          },
                           "eligibleTargetPlayerIds": {
                             "maxItems": 9,
                             "uniqueItems": true,
@@ -2204,6 +2410,25 @@
                     },
                     "hasSubmitted": {
                       "type": "boolean"
+                    },
+                    "pauseTerminationVoteStatus": {
+                      "anyOf": [
+                        {
+                          "const": "NOT_ELIGIBLE",
+                          "type": "string"
+                        },
+                        {
+                          "const": "PENDING",
+                          "type": "string"
+                        },
+                        {
+                          "const": "SUBMITTED",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
                     },
                     "shouldPlayAudio": {
                       "type": "boolean"
@@ -2762,6 +2987,54 @@
                         }
                       ]
                     },
+                    "pauseTerminationVoteAvailableAt": {
+                      "anyOf": [
+                        {
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "pauseTerminationVote": {
+                      "anyOf": [
+                        {
+                          "additionalProperties": false,
+                          "type": "object",
+                          "required": [
+                            "startedAt",
+                            "expiresAt",
+                            "eligibleCount",
+                            "submittedCount"
+                          ],
+                          "properties": {
+                            "startedAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "expiresAt": {
+                              "format": "date-time",
+                              "type": "string"
+                            },
+                            "eligibleCount": {
+                              "minimum": 1,
+                              "maximum": 10,
+                              "type": "integer"
+                            },
+                            "submittedCount": {
+                              "minimum": 0,
+                              "maximum": 10,
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
                     "currentAudioCue": {
                       "anyOf": [
                         {
@@ -3111,6 +3384,14 @@
                                     "type": "string"
                                   },
                                   {
+                                    "const": "StartPauseTerminationVote",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitPauseTerminationVote",
+                                    "type": "string"
+                                  },
+                                  {
                                     "const": "ReplayAudioCue",
                                     "type": "string"
                                   },
@@ -3160,6 +3441,22 @@
                                   ]
                                 }
                               },
+                              "allowedPauseTerminationChoices": {
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "const": "TERMINATE",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "CONTINUE_PAUSE",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
                               "eligibleTargetPlayerIds": {
                                 "maxItems": 9,
                                 "uniqueItems": true,
@@ -3174,6 +3471,25 @@
                         },
                         "hasSubmitted": {
                           "type": "boolean"
+                        },
+                        "pauseTerminationVoteStatus": {
+                          "anyOf": [
+                            {
+                              "const": "NOT_ELIGIBLE",
+                              "type": "string"
+                            },
+                            {
+                              "const": "PENDING",
+                              "type": "string"
+                            },
+                            {
+                              "const": "SUBMITTED",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "shouldPlayAudio": {
                           "type": "boolean"
@@ -3356,6 +3672,14 @@
                                     "type": "string"
                                   },
                                   {
+                                    "const": "StartPauseTerminationVote",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "const": "SubmitPauseTerminationVote",
+                                    "type": "string"
+                                  },
+                                  {
                                     "const": "ReplayAudioCue",
                                     "type": "string"
                                   },
@@ -3405,6 +3729,22 @@
                                   ]
                                 }
                               },
+                              "allowedPauseTerminationChoices": {
+                                "uniqueItems": true,
+                                "type": "array",
+                                "items": {
+                                  "anyOf": [
+                                    {
+                                      "const": "TERMINATE",
+                                      "type": "string"
+                                    },
+                                    {
+                                      "const": "CONTINUE_PAUSE",
+                                      "type": "string"
+                                    }
+                                  ]
+                                }
+                              },
                               "eligibleTargetPlayerIds": {
                                 "maxItems": 9,
                                 "uniqueItems": true,
@@ -3419,6 +3759,25 @@
                         },
                         "hasSubmitted": {
                           "type": "boolean"
+                        },
+                        "pauseTerminationVoteStatus": {
+                          "anyOf": [
+                            {
+                              "const": "NOT_ELIGIBLE",
+                              "type": "string"
+                            },
+                            {
+                              "const": "PENDING",
+                              "type": "string"
+                            },
+                            {
+                              "const": "SUBMITTED",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
                         },
                         "shouldPlayAudio": {
                           "allOf": [
@@ -3798,6 +4157,18 @@
                   "type": "string"
                 },
                 {
+                  "const": "PAUSE_VOTE_NOT_AVAILABLE",
+                  "type": "string"
+                },
+                {
+                  "const": "PAUSE_VOTE_NOT_ELIGIBLE",
+                  "type": "string"
+                },
+                {
+                  "const": "PAUSE_VOTE_CLOSED",
+                  "type": "string"
+                },
+                {
                   "const": "UPGRADE_REQUIRED",
                   "type": "string"
                 },
@@ -4058,6 +4429,18 @@
                     },
                     {
                       "const": "INVALID_PAUSE_REASON",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PAUSE_VOTE_NOT_AVAILABLE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PAUSE_VOTE_NOT_ELIGIBLE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "PAUSE_VOTE_CLOSED",
                       "type": "string"
                     },
                     {

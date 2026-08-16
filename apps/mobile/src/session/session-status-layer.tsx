@@ -1,11 +1,16 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Modal, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Modal, ScrollView, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/primary-button';
 import { spacing, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
 import { useSession } from './session-provider';
+import {
+  countdownLabel,
+  derivePauseTerminationUiState,
+} from './pause-termination-state';
 
 function remainingLabel(expiresAt: string | null, now: number): string {
   if (expiresAt === null) return '等待服务器确认恢复期限';
@@ -19,7 +24,15 @@ export function SessionStatusLayer() {
   const { color } = useAppTheme();
   const session = useSession();
   const [now, setNow] = useState(Date.now());
+  const refreshedEligibilityAt = useRef<string | undefined>(undefined);
   const paused = session.roomView?.public.phase === 'PAUSED';
+  const pauseTermination = useMemo(
+    () =>
+      session.roomView === undefined
+        ? undefined
+        : derivePauseTerminationUiState(session.roomView, now),
+    [now, session.roomView],
+  );
 
   useEffect(() => {
     if (!paused) return;
@@ -30,6 +43,34 @@ export function SessionStatusLayer() {
       clearInterval(timer);
     };
   }, [paused]);
+
+  useEffect(() => {
+    if (
+      session.roomView?.public.phase !== 'GAME_OVER' ||
+      session.roomView.public.gameOutcome?.reason !== 'ABORTED'
+    ) {
+      return;
+    }
+    router.replace('/');
+  }, [session.roomView]);
+
+  useEffect(() => {
+    const availableAt =
+      session.roomView?.public.pauseTerminationVoteAvailableAt;
+    if (
+      !paused ||
+      availableAt === undefined ||
+      availableAt === null ||
+      session.roomView.public.pauseTerminationVote != null ||
+      pauseTermination?.availableInMs !== 0 ||
+      pauseTermination.canStart ||
+      refreshedEligibilityAt.current === availableAt
+    ) {
+      return;
+    }
+    refreshedEligibilityAt.current = availableAt;
+    void session.refreshView();
+  }, [pauseTermination, paused, session]);
 
   const offlinePlayers = useMemo(
     () =>
@@ -42,6 +83,52 @@ export function SessionStatusLayer() {
     session.roomView?.private.availableActions.some(
       (action) => action.commandType === 'ResumeGame',
     ) === true;
+  const ballot = session.roomView?.public.pauseTerminationVote;
+
+  const startTerminationVote = () => {
+    Alert.alert(
+      '发起终止对局投票？',
+      '仅当前在线玩家进入本轮名单。投票持续 30 秒，只有严格超过半数选择继续暂停，对局才会保留。',
+      [
+        { text: '取消', style: 'cancel' },
+        {
+          text: '发起投票',
+          style: 'destructive',
+          onPress: () => {
+            void session
+              .submitCommand({
+                type: 'StartPauseTerminationVote',
+                payload: {},
+              })
+              .catch(() => undefined);
+          },
+        },
+      ],
+    );
+  };
+
+  const submitTerminationChoice = (choice: 'TERMINATE' | 'CONTINUE_PAUSE') => {
+    const terminating = choice === 'TERMINATE';
+    Alert.alert(
+      terminating ? '确认终止对局？' : '确认继续暂停？',
+      '投票提交后不能修改。个人选择不会在投票过程中公开。',
+      [
+        { text: '返回', style: 'cancel' },
+        {
+          text: terminating ? '投票终止' : '投票继续暂停',
+          style: terminating ? 'destructive' : 'default',
+          onPress: () => {
+            void session
+              .submitCommand({
+                type: 'SubmitPauseTerminationVote',
+                payload: { choice },
+              })
+              .catch(() => undefined);
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <>
@@ -79,12 +166,16 @@ export function SessionStatusLayer() {
         transparent
         visible={paused}
       >
-        <View
+        <ScrollView
           accessibilityViewIsModal
-          style={{
-            flex: 1,
+          contentInsetAdjustmentBehavior="automatic"
+          contentContainerStyle={{
+            flexGrow: 1,
             justifyContent: 'center',
             padding: spacing.lg,
+          }}
+          style={{
+            flex: 1,
             backgroundColor: 'rgba(0, 0, 0, 0.72)',
           }}
         >
@@ -127,6 +218,102 @@ export function SessionStatusLayer() {
             <Text selectable style={{ color: color.text.inverse }}>
               房主权限不会因断线而转移。倒计时仅供显示，最终以服务器裁决为准。
             </Text>
+            {ballot == null &&
+            pauseTermination !== undefined &&
+            pauseTermination.availableInMs > 0 ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                selectable
+                style={{
+                  color: color.text.inverse,
+                  fontVariant: ['tabular-nums'],
+                }}
+              >
+                终止投票将在 {countdownLabel(pauseTermination.availableInMs)}{' '}
+                后开放
+              </Text>
+            ) : null}
+            {ballot == null && pauseTermination?.canStart === true ? (
+              <PrimaryButton
+                accessibilityHint="发起后仅当前在线玩家可在三十秒内投票"
+                busy={
+                  session.pendingCommandType === 'StartPauseTerminationVote'
+                }
+                label="发起终止对局投票"
+                onPress={startTerminationVote}
+              />
+            ) : null}
+            {ballot != null && pauseTermination !== undefined ? (
+              <View
+                accessible
+                accessibilityLabel={`终止投票进度 ${String(pauseTermination.submittedCount)} / ${String(pauseTermination.eligibleCount)}，剩余 ${countdownLabel(pauseTermination.ballotRemainingMs)}`}
+                style={{ gap: spacing.sm }}
+              >
+                <Text
+                  accessibilityRole="header"
+                  selectable
+                  style={{
+                    color: color.text.inverse,
+                    fontSize: typography.body,
+                    fontWeight: '800',
+                  }}
+                >
+                  终止对局投票
+                </Text>
+                <Text
+                  accessibilityLiveRegion="polite"
+                  selectable
+                  style={{
+                    color: color.text.inverse,
+                    fontVariant: ['tabular-nums'],
+                  }}
+                >
+                  已提交 {pauseTermination.submittedCount} /{' '}
+                  {pauseTermination.eligibleCount} · 剩余{' '}
+                  {countdownLabel(pauseTermination.ballotRemainingMs)}
+                </Text>
+                <Text selectable style={{ color: color.text.inverse }}>
+                  只有严格超过半数选择继续暂停，才会保留对局；否则对局中止并返回首页。
+                </Text>
+              </View>
+            ) : null}
+            {ballot != null && pauseTermination?.canSubmit === true ? (
+              <>
+                <PrimaryButton
+                  busy={
+                    session.pendingCommandType === 'SubmitPauseTerminationVote'
+                  }
+                  label="投票终止对局"
+                  onPress={() => {
+                    submitTerminationChoice('TERMINATE');
+                  }}
+                />
+                <PrimaryButton
+                  busy={
+                    session.pendingCommandType === 'SubmitPauseTerminationVote'
+                  }
+                  label="投票继续暂停"
+                  onPress={() => {
+                    submitTerminationChoice('CONTINUE_PAUSE');
+                  }}
+                />
+              </>
+            ) : null}
+            {ballot != null && pauseTermination?.voterStatus === 'SUBMITTED' ? (
+              <Text
+                accessibilityLiveRegion="polite"
+                selectable
+                style={{ color: color.text.inverse, fontWeight: '800' }}
+              >
+                你的投票已提交，等待本轮结算。
+              </Text>
+            ) : null}
+            {ballot != null &&
+            pauseTermination?.voterStatus === 'NOT_ELIGIBLE' ? (
+              <Text selectable style={{ color: color.text.inverse }}>
+                你不在本轮发起时的在线玩家名单中，只能查看投票进度。
+              </Text>
+            ) : null}
             {canResume ? (
               <PrimaryButton
                 accessibilityHint="清除手动暂停；若仍有玩家离线，连接暂停会继续保留"
@@ -143,7 +330,7 @@ export function SessionStatusLayer() {
               />
             ) : null}
           </View>
-        </View>
+        </ScrollView>
       </Modal>
     </>
   );

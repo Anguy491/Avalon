@@ -1,4 +1,6 @@
 export const RULES_VERSION = 'CLASSIC_AVALON_V1' as const;
+export const PAUSE_TERMINATION_VOTE_DELAY_MS = 60_000;
+export const PAUSE_TERMINATION_VOTE_DURATION_MS = 30_000;
 
 export type RulesVersion = typeof RULES_VERSION;
 export type PlayerCount = 5 | 6 | 7 | 8 | 9 | 10;
@@ -19,6 +21,7 @@ export type Alignment = 'GOOD' | 'EVIL';
 export type PresetId = 'CLASSIC' | 'COMMON_ROLES';
 export type TeamVote = 'APPROVE' | 'REJECT';
 export type QuestChoice = 'SUCCESS' | 'FAIL';
+export type PauseTerminationChoice = 'TERMINATE' | 'CONTINUE_PAUSE';
 export type QuestResult = 'SUCCESS' | 'FAILURE';
 export type Winner = 'GOOD' | 'EVIL' | 'NONE';
 
@@ -154,6 +157,13 @@ export interface GameOutcome {
   readonly assassinationTargetPlayerId?: string;
 }
 
+export interface PauseTerminationVote {
+  readonly startedAt: string;
+  readonly expiresAt: string;
+  readonly eligiblePlayerIds: readonly string[];
+  readonly choices: Readonly<Record<string, PauseTerminationChoice>>;
+}
+
 export type AudioCueKey =
   | 'game.role.reveal'
   | 'game.team.proposal'
@@ -247,6 +257,8 @@ export interface GameState {
   readonly manualPauseReason?: string | undefined;
   readonly recoveryStartedAt?: string | undefined;
   readonly recoveryExpiresAt?: string | undefined;
+  readonly pauseTerminationVoteAvailableAt?: string | undefined;
+  readonly pauseTerminationVote?: PauseTerminationVote | undefined;
   readonly currentAudioCue?: AudioCue | undefined;
   readonly processedCommands: Readonly<Record<string, ProcessedCommand>>;
 }
@@ -257,6 +269,7 @@ export interface RandomBytesPort {
 
 export interface ClockPort {
   nowIso(): string;
+  addMilliseconds(iso: string, milliseconds: number): string;
 }
 
 export interface IdGeneratorPort {
@@ -301,6 +314,11 @@ export type GameCommand =
       readonly reason?: string | undefined;
     })
   | (CommandEnvelope & { readonly type: 'ResumeGame' })
+  | (CommandEnvelope & { readonly type: 'StartPauseTerminationVote' })
+  | (CommandEnvelope & {
+      readonly type: 'SubmitPauseTerminationVote';
+      readonly choice: PauseTerminationChoice;
+    })
   | (CommandEnvelope & {
       readonly type: 'ReplayAudioCue';
       readonly audioCueId: string;
@@ -344,7 +362,10 @@ export type EngineErrorCode =
   | 'ALREADY_SUBMITTED'
   | 'HOST_CANNOT_LEAVE'
   | 'AUDIO_CUE_NOT_FOUND'
-  | 'INVALID_PAUSE_REASON';
+  | 'INVALID_PAUSE_REASON'
+  | 'PAUSE_VOTE_NOT_AVAILABLE'
+  | 'PAUSE_VOTE_NOT_ELIGIBLE'
+  | 'PAUSE_VOTE_CLOSED';
 
 export interface AcceptedCommandResult {
   readonly accepted: true;
@@ -399,6 +420,13 @@ export interface PublicGameState {
   readonly manualPauseReason?: string | undefined;
   readonly recoveryStartedAt?: string | undefined;
   readonly recoveryExpiresAt?: string | undefined;
+  readonly pauseTerminationVoteAvailableAt?: string | undefined;
+  readonly pauseTerminationVote?: {
+    readonly startedAt: string;
+    readonly expiresAt: string;
+    readonly eligibleCount: number;
+    readonly submittedCount: number;
+  };
   readonly currentAudioCue?: Pick<
     AudioCue,
     'audioCueId' | 'audioCueKey' | 'subtitleKey' | 'voicePackVersion'

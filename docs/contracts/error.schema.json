@@ -133,6 +133,18 @@
               "type": "string"
             },
             {
+              "const": "PAUSE_VOTE_NOT_AVAILABLE",
+              "type": "string"
+            },
+            {
+              "const": "PAUSE_VOTE_NOT_ELIGIBLE",
+              "type": "string"
+            },
+            {
+              "const": "PAUSE_VOTE_CLOSED",
+              "type": "string"
+            },
+            {
               "const": "UPGRADE_REQUIRED",
               "type": "string"
             },

@@ -397,6 +397,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       return;
     }
     terminalAckVersion.current = view.public.stateVersion;
+    const returnsDirectlyHome = view.public.gameOutcome?.reason === 'ABORTED';
     setStatus('TERMINAL');
     activeSocket
       .timeout(4_000)
@@ -411,10 +412,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
           ) {
             setError('终局回执未确认；服务器仍会在 60 秒内自动清理房间。');
           }
-          void retireTerminalSession();
+          void (returnsDirectlyHome
+            ? forgetSession()
+            : retireTerminalSession());
         },
       );
-  }, [retireTerminalSession, roomViewQuery.data]);
+  }, [forgetSession, retireTerminalSession, roomViewQuery.data]);
 
   useEffect(() => {
     let previous = AppState.currentState;

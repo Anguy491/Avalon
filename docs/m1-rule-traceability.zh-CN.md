@@ -15,8 +15,8 @@
 | `M1-003` | `RULE-008`–`RULE-011` | `SM-008`、`SM-010`、`SM-011` | `AC-002`–`AC-004` | `engine.test.ts`：组队权限、秘密票、严格多数、6 人平票、轮换和第五次否决同转换锁定 |
 | `M1-004` | `RULE-012`–`RULE-016` | `SM-012` | `AC-005`、`AC-006` | `engine.test.ts`：成员权限、善方不能失败、匿名销毁、7–10 人第四任务一/两失败、三次失败 |
 | `M1-005` | `RULE-017`–`RULE-019` | `SM-013` | `AC-007` | `engine.test.ts`：三次成功、未过滤候选、刺客权限、梅林命中/存活和终局揭示 |
-| `M1-006` | `RULE-020`–`RULE-022` | `SM-008`、`SM-014`–`SM-016`、`SM-020`、`SM-021` 的纯领域部分 | `AC-010`–`AC-012` 的引擎层 | `engine.test.ts`：暂停原因覆盖、恢复秘密不变、房主不转移、过期中止、固定音频与显式重播 |
-| `M1-007` | `RULE-001`–`RULE-022` | 上述 M1 状态转换 | `AC-001`–`AC-008`、`AC-010`–`AC-012` 的引擎层 | `properties.test.ts`、`dependency-boundary.test.ts`、`packages/test-fixtures` |
+| `M1-006` | `RULE-020`–`RULE-023` | `SM-008`、`SM-014`–`SM-016`、`SM-020`–`SM-023` 的纯领域部分 | `AC-010`–`AC-012`、`AC-016` 的引擎层 | `engine.test.ts`：暂停原因覆盖、恢复秘密不变、在线选民快照、严格多数/截止中止、房主不转移、硬上限中止、固定音频与显式重播 |
+| `M1-007` | `RULE-001`–`RULE-023` | 上述 M1 状态转换 | `AC-001`–`AC-008`、`AC-010`–`AC-012`、`AC-016` 的引擎层 | `properties.test.ts`、`dependency-boundary.test.ts`、`packages/test-fixtures` |
 
 ## 性质与回归证明
 

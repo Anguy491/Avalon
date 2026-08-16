@@ -2,6 +2,7 @@ import { Type, type Static, type TObject } from '@sinclair/typebox';
 
 import {
   CommandTypeSchema,
+  PauseTerminationChoiceSchema,
   QuestChoiceSchema,
   TeamVoteSchema,
   UuidSchema,
@@ -46,9 +47,17 @@ const commandVariants = Type.Union([
     'ContinuePhase',
     'AckRole',
     'ResumeGame',
+    'StartPauseTerminationVote',
     'LeaveLobby',
     'CloseRoom',
   ].map((type) => commandVariant(type, emptyPayload)),
+  commandVariant(
+    'SubmitPauseTerminationVote',
+    Type.Object(
+      { choice: PauseTerminationChoiceSchema },
+      { additionalProperties: false },
+    ),
+  ),
   commandVariant(
     'SubmitTeam',
     Type.Object(

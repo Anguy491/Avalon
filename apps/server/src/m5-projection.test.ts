@@ -73,11 +73,61 @@ function viewFor(state: GameState, playerId: string) {
     state,
     playerId,
     new Date('2026-08-14T12:00:00.000Z'),
+    new Date('2026-08-14T11:00:00.000Z'),
     'LIVE',
   );
 }
 
 describe('M5 assassination and terminal projections', () => {
+  it('SM-022 projects pause-ballot counts publicly and voter eligibility privately', () => {
+    const base = assassinationState();
+    const paused: GameState = {
+      ...base,
+      phase: 'PAUSED',
+      resumePoint: {
+        phase: 'ASSASSINATION',
+        phaseStage: 'COLLECTING',
+      },
+      pauseReasons: ['PLAYER_DISCONNECTED'],
+      recoveryStartedAt: '2026-08-14T10:00:00.000Z',
+      recoveryExpiresAt: '2026-08-14T11:00:00.000Z',
+      pauseTerminationVoteAvailableAt: '2026-08-14T10:01:00.000Z',
+      pauseTerminationVote: {
+        startedAt: '2026-08-14T10:59:30.000Z',
+        expiresAt: '2026-08-14T11:00:30.000Z',
+        eligiblePlayerIds: playerIds.slice(0, 4),
+        choices: { [playerIds[0]]: 'TERMINATE' },
+      },
+    };
+    const eligible = viewFor(paused, playerIds[1]);
+    const submitted = viewFor(paused, playerIds[0]);
+    const reconnectedAfterSnapshot = viewFor(paused, playerIds[4]);
+
+    expect(eligible.public.pauseTerminationVote).toEqual({
+      startedAt: '2026-08-14T10:59:30.000Z',
+      expiresAt: '2026-08-14T11:00:30.000Z',
+      eligibleCount: 4,
+      submittedCount: 1,
+    });
+    expect(eligible.private.availableActions).toContainEqual({
+      commandType: 'SubmitPauseTerminationVote',
+      allowedPauseTerminationChoices: ['TERMINATE', 'CONTINUE_PAUSE'],
+    });
+    expect(submitted.private.availableActions).not.toContainEqual(
+      expect.objectContaining({
+        commandType: 'SubmitPauseTerminationVote',
+      }),
+    );
+    expect(
+      reconnectedAfterSnapshot.private.availableActions,
+    ).not.toContainEqual(
+      expect.objectContaining({
+        commandType: 'SubmitPauseTerminationVote',
+      }),
+    );
+    expect(JSON.stringify(eligible.public)).not.toContain('choices');
+  });
+
   it('SM-016 enables a matching new LIVE audio instance only for the host', () => {
     const state = assassinationState();
     const withCue: GameState = {
@@ -97,6 +147,7 @@ describe('M5 assassination and terminal projections', () => {
       withCue,
       playerIds[0],
       new Date('2026-08-14T12:30:00.000Z'),
+      new Date('2026-08-14T12:00:00.000Z'),
       { delivery: 'LIVE', liveAudioCueId: 'cue-live-1' },
     );
     const playerLive = projectRoom(
@@ -105,6 +156,7 @@ describe('M5 assassination and terminal projections', () => {
       withCue,
       playerIds[1],
       new Date('2026-08-14T12:30:00.000Z'),
+      new Date('2026-08-14T12:00:00.000Z'),
       { delivery: 'LIVE', liveAudioCueId: 'cue-live-1' },
     );
     const hostResync = projectRoom(
@@ -113,6 +165,7 @@ describe('M5 assassination and terminal projections', () => {
       withCue,
       playerIds[0],
       new Date('2026-08-14T12:30:00.000Z'),
+      new Date('2026-08-14T12:00:00.000Z'),
       'RESYNC',
     );
     expect(hostLive.private.shouldPlayAudio).toBe(true);

@@ -22,7 +22,11 @@ export default function HomeScreen() {
     if (phase === 'LOBBY') router.replace('/lobby');
     else if (phase === 'ROLE_REVEAL') router.replace('/role');
     else if (phase === 'ASSASSINATION') router.replace('/assassination');
-    else if (phase === 'GAME_OVER') router.replace('/result');
+    else if (
+      phase === 'GAME_OVER' &&
+      session.roomView?.public.gameOutcome?.reason !== 'ABORTED'
+    )
+      router.replace('/result');
     else if (phase !== undefined) router.replace('/game');
   }, [session.roomView]);
 

@@ -262,6 +262,7 @@ export class OutboxWorker {
             state,
             delivery.player_id,
             delivery.expires_at,
+            this.ports.clock.now(),
             {
               delivery: 'LIVE',
               liveAudioCueId: row.live_audio_cue_id,

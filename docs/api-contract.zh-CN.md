@@ -253,6 +253,7 @@ ack 表示事务已提交或明确拒绝；`room.view` 可能先于或后于 ack
 - 任务提交永不提供行动归属；
 - `availableActions` 由服务器生成，但服务端仍对命令重复授权；
 - `manualPauseReason`、`recoveryStartedAt`、`recoveryExpiresAt` 是可空公开字段；恢复期限只由服务端裁决；
+- `pauseTerminationVoteAvailableAt` 与进行中的投票总数/截止时间是公开字段；选民快照、个人选择值只在权威聚合中，个人投影最多给出本人资格/提交状态；
 - 游戏结束前，`revealedAssignments` 必须为空；
 - `shouldPlayAudio=true` 只可出现在房主、`delivery=LIVE`、新 `audioCueId` 的投影；
 - 客户端按 `audioCueId` 保存有界内存去重集合，恢复不依赖其持久化正确性。
@@ -315,12 +316,12 @@ flowchart LR
 | 协议职责 | 状态机/需求 | Schema/验证 |
 | --- | --- | --- |
 | 创建/加入/恢复 | `SM-001`–`SM-003`、`FR-001`–`FR-006` | `http.schema.json` |
-| 大厅和对局命令 | `SM-004`–`SM-019`、`FR-007`–`FR-047` | `command.schema.json` |
+| 大厅和对局命令 | `SM-004`–`SM-019`、`SM-022`–`SM-023`、`FR-007`–`FR-049` | `command.schema.json` |
 | 幂等/并发 | 状态机 4.2、`FR-046`、`NFR-007` | 命令信封 + DB 集成测试 |
 | 公开与私密投影 | 状态机第 6 节、`FR-017`–`FR-039`、`NFR-014` | `room-view.schema.json` + 角色矩阵测试 |
 | 音频去重 | `SM-016`、`FR-035`–`FR-039`、`NFR-021` | `AudioCueView` + `delivery` |
 | 错误 | 状态机第 8 节、`FR-047` | `error.schema.json` |
-| 断线恢复 | `SM-003`、`SM-020`–`SM-021`、`FR-041`–`FR-044` | `SessionBootstrap`、`SessionReady`、`SessionPing/Pong`、公开恢复期限 |
+| 断线恢复与暂停终止 | `SM-003`、`SM-020`–`SM-023`、`FR-041`–`FR-049` | `SessionBootstrap`、`SessionReady`、`SessionPing/Pong`、公开恢复/投票期限与私密资格 |
 | 终局清除 | 状态机 9.1、`FR-034`、`NFR-016` | `RoomViewMessage`、`TerminalViewAck` |
 
 ## 8. 契约验收

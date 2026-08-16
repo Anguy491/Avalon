@@ -15,7 +15,7 @@
 | `M7-002` | 无障碍 | `NFR-018`–`NFR-020`、`AC-014` | 无 | 延期 |
 | `M7-003` | Sentry 严格允许列表、根隐私遮罩、无自动 HTTP 采集的 OpenTelemetry 指标、告警模板 | `NFR-008`、`NFR-014`、`NFR-023`、`FR-020` | Sentry canary、隐私状态、logger/metrics 审查 | DSN、DE 组织和真实出站代理为人工门槛 |
 | `M7-004` | 20 房 smoke 保留；worker-thread 1,000 房/10,000 Socket/30 分钟发布负载 | `NFR-002`–`NFR-004` | `test:load`、`test:load:release` | 完整场景须在隔离容量环境执行 |
-| `M7-005` | 终局相同 eventId 重投、30 秒在途排空、前向迁移和恢复演练手册 | `NFR-006`–`NFR-007`、`NFR-016` | 提交前/发布后故障、连接中断、Redis 清空、Outbox 重放、30 分钟时钟边界和 `pg_dump/restore` 集成测试 | 容器内恢复/RPO 0 已通过；供应商 WAL/备份残余为真实部署人工项 |
+| `M7-005` | 终局相同 eventId 重投、30 秒在途排空、前向迁移和恢复演练手册 | `NFR-006`–`NFR-007`、`NFR-016` | 提交前/发布后故障、连接中断、Redis 清空、Outbox 重放、30 秒投票/60 分钟暂停时钟边界和 `pg_dump/restore` 集成测试 | 容器内恢复/RPO 0 已通过；供应商 WAL/备份残余为真实部署人工项 |
 | `M7-006` | Preview validator、AWS/GCP/EAS 双路径手册、OCI SBOM/provenance | `NFR-012`、`TM-008`、发布门槛 | `preview:check` 正反夹具、CI OCI artifact | `PREVIEW_READY_NOT_DEPLOYED` |
 
 ## 3. 安全扫描闭环

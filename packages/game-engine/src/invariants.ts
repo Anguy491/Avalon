@@ -139,6 +139,32 @@ export function collectInvariantViolations(
   } else if (state.resumePoint !== undefined) {
     violations.push('resume point may only exist under the pause overlay');
   }
+  if (
+    state.phase !== 'PAUSED' &&
+    (state.pauseTerminationVoteAvailableAt !== undefined ||
+      state.pauseTerminationVote !== undefined)
+  ) {
+    violations.push('pause termination voting may only exist while paused');
+  }
+  const pauseVote = state.pauseTerminationVote;
+  if (pauseVote !== undefined) {
+    const eligible = new Set(pauseVote.eligiblePlayerIds);
+    if (
+      eligible.size === 0 ||
+      eligible.size !== pauseVote.eligiblePlayerIds.length ||
+      pauseVote.eligiblePlayerIds.some((playerId) => !playerIds.has(playerId))
+    ) {
+      violations.push('pause termination voters must be unique game players');
+    }
+    if (
+      Object.keys(pauseVote.choices).some((playerId) => !eligible.has(playerId))
+    ) {
+      violations.push('pause termination choices require voter eligibility');
+    }
+    if (Date.parse(pauseVote.startedAt) >= Date.parse(pauseVote.expiresAt)) {
+      violations.push('pause termination vote requires a future deadline');
+    }
+  }
   if (state.phase === 'GAME_OVER' && state.gameOutcome === undefined) {
     violations.push('GAME_OVER requires a locked outcome');
   }

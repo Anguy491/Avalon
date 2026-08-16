@@ -75,6 +75,14 @@
               "type": "string"
             },
             {
+              "const": "StartPauseTerminationVote",
+              "type": "string"
+            },
+            {
+              "const": "SubmitPauseTerminationVote",
+              "type": "string"
+            },
+            {
               "const": "ReplayAudioCue",
               "type": "string"
             },
@@ -370,6 +378,24 @@
           ],
           "properties": {
             "type": {
+              "const": "StartPauseTerminationVote",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
               "const": "LeaveLobby",
               "type": "string"
             },
@@ -395,6 +421,40 @@
               "additionalProperties": false,
               "type": "object",
               "properties": {}
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "payload"
+          ],
+          "properties": {
+            "type": {
+              "const": "SubmitPauseTerminationVote",
+              "type": "string"
+            },
+            "payload": {
+              "additionalProperties": false,
+              "type": "object",
+              "required": [
+                "choice"
+              ],
+              "properties": {
+                "choice": {
+                  "anyOf": [
+                    {
+                      "const": "TERMINATE",
+                      "type": "string"
+                    },
+                    {
+                      "const": "CONTINUE_PAUSE",
+                      "type": "string"
+                    }
+                  ]
+                }
+              }
             }
           }
         },

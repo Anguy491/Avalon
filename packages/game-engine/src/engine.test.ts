@@ -8,7 +8,9 @@ import {
   collectInvariantViolations,
   createInitialGameState,
   executeCommand,
+  expirePauseTerminationVote,
   expirePausedGame,
+  type EnginePorts,
   type GameState,
 } from './index.js';
 import {
@@ -30,6 +32,20 @@ function leader(state: GameState): string {
   );
   if (player === undefined) throw new Error('Leader missing');
   return player.playerId;
+}
+
+function controllablePorts() {
+  let now = '2026-08-13T10:00:00.000Z';
+  const base = fixedPorts();
+  return {
+    ports: {
+      ...base,
+      clock: { ...base.clock, nowIso: () => now },
+    } satisfies EnginePorts,
+    setNow(value: string) {
+      now = value;
+    },
+  };
 }
 
 function continueAfterResolution(
@@ -713,7 +729,146 @@ describe('M1-006 / RULE-020–RULE-022 / SM-014–SM-016 SM-020 SM-021', () => {
       phase: 'GAME_OVER',
       gameOutcome: { winner: 'NONE', reason: 'ABORTED' },
     });
+    expect(buildPublicGameState(expired.state).revealedAssignments).toEqual([]);
     expect(expired.effects).toHaveLength(1);
+  });
+
+  it('starts a pause termination ballot after 60 seconds using an online-player snapshot', () => {
+    const clock = controllablePorts();
+    let state = startAndAcknowledge(5, clock.ports);
+    state = accepted(
+      state,
+      state.hostPlayerId,
+      { type: 'PauseGame' },
+      clock.ports,
+    );
+    state = applyConnectionChanged(state, 'player-5', false).state;
+    expect(
+      executeCommand(
+        state,
+        command(state, 'player-2', { type: 'StartPauseTerminationVote' }),
+        clock.ports,
+      ).result,
+    ).toMatchObject({
+      accepted: false,
+      errorCode: 'PAUSE_VOTE_NOT_AVAILABLE',
+    });
+
+    clock.setNow('2026-08-13T10:01:00.000Z');
+    state = accepted(
+      state,
+      'player-2',
+      { type: 'StartPauseTerminationVote' },
+      clock.ports,
+    );
+    expect(state.pauseTerminationVote).toMatchObject({
+      startedAt: '2026-08-13T10:01:00.000Z',
+      expiresAt: '2026-08-13T10:01:30.000Z',
+      eligiblePlayerIds: ['player-1', 'player-2', 'player-3', 'player-4'],
+      choices: {},
+    });
+    expect(buildPublicGameState(state).pauseTerminationVote).toEqual({
+      startedAt: '2026-08-13T10:01:00.000Z',
+      expiresAt: '2026-08-13T10:01:30.000Z',
+      eligibleCount: 4,
+      submittedCount: 0,
+    });
+    expect(JSON.stringify(buildPublicGameState(state))).not.toContain(
+      'choices',
+    );
+  });
+
+  it('continues pausing only after a strict online-voter majority and applies a new cooldown', () => {
+    const clock = controllablePorts();
+    let state = startAndAcknowledge(5, clock.ports);
+    state = accepted(
+      state,
+      state.hostPlayerId,
+      { type: 'PauseGame' },
+      clock.ports,
+    );
+    clock.setNow('2026-08-13T10:01:00.000Z');
+    state = accepted(
+      state,
+      'player-2',
+      { type: 'StartPauseTerminationVote' },
+      clock.ports,
+    );
+    for (const playerId of ['player-1', 'player-2', 'player-3']) {
+      state = accepted(
+        state,
+        playerId,
+        { type: 'SubmitPauseTerminationVote', choice: 'CONTINUE_PAUSE' },
+        clock.ports,
+      );
+    }
+    expect(state.phase).toBe('PAUSED');
+    expect(state.pauseTerminationVote).toBeUndefined();
+    expect(state.pauseTerminationVoteAvailableAt).toBe(
+      '2026-08-13T10:02:00.000Z',
+    );
+  });
+
+  it('aborts when all online voters submit without a continue majority or the 30-second deadline expires', () => {
+    const clock = controllablePorts();
+    let state = startAndAcknowledge(5, clock.ports);
+    state = accepted(
+      state,
+      state.hostPlayerId,
+      { type: 'PauseGame' },
+      clock.ports,
+    );
+    clock.setNow('2026-08-13T10:01:00.000Z');
+    state = accepted(
+      state,
+      'player-1',
+      { type: 'StartPauseTerminationVote' },
+      clock.ports,
+    );
+    const choices = [
+      'CONTINUE_PAUSE',
+      'CONTINUE_PAUSE',
+      'TERMINATE',
+      'TERMINATE',
+      'TERMINATE',
+    ] as const;
+    state.players.forEach((player, index) => {
+      state = accepted(
+        state,
+        player.playerId,
+        {
+          type: 'SubmitPauseTerminationVote',
+          choice: choices[index] ?? 'TERMINATE',
+        },
+        clock.ports,
+      );
+    });
+    expect(state).toMatchObject({
+      phase: 'GAME_OVER',
+      gameOutcome: { winner: 'NONE', reason: 'ABORTED' },
+    });
+
+    let deadlineState = startAndAcknowledge(5, clock.ports);
+    clock.setNow('2026-08-13T11:00:00.000Z');
+    deadlineState = accepted(
+      deadlineState,
+      deadlineState.hostPlayerId,
+      { type: 'PauseGame' },
+      clock.ports,
+    );
+    clock.setNow('2026-08-13T11:01:00.000Z');
+    deadlineState = accepted(
+      deadlineState,
+      'player-1',
+      { type: 'StartPauseTerminationVote' },
+      clock.ports,
+    );
+    clock.setNow('2026-08-13T11:01:30.000Z');
+    const expired = expirePauseTerminationVote(deadlineState, clock.ports);
+    expect(expired.state).toMatchObject({
+      phase: 'GAME_OVER',
+      gameOutcome: { winner: 'NONE', reason: 'ABORTED' },
+    });
   });
 
   it('describes fixed audio effects and replays only the current cue as a new instance', () => {

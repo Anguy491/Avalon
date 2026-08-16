@@ -4,7 +4,7 @@
 
 | Issue | 本次实现 | 证据 | 状态 |
 | --- | --- | --- | --- |
-| `M6-001` | 严格心跳/撤销/维护/音频遥测契约；Unicode 暂停原因；10 秒 Socket 租约；30 分钟恢复期限；滚动会话续期；恢复期限和 Outbox cue 迁移 | `protocol.contract.test.ts`、`engine.test.ts`、`dependencies.integration.test.ts`、`000003_m6_recovery_audio_delivery.cjs` | 已实现 |
+| `M6-001` | 严格心跳/撤销/维护/音频遥测契约；Unicode 暂停原因；10 秒 Socket 租约；60 分钟活跃暂停期限；在线选民终止投票；滚动会话续期；恢复/投票期限和 Outbox cue 迁移 | `protocol.contract.test.ts`、`engine.test.ts`、`m3-lobby.integration.test.ts`、`000003_m6_recovery_audio_delivery.cjs`、`000005_pause_termination_vote.cjs` | 已实现；容器集成需可用 Docker runtime 复验 |
 | `M6-002` | 启动/回前台单飞 HTTP 恢复；`session.ready/RESYNC` 后才连接；NetInfo、有限退避、草稿清理信号、连接提示和暂停遮罩 | `session-provider.tsx`、`session-status-layer.tsx`、移动端组件测试 | 已实现；原生视觉证据待设备运行 |
 | `M6-003` | 正式中文音频、字幕、清单、哈希、授权与播放器 | 无获批素材、逐字字幕或书面授权记录 | **资产门槛阻塞，未实现** |
 | `M6-004` | Outbox 仅记录事务中新 cue；只有房主匹配 `LIVE` cue 时 `shouldPlayAudio=true`；`RESYNC` 恒 false；客户端保留投影信封；主动重播命令已贯通；最小聚合遥测契约 | `m5-projection.test.ts`、契约测试 | 服务端语义已实现；播放器去重/中断处理随 `M6-003` 阻塞 |
@@ -17,17 +17,17 @@
 | 规范编号 | 实现位置 | 验收证据 |
 | --- | --- | --- |
 | `RULE-021` | `packages/game-engine` 的固定 `AudioCue` 与显式 `ReplayAudioCue`；Outbox cue 实例 | `engine.test.ts`、`m5-projection.test.ts` |
-| `RULE-022` | `applyConnectionChanged`、`ConnectionService`、固定 `hostPlayerId` | 暂停原因/秘密保持测试；连接租约集成测试 |
+| `RULE-022`–`RULE-023` | `applyConnectionChanged`、`ConnectionService`、终止投票领域命令、固定 `hostPlayerId` | 暂停原因/秘密保持、在线选民快照、严格多数和截止测试；连接租约集成测试 |
 | `SM-003` | HTTP 原子 token 轮换、认证心跳滚动续期、移动端单飞恢复 | `m2.integration.test.ts`、移动端会话测试 |
 | `SM-014`–`SM-015` | 手动原因规范化、公开投影、独立清除 | `engine.test.ts`、协议契约测试 |
 | `SM-016` | `live_audio_cue_id` 与房主 `LIVE` 投影匹配 | `m5-projection.test.ts` |
-| `SM-020`–`SM-021` | Redis 最新租约、10 秒截止、PostgreSQL 行锁转换、30 分钟索引期限 | `dependencies.integration.test.ts`、`connection-service.ts` |
+| `SM-020`–`SM-023` | Redis 最新租约、10 秒截止、PostgreSQL 行锁转换、30 秒投票与 60 分钟索引期限 | `m3-lobby.integration.test.ts`、`connection-service.ts`、`command-service.ts` |
 | `FR-016`、`FR-035`–`FR-039` | 固定字幕/正式音频包 | **正式素材门槛阻塞** |
-| `FR-040`–`FR-045` | 暂停命令、离线玩家、恢复期限、不可穿透遮罩、房主不转移 | 引擎测试与 `session-status-layer.tsx` |
+| `FR-040`–`FR-049` | 暂停命令、离线玩家、恢复期限、在线终止投票、不可穿透遮罩、房主不转移、自动返首页 | 引擎/投影/移动测试与 `session-status-layer.tsx` |
 | `FR-046`–`FR-047` | 命令 ID 重试、状态版本重同步、本地化错误、维护诊断码 | 命令提交/会话 Provider 测试 |
 | `AC-010`–`AC-011` | 普通玩家/房主租约到期暂停并原状态恢复 | 引擎与 Redis 集成测试；原生 E2E 待运行 |
 | `AC-012` | `LIVE`/`RESYNC` 播放裁决和新重播 ID | 服务端投影测试；真实播放待素材 |
-| `NFR-005`–`NFR-007` | 10 秒服务端截止、30 分钟 DB 期限、事务/Outbox | 可控时钟测试、集成测试 |
+| `NFR-005`–`NFR-007` | 10 秒服务端截止、30 秒投票/60 分钟 DB 期限、事务/Outbox | 可控时钟测试、集成测试 |
 | `NFR-015`、`NFR-021` | 固定资源与系统音频中断 | **正式素材及真机门槛阻塞** |
 | `NFR-023`–`NFR-024` | 有限标签第一方计数；离线只读且无命令队列 | 严格遥测 Schema、NetInfo/提交门禁 |
 

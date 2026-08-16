@@ -1,7 +1,9 @@
 import type postgres from 'postgres';
 
 import {
+  PAUSE_TERMINATION_VOTE_DELAY_MS,
   applyConnectionChanged,
+  expirePauseTerminationVote,
   expirePausedGame,
   type DomainEffect,
   type EnginePorts,
@@ -17,7 +19,8 @@ import type {
 } from './session-presence.js';
 
 const SCHEMA = 'avalon_runtime';
-const RECOVERY_WINDOW_MS = 30 * 60 * 1_000;
+const LOBBY_RECOVERY_WINDOW_MS = 30 * 60 * 1_000;
+const PAUSED_RECOVERY_WINDOW_MS = 60 * 60 * 1_000;
 
 interface RoomRow {
   readonly room_id: string;
@@ -25,6 +28,7 @@ interface RoomRow {
   readonly phase: string;
   readonly recovery_started_at: Date | null;
   readonly recovery_expires_at: Date | null;
+  readonly pause_vote_expires_at: Date | null;
 }
 
 interface ReconciliationRow {
@@ -40,7 +44,11 @@ interface ReconciliationRow {
 function enginePorts(ports: RuntimePorts): EnginePorts {
   return {
     random: ports.random,
-    clock: { nowIso: () => ports.clock.now().toISOString() },
+    clock: {
+      nowIso: () => ports.clock.now().toISOString(),
+      addMilliseconds: (iso, milliseconds) =>
+        new Date(Date.parse(iso) + milliseconds).toISOString(),
+    },
     ids: { nextId: () => ports.ids.next() },
   };
 }
@@ -59,6 +67,8 @@ function withRecoveryWindow(
       ...state,
       recoveryStartedAt: undefined,
       recoveryExpiresAt: undefined,
+      pauseTerminationVoteAvailableAt: undefined,
+      pauseTerminationVote: undefined,
     };
   }
   if (
@@ -67,20 +77,47 @@ function withRecoveryWindow(
     (state.recoveryExpiresAt !== undefined ||
       persisted.recovery_expires_at !== null)
   ) {
+    const recoveryStartedAt =
+      state.recoveryStartedAt ?? persisted.recovery_started_at?.toISOString();
+    if (recoveryStartedAt === undefined) {
+      throw new Error('Recovery state lost its start time');
+    }
+    const recoveryWindowMs =
+      state.phase === 'PAUSED'
+        ? PAUSED_RECOVERY_WINDOW_MS
+        : LOBBY_RECOVERY_WINDOW_MS;
     return {
       ...state,
-      recoveryStartedAt:
-        state.recoveryStartedAt ?? persisted.recovery_started_at?.toISOString(),
-      recoveryExpiresAt:
-        state.recoveryExpiresAt ?? persisted.recovery_expires_at?.toISOString(),
+      recoveryStartedAt,
+      recoveryExpiresAt: new Date(
+        Date.parse(recoveryStartedAt) + recoveryWindowMs,
+      ).toISOString(),
+      ...(state.phase === 'PAUSED'
+        ? {
+            pauseTerminationVoteAvailableAt:
+              state.pauseTerminationVoteAvailableAt ??
+              new Date(
+                Date.parse(recoveryStartedAt) + PAUSE_TERMINATION_VOTE_DELAY_MS,
+              ).toISOString(),
+          }
+        : {}),
     };
   }
+  const recoveryWindowMs =
+    state.phase === 'PAUSED'
+      ? PAUSED_RECOVERY_WINDOW_MS
+      : LOBBY_RECOVERY_WINDOW_MS;
   return {
     ...state,
     recoveryStartedAt: now.toISOString(),
-    recoveryExpiresAt: new Date(
-      now.getTime() + RECOVERY_WINDOW_MS,
-    ).toISOString(),
+    recoveryExpiresAt: new Date(now.getTime() + recoveryWindowMs).toISOString(),
+    ...(state.phase === 'PAUSED'
+      ? {
+          pauseTerminationVoteAvailableAt: new Date(
+            now.getTime() + PAUSE_TERMINATION_VOTE_DELAY_MS,
+          ).toISOString(),
+        }
+      : {}),
   };
 }
 
@@ -134,6 +171,7 @@ export class ConnectionService {
     }
     const expired = (await this.presence.claimExpired?.(now)) ?? [];
     for (const lease of expired) await this.markExpired(lease);
+    await this.expirePauseVotes(now);
     await this.expireRecoveryWindows(now);
   }
 
@@ -184,7 +222,8 @@ export class ConnectionService {
     await this.sql.begin(async (sql) => {
       const [room] = await sql<RoomRow[]>`
         select room_id, aggregate, phase,
-               recovery_started_at, recovery_expires_at
+               recovery_started_at, recovery_expires_at,
+               pause_vote_expires_at
           from ${sql(SCHEMA)}.rooms
          where room_id = ${roomId}
          for update
@@ -204,8 +243,12 @@ export class ConnectionService {
       const recoveryExpiresAt =
         recoveryStartedAt === null
           ? null
-          : (room.recovery_expires_at ??
-            new Date(recoveryStartedAt.getTime() + RECOVERY_WINDOW_MS));
+          : new Date(
+              recoveryStartedAt.getTime() +
+                (windowed.phase === 'PAUSED'
+                  ? PAUSED_RECOVERY_WINDOW_MS
+                  : LOBBY_RECOVERY_WINDOW_MS),
+            );
       const next: GameState = {
         ...windowed,
         recoveryStartedAt: recoveryStartedAt?.toISOString(),
@@ -217,6 +260,7 @@ export class ConnectionService {
              set state_version = ${next.stateVersion}, phase = ${next.phase},
                  aggregate = ${sql.json(next as unknown as postgres.JSONValue)},
                  recovery_started_at = null, recovery_expires_at = null,
+                 pause_vote_expires_at = null,
                  last_active_at = ${now}
            where room_id = ${roomId}
         `;
@@ -225,8 +269,9 @@ export class ConnectionService {
           update ${sql(SCHEMA)}.rooms
              set state_version = ${next.stateVersion}, phase = ${next.phase},
                  aggregate = ${sql.json(next as unknown as postgres.JSONValue)},
-                 recovery_started_at = coalesce(recovery_started_at, ${now}),
-                 recovery_expires_at = coalesce(recovery_expires_at, ${recoveryExpiresAt}),
+                 recovery_started_at = ${recoveryStartedAt},
+                 recovery_expires_at = ${recoveryExpiresAt},
+                 pause_vote_expires_at = ${next.pauseTerminationVote?.expiresAt ?? null},
                  last_active_at = ${now}
            where room_id = ${roomId}
         `;
@@ -239,10 +284,57 @@ export class ConnectionService {
     });
   }
 
+  private async expirePauseVotes(now: Date): Promise<void> {
+    const rooms = await this.sql<RoomRow[]>`
+      select room_id, aggregate, phase, recovery_started_at,
+             recovery_expires_at, pause_vote_expires_at
+        from ${this.sql(SCHEMA)}.rooms
+       where pause_vote_expires_at <= ${now}
+       order by pause_vote_expires_at
+       limit 25
+    `;
+    for (const candidate of rooms) {
+      await this.sql.begin(async (sql) => {
+        const [room] = await sql<RoomRow[]>`
+          select room_id, aggregate, phase, recovery_started_at,
+                 recovery_expires_at, pause_vote_expires_at
+            from ${sql(SCHEMA)}.rooms
+           where room_id = ${candidate.room_id}
+             and pause_vote_expires_at <= ${now}
+           for update skip locked
+        `;
+        if (room === undefined) return;
+        const state = stateFrom(room.aggregate);
+        const transition = expirePauseTerminationVote(
+          state,
+          enginePorts(this.ports),
+        );
+        if (transition.state === state) return;
+        const next = transition.state;
+        await sql`
+          update ${sql(SCHEMA)}.rooms
+             set state_version = ${next.stateVersion}, phase = ${next.phase},
+                 aggregate = ${sql.json(next as unknown as postgres.JSONValue)},
+                 recovery_started_at = null, recovery_expires_at = null,
+                 pause_vote_expires_at = null, last_active_at = ${now}
+           where room_id = ${room.room_id}
+        `;
+        await this.addOutbox(
+          sql,
+          room.room_id,
+          next.stateVersion,
+          liveAudioCueId(transition.effects),
+          now,
+        );
+      });
+    }
+  }
+
   private async expireRecoveryWindows(now: Date): Promise<void> {
     const rooms = await this.sql<RoomRow[]>`
       select room_id, aggregate, phase,
-             recovery_started_at, recovery_expires_at
+             recovery_started_at, recovery_expires_at,
+             pause_vote_expires_at
         from ${this.sql(SCHEMA)}.rooms
        where recovery_expires_at <= ${now}
        order by recovery_expires_at
@@ -252,7 +344,8 @@ export class ConnectionService {
       await this.sql.begin(async (sql) => {
         const [room] = await sql<RoomRow[]>`
           select room_id, aggregate, phase,
-                 recovery_started_at, recovery_expires_at
+                 recovery_started_at, recovery_expires_at,
+                 pause_vote_expires_at
             from ${sql(SCHEMA)}.rooms
            where room_id = ${candidate.room_id}
              and recovery_expires_at <= ${now}
@@ -277,6 +370,7 @@ export class ConnectionService {
              set state_version = ${next.stateVersion}, phase = ${next.phase},
                  aggregate = ${sql.json(next as unknown as postgres.JSONValue)},
                  recovery_started_at = null, recovery_expires_at = null,
+                 pause_vote_expires_at = null,
                  last_active_at = ${now}
            where room_id = ${room.room_id}
         `;

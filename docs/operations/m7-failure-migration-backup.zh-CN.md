@@ -10,7 +10,7 @@
 | PostgreSQL/Redis 短断 | 强制终止已有客户端连接 | readiness 暂时失败；连接可用后 5 秒内重建池/连接并继续 |
 | Outbox 重复/延迟 | claim 后崩溃、发布后重入 | 同 eventId；版本单调；裁决不重复 |
 | 双实例 token 轮换 | 两实例并发 resume | 代际单调且同一旧 token 只轮换一次；旧 Socket 收到 `SESSION_REPLACED` |
-| 30 分钟边界/时钟偏移 | 注入服务器 Clock port | 到期只产生 `ABORTED`，不判阵营胜负 |
+| 30 秒投票与 60 分钟暂停边界/时钟偏移 | 注入服务器 Clock port | 未获继续多数或硬上限到期只产生 `ABORTED`，不判阵营胜负 |
 
 ## 前向迁移与应用回滚
 

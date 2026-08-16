@@ -1,6 +1,7 @@
 import type postgres from 'postgres';
 
 import {
+  PAUSE_TERMINATION_VOTE_DELAY_MS,
   executeCommand,
   type DomainEffect,
   type EnginePorts,
@@ -38,9 +39,10 @@ interface RoomRow {
   readonly aggregate: unknown;
   readonly recovery_started_at: Date | null;
   readonly recovery_expires_at: Date | null;
+  readonly pause_vote_expires_at: Date | null;
 }
 
-const RECOVERY_WINDOW_MS = 30 * 60 * 1_000;
+const PAUSED_RECOVERY_WINDOW_MS = 60 * 60 * 1_000;
 
 function withRecoveryWindow(
   state: GameState,
@@ -52,6 +54,8 @@ function withRecoveryWindow(
       ...state,
       recoveryStartedAt: undefined,
       recoveryExpiresAt: undefined,
+      pauseTerminationVoteAvailableAt: undefined,
+      pauseTerminationVote: undefined,
     };
   }
   if (
@@ -60,19 +64,32 @@ function withRecoveryWindow(
     (state.recoveryExpiresAt !== undefined ||
       persisted.recovery_expires_at !== null)
   ) {
+    const recoveryStartedAt =
+      state.recoveryStartedAt ?? persisted.recovery_started_at?.toISOString();
+    if (recoveryStartedAt === undefined) {
+      throw new Error('Paused state lost its recovery start');
+    }
     return {
       ...state,
-      recoveryStartedAt:
-        state.recoveryStartedAt ?? persisted.recovery_started_at?.toISOString(),
-      recoveryExpiresAt:
-        state.recoveryExpiresAt ?? persisted.recovery_expires_at?.toISOString(),
+      recoveryStartedAt,
+      recoveryExpiresAt: new Date(
+        Date.parse(recoveryStartedAt) + PAUSED_RECOVERY_WINDOW_MS,
+      ).toISOString(),
+      pauseTerminationVoteAvailableAt:
+        state.pauseTerminationVoteAvailableAt ??
+        new Date(
+          Date.parse(recoveryStartedAt) + PAUSE_TERMINATION_VOTE_DELAY_MS,
+        ).toISOString(),
     };
   }
   return {
     ...state,
     recoveryStartedAt: now.toISOString(),
     recoveryExpiresAt: new Date(
-      now.getTime() + RECOVERY_WINDOW_MS,
+      now.getTime() + PAUSED_RECOVERY_WINDOW_MS,
+    ).toISOString(),
+    pauseTerminationVoteAvailableAt: new Date(
+      now.getTime() + PAUSE_TERMINATION_VOTE_DELAY_MS,
     ).toISOString(),
   };
 }
@@ -87,7 +104,11 @@ function liveAudioCueId(effects: readonly DomainEffect[]): string | null {
 function enginePorts(ports: RuntimePorts): EnginePorts {
   return {
     random: ports.random,
-    clock: { nowIso: () => ports.clock.now().toISOString() },
+    clock: {
+      nowIso: () => ports.clock.now().toISOString(),
+      addMilliseconds: (iso, milliseconds) =>
+        new Date(Date.parse(iso) + milliseconds).toISOString(),
+    },
     ids: { nextId: () => ports.ids.next() },
   };
 }
@@ -130,6 +151,7 @@ function toEngineCommand(
     case 'ContinuePhase':
     case 'AckRole':
     case 'ResumeGame':
+    case 'StartPauseTerminationVote':
       return { ...envelope, type: command.type };
     case 'SubmitTeam': {
       const payload = command.payload as { readonly teamPlayerIds: string[] };
@@ -151,6 +173,16 @@ function toEngineCommand(
         type: command.type,
         choice: (command.payload as { readonly choice: 'SUCCESS' | 'FAIL' })
           .choice,
+      };
+    case 'SubmitPauseTerminationVote':
+      return {
+        ...envelope,
+        type: command.type,
+        choice: (
+          command.payload as {
+            readonly choice: 'TERMINATE' | 'CONTINUE_PAUSE';
+          }
+        ).choice,
       };
     case 'SelectMerlinTarget':
       return {
@@ -274,7 +306,8 @@ export class CommandService {
       }
 
       const [room] = await sql<RoomRow[]>`
-        select aggregate, recovery_started_at, recovery_expires_at
+        select aggregate, recovery_started_at, recovery_expires_at,
+               pause_vote_expires_at
           from ${sql(SCHEMA)}.rooms
          where room_id = ${context.roomId}
          for update
@@ -310,8 +343,7 @@ export class CommandService {
       const recoveryExpiresAt =
         recoveryStartedAt === null
           ? null
-          : (room.recovery_expires_at ??
-            new Date(recoveryStartedAt.getTime() + RECOVERY_WINDOW_MS));
+          : new Date(recoveryStartedAt.getTime() + PAUSED_RECOVERY_WINDOW_MS);
       const storedState: GameState = {
         ...windowed,
         recoveryStartedAt: recoveryStartedAt?.toISOString(),
@@ -352,6 +384,7 @@ export class CommandService {
                  phase = ${storedState.phase},
                  aggregate = ${sql.json(storedState as unknown as postgres.JSONValue)},
                  recovery_started_at = null, recovery_expires_at = null,
+                 pause_vote_expires_at = null,
                  last_active_at = ${now}
            where room_id = ${context.roomId}
         `;
@@ -361,8 +394,9 @@ export class CommandService {
              set state_version = ${storedState.stateVersion},
                  phase = ${storedState.phase},
                  aggregate = ${sql.json(storedState as unknown as postgres.JSONValue)},
-                 recovery_started_at = coalesce(recovery_started_at, ${now}),
-                 recovery_expires_at = coalesce(recovery_expires_at, ${recoveryExpiresAt}),
+                 recovery_started_at = ${recoveryStartedAt},
+                 recovery_expires_at = ${recoveryExpiresAt},
+                 pause_vote_expires_at = ${storedState.pauseTerminationVote?.expiresAt ?? null},
                  last_active_at = ${now}
            where room_id = ${context.roomId}
         `;

@@ -51,6 +51,10 @@ export const PhaseStageSchema = literalUnion([
 ] as const);
 export const TeamVoteSchema = literalUnion(['APPROVE', 'REJECT'] as const);
 export const QuestChoiceSchema = literalUnion(['SUCCESS', 'FAIL'] as const);
+export const PauseTerminationChoiceSchema = literalUnion([
+  'TERMINATE',
+  'CONTINUE_PAUSE',
+] as const);
 export const QuestResultSchema = literalUnion(['SUCCESS', 'FAILURE'] as const);
 export const WinnerSchema = literalUnion(['GOOD', 'EVIL', 'NONE'] as const);
 export const GameOutcomeReasonSchema = literalUnion([
@@ -73,6 +77,8 @@ export const CommandTypeSchema = literalUnion([
   'SelectMerlinTarget',
   'PauseGame',
   'ResumeGame',
+  'StartPauseTerminationVote',
+  'SubmitPauseTerminationVote',
   'ReplayAudioCue',
   'LeaveLobby',
   'KickLobbyPlayer',
@@ -108,6 +114,9 @@ export const ErrorCodeSchema = literalUnion([
   'PLAYERS_OFFLINE',
   'AUDIO_CUE_NOT_FOUND',
   'INVALID_PAUSE_REASON',
+  'PAUSE_VOTE_NOT_AVAILABLE',
+  'PAUSE_VOTE_NOT_ELIGIBLE',
+  'PAUSE_VOTE_CLOSED',
   'UPGRADE_REQUIRED',
   'RATE_LIMITED',
   'VALIDATION_ERROR',
@@ -128,6 +137,7 @@ const definitions = {
   PhaseStage: PhaseStageSchema,
   TeamVote: TeamVoteSchema,
   QuestChoice: QuestChoiceSchema,
+  PauseTerminationChoice: PauseTerminationChoiceSchema,
   QuestResult: QuestResultSchema,
   Winner: WinnerSchema,
   GameOutcomeReason: GameOutcomeReasonSchema,
@@ -148,6 +158,9 @@ export type GamePhase = Static<typeof GamePhaseSchema>;
 export type PhaseStage = Static<typeof PhaseStageSchema>;
 export type TeamVote = Static<typeof TeamVoteSchema>;
 export type QuestChoice = Static<typeof QuestChoiceSchema>;
+export type PauseTerminationChoice = Static<
+  typeof PauseTerminationChoiceSchema
+>;
 export type QuestResult = Static<typeof QuestResultSchema>;
 export type Winner = Static<typeof WinnerSchema>;
 export type GameOutcomeReason = Static<typeof GameOutcomeReasonSchema>;

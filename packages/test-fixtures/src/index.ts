@@ -83,7 +83,11 @@ export function createFixedEnginePorts(
           }),
         ),
     },
-    clock: { nowIso: () => FIXTURE_CLOCK_ISO },
+    clock: {
+      nowIso: () => FIXTURE_CLOCK_ISO,
+      addMilliseconds: (iso, milliseconds) =>
+        new Date(Date.parse(iso) + milliseconds).toISOString(),
+    },
     ids: {
       nextId: () => {
         idIndex += 1;
