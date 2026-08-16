@@ -1,4 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, Text, View } from 'react-native';
@@ -13,6 +12,7 @@ import {
   audioSourceFor,
   type VoicePackKey,
 } from './voice-pack.generated';
+import { audioPreferenceStore } from './audio-preference-store';
 
 const MUTED_KEY = 'avalon.audio.muted.v1';
 const VOLUME_KEY = 'avalon.audio.volume.v1';
@@ -39,8 +39,8 @@ export function HostAudioControl() {
 
   useEffect(() => {
     void Promise.all([
-      SecureStore.getItemAsync(MUTED_KEY),
-      SecureStore.getItemAsync(VOLUME_KEY),
+      audioPreferenceStore.getItem(MUTED_KEY),
+      audioPreferenceStore.getItem(VOLUME_KEY),
     ]).then(([mutedValue, volumeValue]) => {
       setMuted(mutedValue === '1');
       if (volumeValue !== null) {
@@ -136,7 +136,7 @@ export function HostAudioControl() {
             onPress={() => {
               const next = !muted;
               setMuted(next);
-              void SecureStore.setItemAsync(MUTED_KEY, next ? '1' : '0');
+              void audioPreferenceStore.setItem(MUTED_KEY, next ? '1' : '0');
             }}
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >
@@ -150,7 +150,7 @@ export function HostAudioControl() {
             onPress={() => {
               const next = Math.max(0, Number((volume - 0.1).toFixed(1)));
               setVolume(next);
-              void SecureStore.setItemAsync(VOLUME_KEY, String(next));
+              void audioPreferenceStore.setItem(VOLUME_KEY, String(next));
             }}
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >
@@ -164,7 +164,7 @@ export function HostAudioControl() {
             onPress={() => {
               const next = Math.min(1, Number((volume + 0.1).toFixed(1)));
               setVolume(next);
-              void SecureStore.setItemAsync(VOLUME_KEY, String(next));
+              void audioPreferenceStore.setItem(VOLUME_KEY, String(next));
             }}
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >

@@ -14,6 +14,7 @@
 - [架构总览](./architecture/README.md)与 [ADR 目录](./architecture/README.md#6-决策记录)；
 - [HTTP 与实时协议契约](./api-contract.zh-CN.md)和 [Schema 目录](./contracts/README.md)；
 - [测试策略](./test-strategy.zh-CN.md)；
+- [单模拟器多玩家验收手册](./acceptance-multiplayer.zh-CN.md)；
 - [安全威胁模型](./Avalon-threat-model.md)；
 - [MVP 实施路线图](./roadmap.zh-CN.md)；
 - [M0 本地开发、配置与验证](./development.zh-CN.md)；

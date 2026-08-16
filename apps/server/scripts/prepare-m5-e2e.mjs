@@ -146,10 +146,19 @@ try {
   await redis.connect();
   let realtimeReady = false;
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    const lease = await redis.get(
+    const rawLease = await redis.get(
       `avalon:session-presence:${simulatorSession.session_id}`,
     );
-    if (lease === row.room_id) {
+    let lease;
+    try {
+      lease = rawLease === null ? undefined : JSON.parse(rawLease);
+    } catch {
+      lease = undefined;
+    }
+    if (
+      lease?.roomId === row.room_id &&
+      lease?.sessionId === simulatorSession.session_id
+    ) {
       realtimeReady = true;
       break;
     }
@@ -157,6 +166,38 @@ try {
   }
   if (!realtimeReady)
     throw new Error('Timed out waiting for simulator realtime');
+
+  // The presence lease is written before ConnectionService persists the
+  // connected player and advances the room version. Wait for that authority
+  // update so this fixture cannot reuse its version and have the injected
+  // projection superseded by the normal connection projection.
+  let connectedRow;
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const [candidate] = await sql`
+      select room_id, state_version, aggregate
+        from avalon_runtime.rooms
+       where room_id = ${row.room_id}
+    `;
+    const aggregate =
+      typeof candidate?.aggregate === 'string'
+        ? JSON.parse(candidate.aggregate)
+        : candidate?.aggregate;
+    if (
+      candidate !== undefined &&
+      aggregate?.players?.some(
+        (player) =>
+          player.playerId === assassin.playerId && player.connected === true,
+      )
+    ) {
+      connectedRow = { ...candidate, aggregate };
+      break;
+    }
+    await delay(250);
+  }
+  if (connectedRow === undefined) {
+    throw new Error('Timed out waiting for connected room authority');
+  }
+  row = connectedRow;
 
   const roleAssignments = {
     [merlin.playerId]: 'MERLIN',

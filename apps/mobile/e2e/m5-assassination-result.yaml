@@ -55,5 +55,10 @@ name: M5 assassination, terminal result, and local cleanup
     element:
       text: '返回首页并清理本机会话'
     direction: DOWN
+- swipe:
+    start: '50%,80%'
+    end: '50%,35%'
+    duration: 400
+- assertVisible: '返回首页并清理本机会话'
 - tapOn: '返回首页并清理本机会话'
 - assertVisible: '让手机保管秘密'

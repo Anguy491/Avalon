@@ -105,6 +105,8 @@ pnpm build
 
 可用 `LOAD_BASE_URL` 指向隔离服务端口，用 `LOAD_ROOM_COUNT` 在 1–1,000 内调整房间数；服务端的本地限流配置必须容纳对应请求量。该脚本是短时 M4 多房间烟测，不是 `NFR-004` 的 1,000 房/10,000 连接、持续 30 分钟候选发布验证。
 
+单台模拟器配合 4–9 个协议 Bot、定向验收场景和独立 Web BrowserContext 的操作见[多玩家验收手册](./acceptance-multiplayer.zh-CN.md)。
+
 ## 6. Development Build 与 CNG
 
 移动端提供 `development`、`preview`、`production` 三个 EAS profile，并安装 `expo-dev-client`。原生目录由 CNG 生成且不提交：

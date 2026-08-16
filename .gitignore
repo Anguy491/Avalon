@@ -35,6 +35,7 @@ build/
 web-build/
 test-results/
 playwright-report/
+output/
 *.apk
 *.aab
 *.ipa

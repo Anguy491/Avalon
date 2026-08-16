@@ -1,13 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
-import {
-  clearInterval,
-  clearTimeout,
-  setInterval,
-  setTimeout,
-} from 'node:timers';
+import { setTimeout } from 'node:timers';
 
-import { io } from 'socket.io-client';
+import {
+  commandEnvelope,
+  createProtocolTestClient,
+  inspectProjection,
+} from './lib/protocol-test-client.mjs';
 
 const baseUrl = process.env.LOAD_BASE_URL ?? 'http://127.0.0.1:3000';
 const roomCount = Number.parseInt(process.env.LOAD_ROOM_COUNT ?? '20', 10);
@@ -20,17 +18,11 @@ const playerCountForRoom = (roomIndex) =>
 const maximumHttpP95Milliseconds = 2_000;
 const maximumRealtimeP95Milliseconds = 1_000;
 const realtimeTimeoutMilliseconds = 10_000;
-const forbiddenPublicKeys = new Set([
-  'sessionToken',
-  'roleAssignments',
-  'privateKnowledge',
-  'selfRole',
-  'selfAlignment',
-  'knownPlayers',
-  'allowedQuestChoices',
-  'questChoices',
-  'teamVotes',
-]);
+const protocol = createProtocolTestClient({
+  apiOrigin: baseUrl,
+  realtimeUrl: `${baseUrl}/game-v1`,
+  appVersion: '0.1.0-load',
+});
 
 if (!Number.isInteger(roomCount) || roomCount < 1 || roomCount > 1_000) {
   throw new Error('LOAD_ROOM_COUNT must be an integer between 1 and 1000');
@@ -44,73 +36,8 @@ if (
   throw new Error('LOAD_PLAYERS_PER_ROOM must be an integer between 5 and 10');
 }
 
-const client = (platform, installationId) => ({
-  protocolVersion: 1,
-  platform,
-  appVersion: '0.1.0-load',
-  installationId,
-  voicePackVersions: ['zh-CN-v1'],
-});
-
-function assertBootstrap(payload) {
-  if (
-    typeof payload !== 'object' ||
-    payload === null ||
-    typeof payload.roomCode !== 'string' ||
-    typeof payload.playerId !== 'string' ||
-    typeof payload.sessionToken !== 'string' ||
-    typeof payload.roomView !== 'object' ||
-    payload.roomView === null
-  ) {
-    throw new Error('Session bootstrap was incomplete');
-  }
-  return payload;
-}
-
 async function timedRequest(path, body, platform) {
-  const startedAt = performance.now();
-  const response = await fetch(`${baseUrl}${path}`, {
-    method: 'POST',
-    headers: {
-      accept: 'application/json',
-      'content-type': 'application/json',
-      'idempotency-key': randomUUID(),
-      'x-protocol-version': '1',
-    },
-    body: JSON.stringify({
-      ...body,
-      client: client(platform, randomUUID()),
-    }),
-  });
-  const elapsed = performance.now() - startedAt;
-  if (response.status !== 201) {
-    throw new Error(`${path} received HTTP ${response.status}`);
-  }
-
-  return { elapsed, payload: assertBootstrap(await response.json()) };
-}
-
-async function readCurrentView(sessionToken) {
-  const response = await fetch(`${baseUrl}/v1/rooms/current/view`, {
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${sessionToken}`,
-      'x-protocol-version': '1',
-    },
-  });
-  if (response.status !== 200) {
-    throw new Error(`current view received HTTP ${response.status}`);
-  }
-  const payload = await response.json();
-  if (
-    typeof payload !== 'object' ||
-    payload === null ||
-    typeof payload.roomView !== 'object' ||
-    payload.roomView === null
-  ) {
-    throw new Error('Current view response was incomplete');
-  }
-  return payload.roomView;
+  return protocol.request(path, body, platform);
 }
 
 function percentile(values, fraction) {
@@ -133,167 +60,12 @@ function summarize(label, timings, maximumP95Milliseconds) {
   return `${label}: n=${timings.length}, p50=${p50.toFixed(1)}ms, p95=${p95.toFixed(1)}ms, p99=${p99.toFixed(1)}ms`;
 }
 
-function findForbiddenPublicKey(value, path = 'public') {
-  if (Array.isArray(value)) {
-    for (const [index, item] of value.entries()) {
-      const found = findForbiddenPublicKey(item, `${path}[${String(index)}]`);
-      if (found !== undefined) return found;
-    }
-    return undefined;
-  }
-  if (typeof value !== 'object' || value === null) return undefined;
-  for (const [key, nested] of Object.entries(value)) {
-    if (forbiddenPublicKeys.has(key)) return `${path}.${key}`;
-    const found = findForbiddenPublicKey(nested, `${path}.${key}`);
-    if (found !== undefined) return found;
-  }
-  return undefined;
-}
-
-function inspectProjection(member, roomView) {
-  if (
-    typeof roomView !== 'object' ||
-    roomView === null ||
-    typeof roomView.public !== 'object' ||
-    roomView.public === null ||
-    typeof roomView.private !== 'object' ||
-    roomView.private === null
-  ) {
-    member.projectionErrors.push('malformed room view');
-    return;
-  }
-  if (roomView.public.roomId !== member.roomId) {
-    member.projectionErrors.push('cross-room public projection');
-  }
-  if (roomView.private.playerId !== member.playerId) {
-    member.projectionErrors.push('cross-player private projection');
-  }
-  const forbidden = findForbiddenPublicKey(roomView.public);
-  if (forbidden !== undefined) {
-    member.projectionErrors.push(`forbidden public field at ${forbidden}`);
-  }
-  const currentVersion = member.lastView?.public?.stateVersion ?? -1;
-  if (
-    typeof roomView.public.stateVersion === 'number' &&
-    roomView.public.stateVersion >= currentVersion
-  ) {
-    member.lastView = roomView;
-  }
-}
-
 function connectMember(bootstrap) {
-  const member = {
-    playerId: bootstrap.playerId,
-    sessionToken: bootstrap.sessionToken,
-    roomId: bootstrap.roomView.public.roomId,
-    socket: undefined,
-    lastView: bootstrap.roomView,
-    projectionErrors: [],
-  };
-  inspectProjection(member, bootstrap.roomView);
-  const socket = io(`${baseUrl}/game-v1`, {
-    autoConnect: false,
-    auth: {
-      protocolVersion: 1,
-      sessionToken: member.sessionToken,
-      lastStateVersion: bootstrap.roomView.public.stateVersion,
-    },
-    forceNew: true,
-    reconnection: false,
-    transports: ['websocket'],
-  });
-  member.socket = socket;
-  sockets.push(socket);
-  socket.on('room.view', (message) => {
-    if (typeof message === 'object' && message !== null) {
-      inspectProjection(member, message.roomView);
-    } else {
-      member.projectionErrors.push('malformed room.view message');
-    }
-  });
-  const heartbeat = setInterval(() => {
-    if (socket.connected) {
-      socket.emit('session.ping', { protocolVersion: 1 }, (pong) => {
-        if (
-          typeof pong !== 'object' ||
-          pong === null ||
-          typeof pong.serverTime !== 'string' ||
-          typeof pong.sessionExpiresAt !== 'string'
-        ) {
-          member.projectionErrors.push('malformed session.pong');
-        }
-      });
-    }
-  }, 2_000);
-  heartbeat.unref();
-  heartbeats.push(heartbeat);
-
-  return new Promise((resolve, reject) => {
-    const startedAt = performance.now();
-    const timer = setTimeout(() => {
-      socket.disconnect();
-      reject(new Error('realtime session.ready timed out'));
-    }, realtimeTimeoutMilliseconds);
-    socket.once('connect_error', (error) => {
-      clearTimeout(timer);
-      socket.disconnect();
-      reject(
-        new Error(
-          `realtime connection was rejected: ${error instanceof Error ? error.message : 'unknown'}`,
-        ),
-      );
-    });
-    socket.once('session.ready', (message) => {
-      clearTimeout(timer);
-      if (
-        typeof message !== 'object' ||
-        message === null ||
-        typeof message.roomView !== 'object' ||
-        message.roomView === null
-      ) {
-        socket.disconnect();
-        reject(new Error('session.ready was malformed'));
-        return;
-      }
-      inspectProjection(member, message.roomView);
-      resolve({ member, elapsed: performance.now() - startedAt });
-    });
-    socket.connect();
-  });
+  return protocol.connectMember(bootstrap);
 }
 
 function emitCommand(member, command) {
-  return new Promise((resolve, reject) => {
-    const startedAt = performance.now();
-    const timer = setTimeout(() => {
-      reject(new Error(`${command.type} ack timed out`));
-    }, realtimeTimeoutMilliseconds);
-    member.socket.emit('command.submit', command, (result) => {
-      clearTimeout(timer);
-      const elapsed = performance.now() - startedAt;
-      if (typeof result !== 'object' || result === null) {
-        reject(new Error(`${command.type} returned a malformed ack`));
-        return;
-      }
-      if (result.accepted !== true || typeof result.stateVersion !== 'number') {
-        const code = result.error?.code ?? 'UNKNOWN';
-        reject(new Error(`${command.type} was rejected with ${code}`));
-        return;
-      }
-      resolve({ elapsed, result });
-    });
-  });
-}
-
-function commandEnvelope(roomId, expectedStateVersion, type, payload = {}) {
-  return {
-    commandId: randomUUID(),
-    roomId,
-    expectedStateVersion,
-    type,
-    payload,
-    sentAt: new Date().toISOString(),
-  };
+  return protocol.emitCommand(member, command);
 }
 
 async function waitForFinalProjection(room, stateVersion) {
@@ -436,8 +208,6 @@ async function playFiveQuests(room, initialStateVersion, commandTimings) {
   return stateVersion;
 }
 
-const sockets = [];
-const heartbeats = [];
 try {
   const createdRooms = await Promise.all(
     Array.from({ length: roomCount }, (_, roomIndex) =>
@@ -547,7 +317,7 @@ try {
 
       stateVersion = await playFiveQuests(room, stateVersion, commandTimings);
       projectionTimings.push(await waitForFinalProjection(room, stateVersion));
-      const authoritative = await readCurrentView(host.sessionToken);
+      const authoritative = await protocol.readCurrentView(host.sessionToken);
       inspectProjection(host, authoritative);
       if (
         authoritative.public.roomId !== room.roomId ||
@@ -599,6 +369,5 @@ try {
     ].join('\n') + '\n',
   );
 } finally {
-  for (const heartbeat of heartbeats) clearInterval(heartbeat);
-  for (const socket of sockets) socket.disconnect();
+  protocol.closeAll();
 }
