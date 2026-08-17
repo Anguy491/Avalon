@@ -130,7 +130,7 @@ export function createProtocolTestClient({
   const members = new Set();
 
   const capabilities = (platform = 'IOS') => ({
-    protocolVersion: 1,
+    protocolVersion: 2,
     platform,
     appVersion,
     installationId: randomUUID(),
@@ -145,7 +145,7 @@ export function createProtocolTestClient({
         accept: 'application/json',
         'content-type': 'application/json',
         'idempotency-key': randomUUID(),
-        'x-protocol-version': '1',
+        'x-protocol-version': '2',
       },
       body: JSON.stringify({
         ...body,
@@ -163,18 +163,18 @@ export function createProtocolTestClient({
     return { elapsed, payload: assertBootstrap(payload) };
   }
 
-  const createRoom = (body, platform) => request('/v1/rooms', body, platform);
+  const createRoom = (body, platform) => request('/v2/rooms', body, platform);
   const joinRoom = (roomCode, nickname, platform) =>
-    request(`/v1/rooms/${roomCode}/players`, { nickname }, platform);
+    request(`/v2/rooms/${roomCode}/players`, { nickname }, platform);
 
   async function readCurrentView(sessionToken) {
     const response = await fetch(
-      `${normalizedApiOrigin}/v1/rooms/current/view`,
+      `${normalizedApiOrigin}/v2/rooms/current/view`,
       {
         headers: {
           accept: 'application/json',
           authorization: `Bearer ${sessionToken}`,
-          'x-protocol-version': '1',
+          'x-protocol-version': '2',
         },
       },
     );
@@ -217,7 +217,7 @@ export function createProtocolTestClient({
       const socket = io(socketUrl, {
         autoConnect: false,
         auth: {
-          protocolVersion: 1,
+          protocolVersion: 2,
           sessionToken: member.sessionToken,
           lastStateVersion: member.lastView?.public?.stateVersion ?? 0,
         },
@@ -266,7 +266,7 @@ export function createProtocolTestClient({
         inspectProjection(member, message.roomView);
         member.heartbeat = setInterval(() => {
           if (socket.connected) {
-            socket.emit('session.ping', { protocolVersion: 1 }, (pong) => {
+            socket.emit('session.ping', { protocolVersion: 2 }, (pong) => {
               if (
                 typeof pong !== 'object' ||
                 pong === null ||

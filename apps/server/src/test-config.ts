@@ -13,7 +13,7 @@ export const TEST_CONFIG: ServerConfig = {
   sessionTokenPepper: 'm2-test-session-token-pepper-material-0001',
   idempotencyEncryptionSecret: 'm2-test-idempotency-encryption-material-0001',
   sessionTtlSeconds: 1_800,
-  realtimePublicUrl: 'wss://localhost.invalid/game-v1',
+  realtimePublicUrl: 'wss://localhost.invalid/game-v2',
   trustedProxyCidrs: [],
   handshakeIpRateLimit: 30,
   pendingAuthLimit: 100,

@@ -2,7 +2,9 @@ import type { TSchema } from '@sinclair/typebox';
 
 export const JSON_SCHEMA_DRAFT =
   'https://json-schema.org/draft/2020-12/schema' as const;
-export const SCHEMA_BASE_URL = 'https://avalon.example/schemas/v1/' as const;
+export const PROTOCOL_VERSION = 2 as const;
+export const API_VERSION_PATH = '/v2' as const;
+export const SCHEMA_BASE_URL = 'https://avalon.example/schemas/v2/' as const;
 
 export type SchemaDocument = Readonly<Record<string, unknown>> & {
   readonly $schema: typeof JSON_SCHEMA_DRAFT;

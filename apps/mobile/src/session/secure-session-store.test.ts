@@ -30,12 +30,12 @@ class MemorySecureStore implements SecureKeyValueStore {
 }
 
 const firstBootstrap = {
-  protocolVersion: 1 as const,
+  protocolVersion: 2 as const,
   roomCode: 'ABC234',
   playerId: '00000000-0000-4000-8000-000000000001',
   sessionToken: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg',
   sessionExpiresAt: '2026-08-13T12:30:00.000Z',
-  realtimeUrl: 'wss://example.test/game-v1',
+  realtimeUrl: 'wss://example.test/game-v2',
   roomView: {} as never,
 };
 

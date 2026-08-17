@@ -7,6 +7,7 @@ import {
   UuidSchema,
 } from './common.js';
 import {
+  PROTOCOL_VERSION,
   JSON_SCHEMA_DRAFT,
   SCHEMA_BASE_URL,
   type SchemaDocument,
@@ -16,7 +17,7 @@ import { RoomViewSchema } from './room-view.js';
 
 export const ClientCapabilitiesSchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     platform: Type.Union([Type.Literal('IOS'), Type.Literal('ANDROID')]),
     appVersion: Type.String({ minLength: 1, maxLength: 40 }),
     installationId: Type.Optional(UuidSchema),
@@ -30,7 +31,7 @@ export const ClientCapabilitiesSchema = Type.Object(
 
 export const SessionBootstrapSchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     roomCode: RoomCodeSchema,
     playerId: UuidSchema,
     sessionToken: SessionTokenSchema,
@@ -61,7 +62,7 @@ export const ResumeSessionRequestSchema = Type.Object(
 );
 
 export const ReadRoomViewResponseSchema = Type.Object(
-  { protocolVersion: Type.Literal(1), roomView: RoomViewSchema },
+  { protocolVersion: Type.Literal(PROTOCOL_VERSION), roomView: RoomViewSchema },
   { additionalProperties: false },
 );
 

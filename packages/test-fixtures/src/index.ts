@@ -59,7 +59,7 @@ export const FIXTURE_RULE_ROWS = ([5, 6, 7, 8, 9, 10] as const).map(
     playerCount,
     ...PLAYER_RULES[playerCount],
     classicRoleIds: expandPreset(playerCount, 'CLASSIC'),
-    commonRoleIds: expandPreset(playerCount, 'COMMON_ROLES'),
+    recommendedRoleIds: expandPreset(playerCount, 'RECOMMENDED'),
   }),
 );
 

@@ -74,7 +74,7 @@ function createRequest(
       locale: 'zh-CN',
     },
     client: {
-      protocolVersion: 1,
+      protocolVersion: 2,
       platform: 'IOS',
       appVersion: '0.1.0',
       installationId: id(900),
@@ -87,7 +87,7 @@ function joinRequest(nickname: string) {
   return {
     nickname,
     client: {
-      protocolVersion: 1 as const,
+      protocolVersion: 2 as const,
       platform: 'ANDROID' as const,
       appVersion: '0.1.0',
       installationId: id(901),
@@ -353,7 +353,7 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
       sessionTokenPepper: 'integration-session-pepper-material-0002',
       idempotencyEncryptionSecret: 'integration-idempotency-encryption-0002',
       sessionTtlSeconds: 1_800,
-      realtimePublicUrl: 'wss://localhost.invalid/game-v1',
+      realtimePublicUrl: 'wss://localhost.invalid/game-v2',
       trustedProxyCidrs: [],
       handshakeIpRateLimit: 30,
       pendingAuthLimit: 100,
@@ -954,7 +954,7 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
           config: {
             rulesVersion: 'CLASSIC_AVALON_V1',
             playerCount: 6,
-            roleSelection: { type: 'PRESET', presetId: 'COMMON_ROLES' },
+            roleSelection: { type: 'PRESET', presetId: 'RECOMMENDED' },
             locale: 'zh-CN',
           },
         },
@@ -992,7 +992,7 @@ describe('M3-001–M3-002 lobby command persistence, revocation, idempotency, an
           config: {
             rulesVersion: 'CLASSIC_AVALON_V1',
             playerCount: 6,
-            roleSelection: { type: 'PRESET', presetId: 'COMMON_ROLES' },
+            roleSelection: { type: 'PRESET', presetId: 'RECOMMENDED' },
             locale: 'zh-CN',
           },
         },

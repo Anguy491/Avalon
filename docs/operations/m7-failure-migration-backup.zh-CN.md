@@ -27,7 +27,7 @@
 1. 使用专用隔离数据库与固定测试凭证；命令输出不得包含 token/角色载荷。
 2. 创建固定大厅、投票、任务、暂停房间并确认命令版本。
 3. 使用与目标 PostgreSQL 大版本一致的 `pg_dump --format=custom`。
-4. 恢复到全新数据库，运行迁移和 `/v1/health/ready`；从恢复开始到可恢复会话须少于 5 秒。
+4. 恢复到全新数据库，运行迁移和 `/v2/health/ready`；从恢复开始到可恢复会话须少于 5 秒。
 5. 重放已确认 commandId，断言 RPO 0、没有重复规则效果。
 6. 推进终局并等待 ACK/60 秒，抽检 rooms、players、sessions、processed_commands、terminal_receipts、outbox 全部清除。
 7. 删除 dump 与隔离数据库。真实供应商备份/WAL 残余期限记录在 Preview 人工清单。

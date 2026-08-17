@@ -50,12 +50,12 @@ async function post(path, body) {
     headers: {
       'content-type': 'application/json',
       'idempotency-key': randomUUID(),
-      'x-protocol-version': '1',
+      'x-protocol-version': '2',
     },
     body: JSON.stringify({
       ...body,
       client: {
-        protocolVersion: 1,
+        protocolVersion: 2,
         platform: 'ANDROID',
         appVersion: 'm7-load',
         installationId: randomUUID(),
@@ -100,13 +100,13 @@ function connect(bootstrap) {
       pendingProjectionStarted: undefined,
     };
     inspect(member, bootstrap.roomView);
-    const socket = io(`${baseUrl}/game-v1`, {
+    const socket = io(`${baseUrl}/game-v2`, {
       autoConnect: false,
       forceNew: true,
       reconnection: false,
       transports: ['websocket'],
       auth: {
-        protocolVersion: 1,
+        protocolVersion: 2,
         sessionToken: member.token,
         lastStateVersion: member.stateVersion,
       },
@@ -137,7 +137,7 @@ function connect(bootstrap) {
       timings.connect.push(performance.now() - started);
       const heartbeat = setInterval(() => {
         if (socket.connected) {
-          socket.emit('session.ping', { protocolVersion: 1 });
+          socket.emit('session.ping', { protocolVersion: 2 });
         }
       }, 2_000);
       heartbeat.unref();
@@ -265,7 +265,7 @@ async function run() {
   const perRoomRamp = Math.max(0, rampMs / Math.max(1, roomCount) - 5_100);
   for (let local = 0; local < roomCount; local += 1) {
     const globalIndex = roomOffset + local;
-    const created = await post('/v1/rooms', {
+    const created = await post('/v2/rooms', {
       nickname: `M7H${String(globalIndex)}`,
       config: {
         rulesVersion: 'CLASSIC_AVALON_V1',
@@ -277,7 +277,7 @@ async function run() {
     timings.create.push(created.elapsed);
     const joined = [];
     for (let player = 1; player < 10; player += 1) {
-      const result = await post(`/v1/rooms/${created.body.roomCode}/players`, {
+      const result = await post(`/v2/rooms/${created.body.roomCode}/players`, {
         nickname: `M7P${String(globalIndex)}_${String(player)}`,
       });
       timings.join.push(result.elapsed);

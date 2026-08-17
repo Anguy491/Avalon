@@ -67,7 +67,7 @@ PAUSED
 }
 ```
 
-`presetId` 只允许 `CLASSIC` 或 `COMMON_ROLES`。服务端按玩家人数展开预设，用普通忠臣/爪牙补足阵营名额，再执行与自定义配置相同的完整校验。服务端根据客户端支持的内置资源版本选择 `voicePackVersion`；没有兼容版本时拒绝开始。持久化聚合只保存规范化后的 `RoomConfig`，不依赖客户端如何命名或展开预设。
+`presetId` 只允许 `CLASSIC` 或 `RECOMMENDED`。服务端按玩家人数展开规范中的精确预设牌组，再执行与自定义配置相同的完整校验。服务端根据客户端支持的内置资源版本选择 `voicePackVersion`；没有兼容版本时拒绝开始。持久化聚合只保存规范化后的 `RoomConfig`，不依赖客户端如何命名或展开预设。
 
 ```json
 {
@@ -388,7 +388,7 @@ else:
 
 ### 7.1 创建房间
 
-`POST /v1/rooms`
+`POST /v2/rooms`
 
 ```json
 {
@@ -396,7 +396,7 @@ else:
   "config": {
     "rulesVersion": "CLASSIC_AVALON_V1",
     "playerCount": 7,
-    "roleSelection": { "type": "PRESET", "presetId": "COMMON_ROLES" },
+    "roleSelection": { "type": "PRESET", "presetId": "RECOMMENDED" },
     "locale": "zh-CN"
   }
 }
@@ -406,13 +406,13 @@ else:
 
 ### 7.2 加入房间
 
-`POST /v1/rooms/{roomCode}/players`
+`POST /v2/rooms/{roomCode}/players`
 
 请求只包含昵称，房间号来自路径。二维码必须编码公开通用链接，例如 `https://app.example/join/7K3M9Q`，不得包含 `SessionToken`、`PlayerId` 或角色信息。
 
 ### 7.3 恢复会话
 
-`POST /v1/sessions/resume`
+`POST /v2/sessions/resume`
 
 客户端在 `Authorization: Bearer <SessionToken>` 头中提交令牌。服务端校验后轮换令牌，并返回 `PublicSnapshot`、当前玩家的 `PrivatePlayerProjection`、最新 `stateVersion` 和实时连接地址。旧令牌在成功轮换后失效。
 

@@ -21,16 +21,16 @@ describe('M2 mobile-safe protocol boundary', () => {
   it('accepts each supported HTTP and realtime response shape', () => {
     expect(
       isSessionBootstrap({
-        protocolVersion: 1,
+        protocolVersion: 2,
         roomCode: roomView.public.roomCode,
         playerId: roomView.private.playerId,
         sessionToken: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg',
         sessionExpiresAt: '2026-08-13T12:00:00.000Z',
-        realtimeUrl: 'wss://example.invalid/game-v1',
+        realtimeUrl: 'wss://example.invalid/game-v2',
         roomView,
       }),
     ).toBe(true);
-    expect(isReadRoomViewResponse({ protocolVersion: 1, roomView })).toBe(true);
+    expect(isReadRoomViewResponse({ protocolVersion: 2, roomView })).toBe(true);
     expect(
       isErrorResponse({
         error: {
@@ -42,14 +42,14 @@ describe('M2 mobile-safe protocol boundary', () => {
     ).toBe(true);
     expect(
       isSessionReady({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'RESYNC',
         roomView,
       }),
     ).toBe(true);
     expect(
       isRoomViewMessage({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'LIVE',
         eventId: UUIDS.event,
         roomView: {
@@ -59,24 +59,24 @@ describe('M2 mobile-safe protocol boundary', () => {
       }),
     ).toBe(true);
     expect(isTerminalViewAckResult({ accepted: true })).toBe(true);
-    expect(isSessionPing({ protocolVersion: 1 })).toBe(true);
+    expect(isSessionPing({ protocolVersion: 2 })).toBe(true);
     expect(
       isSessionPong({
-        protocolVersion: 1,
+        protocolVersion: 2,
         serverTime: '2026-08-13T12:00:00.000Z',
         sessionExpiresAt: '2026-08-13T12:30:00.000Z',
       }),
     ).toBe(true);
     expect(
       isSessionRevoked({
-        protocolVersion: 1,
+        protocolVersion: 2,
         reason: 'SESSION_REPLACED',
         diagnosticId: 'diagnostic-1234',
       }),
     ).toBe(true);
     expect(
       isServerMaintenance({
-        protocolVersion: 1,
+        protocolVersion: 2,
         startsAt: '2026-08-13T12:00:00.000Z',
         retryAfterMs: 1_000,
         diagnosticId: 'diagnostic-1234',
@@ -84,7 +84,7 @@ describe('M2 mobile-safe protocol boundary', () => {
     ).toBe(true);
     expect(
       isAudioTelemetry({
-        protocolVersion: 1,
+        protocolVersion: 2,
         category: 'LOAD_FAILED',
         platform: 'ios',
         appVersion: '1.0.0',
@@ -94,9 +94,10 @@ describe('M2 mobile-safe protocol boundary', () => {
   });
 
   it('rejects drift, extra fields, and audible RESYNC payloads', () => {
+    expect(isSessionPing({ protocolVersion: 1 })).toBe(false);
     expect(
       isReadRoomViewResponse({
-        protocolVersion: 1,
+        protocolVersion: 2,
         roomView: {
           ...roomView,
           public: { ...roomView.public, stateVersion: -1 },
@@ -115,7 +116,7 @@ describe('M2 mobile-safe protocol boundary', () => {
     ).toBe(false);
     expect(
       isSessionReady({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'RESYNC',
         roomView: {
           ...roomView,
@@ -126,12 +127,12 @@ describe('M2 mobile-safe protocol boundary', () => {
     expect(
       isTerminalViewAckResult({ accepted: true, unexpected: 'secret' }),
     ).toBe(false);
-    expect(isSessionPing({ protocolVersion: 1, clientTime: 'untrusted' })).toBe(
+    expect(isSessionPing({ protocolVersion: 2, clientTime: 'untrusted' })).toBe(
       false,
     );
     expect(
       isAudioTelemetry({
-        protocolVersion: 1,
+        protocolVersion: 2,
         category: 'LOAD_FAILED',
         platform: 'ios',
         appVersion: '1.0.0',

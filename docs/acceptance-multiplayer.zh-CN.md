@@ -23,7 +23,7 @@ pnpm --filter @avalon/server db:migrate
 启动一台 iOS Simulator，然后分别启动服务端、本地 WSS 入口和 Metro：
 
 ```bash
-REALTIME_PUBLIC_URL=wss://localhost:3443/game-v1 pnpm --filter @avalon/server dev
+REALTIME_PUBLIC_URL=wss://localhost:3443/game-v2 pnpm --filter @avalon/server dev
 pnpm dev:wss
 EXPO_PUBLIC_API_URL=http://127.0.0.1:3000 pnpm --filter @avalon/mobile dev
 ```
@@ -37,7 +37,7 @@ EXPO_PUBLIC_API_URL=http://127.0.0.1:3000 pnpm --filter @avalon/mobile dev
 Bot 可直接连接本地 HTTP Socket.IO 入口，同时原生 App 继续使用受信任的本地 WSS：
 
 ```bash
-ACCEPTANCE_REALTIME_URL=http://127.0.0.1:3000/game-v1 \
+ACCEPTANCE_REALTIME_URL=http://127.0.0.1:3000/game-v2 \
 pnpm acceptance:bots -- --room-code ABCDEF --scenario happy-path
 ```
 

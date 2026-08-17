@@ -14,22 +14,10 @@ import {
   isConfigDraftStructurallySubmittable,
   lobbyConfigReducer,
   seatOrderReducer,
-  type ConfigMode,
-  type RoleId,
 } from './lobby-state';
+import { RoomConfigFields } from './room-config-fields';
 
 type Player = RoomView['public']['players'][number];
-
-const ROLE_OPTIONS = [
-  ['MERLIN', '梅林'],
-  ['LOYAL_SERVANT', '忠臣'],
-  ['PERCIVAL', '派西维尔'],
-  ['ASSASSIN', '刺客'],
-  ['MINION', '爪牙'],
-  ['MORGANA', '莫甘娜'],
-  ['MORDRED', '莫德雷德'],
-  ['OBERON', '奥伯伦'],
-] as const satisfies readonly (readonly [RoleId, string])[];
 
 function SmallButton({
   label,
@@ -227,11 +215,6 @@ export function LobbyConfigEditor({
     }
   }, [configKey, visible]);
 
-  const modes: readonly (readonly [ConfigMode, string, string])[] = [
-    ['CLASSIC', '经典', '由服务端按目标人数展开经典角色'],
-    ['COMMON_ROLES', '常用角色', '由服务端按目标人数展开常用特殊角色'],
-    ['CUSTOM', '自定义', '编辑公开角色数量，合法性由服务端统一裁决'],
-  ];
   const canSave = isConfigDraftStructurallySubmittable(draft);
 
   return (
@@ -262,202 +245,7 @@ export function LobbyConfigEditor({
           </Text>
         </View>
 
-        <View style={{ gap: spacing.sm }}>
-          <Text
-            selectable
-            style={{
-              color: color.text.primary,
-              fontSize: typography.body,
-              fontWeight: '700',
-            }}
-          >
-            目标人数
-          </Text>
-          <View
-            accessibilityLabel={`目标人数 ${String(draft.playerCount)} 人`}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: spacing.md,
-            }}
-          >
-            <SmallButton
-              label="减少人数"
-              disabled={busy || draft.playerCount <= 5}
-              onPress={() => {
-                dispatch({
-                  type: 'set-player-count',
-                  playerCount: draft.playerCount - 1,
-                });
-              }}
-            />
-            <Text
-              selectable
-              style={{
-                minWidth: 80,
-                textAlign: 'center',
-                color: color.text.primary,
-                fontSize: 24,
-                fontWeight: '800',
-                fontVariant: ['tabular-nums'],
-              }}
-            >
-              {draft.playerCount} 人
-            </Text>
-            <SmallButton
-              label="增加人数"
-              disabled={busy || draft.playerCount >= 10}
-              onPress={() => {
-                dispatch({
-                  type: 'set-player-count',
-                  playerCount: draft.playerCount + 1,
-                });
-              }}
-            />
-          </View>
-        </View>
-
-        <View style={{ gap: spacing.sm }}>
-          <Text
-            selectable
-            style={{
-              color: color.text.primary,
-              fontSize: typography.body,
-              fontWeight: '700',
-            }}
-          >
-            角色方案
-          </Text>
-          {modes.map(([mode, label, description]) => {
-            const selected = draft.mode === mode;
-            return (
-              <Pressable
-                key={mode}
-                accessibilityLabel={`${label}角色方案`}
-                accessibilityHint={description}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: selected, disabled: busy }}
-                disabled={busy}
-                onPress={() => {
-                  dispatch({ type: 'set-mode', mode });
-                }}
-                style={{
-                  minHeight: touchTarget.minimum,
-                  gap: spacing.xs,
-                  padding: spacing.md,
-                  borderRadius: 14,
-                  borderCurve: 'continuous',
-                  borderWidth: 2,
-                  borderColor: selected
-                    ? color.action.selected
-                    : color.text.secondary,
-                  backgroundColor: color.surface.card,
-                }}
-              >
-                <Text
-                  selectable
-                  style={{
-                    color: color.text.primary,
-                    fontSize: typography.body,
-                    fontWeight: '800',
-                  }}
-                >
-                  {selected ? '已选择 · ' : ''}
-                  {label}
-                </Text>
-                <Text
-                  selectable
-                  style={{
-                    color: color.text.secondary,
-                    fontSize: typography.supporting,
-                  }}
-                >
-                  {description}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {draft.mode !== 'CUSTOM' ? null : (
-          <View style={{ gap: spacing.sm }}>
-            <Text
-              selectable
-              accessibilityLiveRegion="polite"
-              style={{ color: color.text.secondary, fontSize: typography.body }}
-            >
-              已选 {draft.customRoleIds.length} 个角色；结构要求为 5–10
-              个。服务器会返回完整配置错误。
-            </Text>
-            {ROLE_OPTIONS.map(([roleId, label]) => {
-              const count = draft.customRoleIds.filter(
-                (candidate) => candidate === roleId,
-              ).length;
-              return (
-                <View
-                  key={roleId}
-                  accessibilityLabel={`${label}，${String(count)} 个`}
-                  style={{
-                    minHeight: touchTarget.minimum,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: spacing.sm,
-                    padding: spacing.md,
-                    borderRadius: 14,
-                    borderCurve: 'continuous',
-                    backgroundColor: color.surface.card,
-                  }}
-                >
-                  <Text
-                    selectable
-                    style={{
-                      flex: 1,
-                      color: color.text.primary,
-                      fontSize: typography.body,
-                      fontWeight: '700',
-                    }}
-                  >
-                    {label}
-                  </Text>
-                  <SmallButton
-                    label={`减少${label}`}
-                    disabled={busy || count === 0}
-                    onPress={() => {
-                      dispatch({
-                        type: 'adjust-role-count',
-                        roleId,
-                        delta: -1,
-                      });
-                    }}
-                  />
-                  <Text
-                    selectable
-                    style={{
-                      minWidth: 24,
-                      textAlign: 'center',
-                      color: color.text.primary,
-                      fontSize: typography.body,
-                      fontVariant: ['tabular-nums'],
-                    }}
-                  >
-                    {count}
-                  </Text>
-                  <SmallButton
-                    label={`增加${label}`}
-                    disabled={busy || draft.customRoleIds.length >= 10}
-                    onPress={() => {
-                      dispatch({
-                        type: 'adjust-role-count',
-                        roleId,
-                        delta: 1,
-                      });
-                    }}
-                  />
-                </View>
-              );
-            })}
-          </View>
-        )}
+        <RoomConfigFields draft={draft} busy={busy} dispatch={dispatch} />
 
         <PrimaryButton
           label="保存配置"

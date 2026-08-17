@@ -248,7 +248,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "roomView": {
@@ -1301,7 +1301,7 @@
         ],
         "properties": {
           "protocolVersion": {
-            "const": 1,
+            "const": 2,
             "type": "number"
           },
           "delivery": {
@@ -2360,7 +2360,7 @@
         ],
         "properties": {
           "protocolVersion": {
-            "const": 1,
+            "const": 2,
             "type": "number"
           },
           "delivery": {
@@ -3718,7 +3718,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       }
     }
@@ -3733,7 +3733,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "serverTime": {
@@ -3756,7 +3756,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "reason": {
@@ -3793,7 +3793,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "startsAt": {
@@ -3824,7 +3824,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "category": {
@@ -3884,7 +3884,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "roomCode": {
@@ -4957,7 +4957,7 @@
     ],
     "properties": {
       "protocolVersion": {
-        "const": 1,
+        "const": 2,
         "type": "number"
       },
       "delivery": {

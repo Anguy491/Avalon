@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/primary-button';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
+import { RoleGuideControl } from '@/features/roles/role-guide-control';
 
 import { deriveAssassinationState } from './assassination-state';
 import { ConfirmationModal } from './confirmation-modal';
@@ -118,6 +119,11 @@ export function AssassinationScreen() {
           现在进行线下讨论。最终裁决前，任何玩家的角色都不会公开。
         </Text>
       </View>
+
+      <RoleGuideControl
+        roleId={roomView.private.selfRole}
+        resetKey={`${String(session.resyncEpoch)}:${roomView.public.phase}`}
+      />
 
       {state.phaseStage === 'HOST_HELD' ? (
         <View

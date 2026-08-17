@@ -1033,6 +1033,6 @@
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/room-view.schema.json",
+  "$id": "https://avalon.example/schemas/v2/room-view.schema.json",
   "title": "Avalon personalized room view"
 }

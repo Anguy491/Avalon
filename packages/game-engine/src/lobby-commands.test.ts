@@ -37,7 +37,7 @@ describe('SM-004 ConfigureRoom', () => {
     state = accepted(
       state,
       HOST,
-      { type: 'ConfigureRoom', configInput: configInput(6, 'COMMON_ROLES') },
+      { type: 'ConfigureRoom', configInput: configInput(6, 'RECOMMENDED') },
       ports,
     );
     expect(state.config.roleIds).toContain('PERCIVAL');

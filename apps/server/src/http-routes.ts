@@ -28,7 +28,7 @@ import type { MetricsPort } from './metrics.js';
 const idempotencyHeadersSchema = Type.Object(
   {
     'idempotency-key': UuidSchema,
-    'x-protocol-version': Type.Literal('1'),
+    'x-protocol-version': Type.Literal('2'),
   },
   { additionalProperties: true },
 );
@@ -36,7 +36,7 @@ const idempotencyHeadersSchema = Type.Object(
 const authenticatedHeadersSchema = Type.Object(
   {
     authorization: Type.String({ pattern: '^Bearer [A-Za-z0-9_-]{43}$' }),
-    'x-protocol-version': Type.Literal('1'),
+    'x-protocol-version': Type.Literal('2'),
   },
   { additionalProperties: true },
 );
@@ -180,9 +180,9 @@ export function registerRoomRoutes(
 
   app.post<{
     Body: CreateRoomRequest;
-    Headers: { 'idempotency-key': string; 'x-protocol-version': '1' };
+    Headers: { 'idempotency-key': string; 'x-protocol-version': '2' };
   }>(
-    '/v1/rooms',
+    '/v2/rooms',
     {
       config: { rateLimit: routeRateLimit },
       preHandler: layeredCreateJoinLimit,
@@ -215,9 +215,9 @@ export function registerRoomRoutes(
   app.post<{
     Body: JoinRoomRequest;
     Params: { roomCode: string };
-    Headers: { 'idempotency-key': string; 'x-protocol-version': '1' };
+    Headers: { 'idempotency-key': string; 'x-protocol-version': '2' };
   }>(
-    '/v1/rooms/:roomCode/players',
+    '/v2/rooms/:roomCode/players',
     {
       config: { rateLimit: routeRateLimit },
       preHandler: layeredCreateJoinLimit,
@@ -254,10 +254,10 @@ export function registerRoomRoutes(
     Headers: {
       authorization: string;
       'idempotency-key': string;
-      'x-protocol-version': '1';
+      'x-protocol-version': '2';
     };
   }>(
-    '/v1/sessions/resume',
+    '/v2/sessions/resume',
     {
       schema: {
         body: ResumeSessionRequestSchema,
@@ -276,9 +276,9 @@ export function registerRoomRoutes(
   );
 
   app.get<{
-    Headers: { authorization: string; 'x-protocol-version': '1' };
+    Headers: { authorization: string; 'x-protocol-version': '2' };
   }>(
-    '/v1/rooms/current/view',
+    '/v2/rooms/current/view',
     {
       schema: {
         headers: authenticatedHeadersSchema,

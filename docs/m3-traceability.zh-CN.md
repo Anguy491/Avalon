@@ -277,7 +277,7 @@
 
 在既有 M2 会话恢复、SecureStore、Socket.IO 和 `RoomView` Query cache 基础上，完成六个大厅命令的移动端纵向消费：
 
-- `ConfigureRoom`：房主可编辑 5–10 人目标、经典/常用角色预设或自定义公开角色列表；提交完整 `RoomConfigInput`，服务端成功后关闭编辑页并提示全员重新准备。
+- `ConfigureRoom`：房主可编辑 5–10 人目标、基础/推荐配置或自定义公开角色列表；提交完整 `RoomConfigInput`，服务端成功后关闭编辑页并提示全员重新准备。
 - `ReorderSeats`：房主通过可访问的“上移/下移”调整投影中的玩家顺序，一次提交完整 `playerIds` 排列；不在客户端判断排列是否合法。
 - `SetReady`：本人根据服务端投影中的当前准备状态提交相反布尔值；等待 ack 时按钮进入 busy/disabled 状态。
 - `LeaveLobby`、`KickLobbyPlayer`、`CloseRoom`：均提供包含昵称/影响说明且不显示内部 ID 的确认对话框；本人离开或房主关闭成功后清除安全存储中的会话并返回首页。

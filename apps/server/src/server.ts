@@ -88,10 +88,14 @@ export async function createServer(
   });
 
   app.addHook('onRequest', (request, _reply, done) => {
+    if (request.url.startsWith('/v1/')) {
+      done(new ServiceError('UPGRADE_REQUIRED', 426, false));
+      return;
+    }
     if (
       draining &&
-      request.url !== '/v1/health/live' &&
-      request.url !== '/v1/health/ready'
+      request.url !== '/v2/health/live' &&
+      request.url !== '/v2/health/ready'
     ) {
       done(new ServiceError('INTERNAL_ERROR', 503, true));
       return;
@@ -100,13 +104,13 @@ export async function createServer(
   });
 
   app.get(
-    '/v1/health/live',
+    '/v2/health/live',
     { schema: { response: { 200: healthSchema } } },
     () => ({ status: 'ok' as const }),
   );
 
   app.get(
-    '/v1/health/ready',
+    '/v2/health/ready',
     {
       schema: {
         response: { 200: healthSchema, 503: notReadySchema },
@@ -161,7 +165,11 @@ export async function createServer(
         });
     },
   });
-  const gameNamespace = io.of('/game-v1');
+  const legacyGameNamespace = io.of('/game-v1');
+  legacyGameNamespace.use((_socket, next) => {
+    next(new Error('UPGRADE_REQUIRED'));
+  });
+  const gameNamespace = io.of('/game-v2');
   let projectionBus: RedisProjectionBus | undefined;
   let outboxWorker: OutboxWorker | undefined;
   let connectionService: ConnectionService | undefined;
@@ -261,7 +269,7 @@ export async function createServer(
       if (draining) return;
       draining = true;
       gameNamespace.emit('server.maintenance', {
-        protocolVersion: 1,
+        protocolVersion: 2,
         startsAt: ports.clock.now().toISOString(),
         retryAfterMs: 30_000,
         diagnosticId: `diag_${ports.ids.next()}`,

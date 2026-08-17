@@ -450,7 +450,7 @@ function bootstrap(
   state: GameState,
 ): SessionBootstrap {
   return {
-    protocolVersion: 1,
+    protocolVersion: 2,
     roomCode,
     playerId,
     sessionToken: token,
@@ -578,7 +578,7 @@ export class RoomService {
     commandId: string,
     request: CreateRoomRequest,
   ): Promise<ServiceResponse<SessionBootstrap>> {
-    const scope = 'POST /v1/rooms';
+    const scope = 'POST /v2/rooms';
     const requestHash = sha256Digest(request);
     const normalized = normalizeNickname(request.nickname);
     if (!normalized.ok) {
@@ -698,7 +698,7 @@ export class RoomService {
       throw new ServiceError('INVALID_NICKNAME', 400, false);
     }
     const requestHash = sha256Digest({ roomCode, request });
-    const scope = 'POST /v1/rooms/:roomCode/players';
+    const scope = 'POST /v2/rooms/:roomCode/players';
 
     return this.sql.begin(async (sql) => {
       await advisoryLock(sql, scope, commandId);
@@ -812,7 +812,7 @@ export class RoomService {
   ): Promise<ServiceResponse<SessionBootstrap>> {
     const oldDigest = tokenDigest(oldToken, this.config.sessionTokenPepper);
     const requestHash = sha256Digest({ tokenDigest: oldDigest, request });
-    const scope = 'POST /v1/sessions/resume';
+    const scope = 'POST /v2/sessions/resume';
 
     let rotation:
       | { readonly sessionId: string; readonly credentialGeneration: number }
@@ -979,7 +979,7 @@ export class RoomService {
       throw new ServiceError('ROOM_EXPIRED', 410, false);
     }
     return {
-      protocolVersion: 1,
+      protocolVersion: 2,
       roomView: projectRoom(
         room.room_id,
         room.room_code,

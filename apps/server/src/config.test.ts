@@ -15,7 +15,7 @@ const validEnvironment = {
   SESSION_TOKEN_PEPPER: 'test-session-token-pepper-material-000001',
   IDEMPOTENCY_ENCRYPTION_SECRET: 'test-idempotency-encryption-material-000001',
   SESSION_TTL_SECONDS: '1800',
-  REALTIME_PUBLIC_URL: 'wss://api.example.invalid/game-v1',
+  REALTIME_PUBLIC_URL: 'wss://api.example.invalid/game-v2',
   TRUSTED_PROXY_CIDRS: '',
 };
 

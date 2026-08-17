@@ -18,7 +18,7 @@ export type RoleId =
   | 'OBERON';
 
 export type Alignment = 'GOOD' | 'EVIL';
-export type PresetId = 'CLASSIC' | 'COMMON_ROLES';
+export type PresetId = 'CLASSIC' | 'RECOMMENDED';
 export type TeamVote = 'APPROVE' | 'REJECT';
 export type QuestChoice = 'SUCCESS' | 'FAIL';
 export type PauseTerminationChoice = 'TERMINATE' | 'CONTINUE_PAUSE';

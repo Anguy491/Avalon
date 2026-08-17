@@ -20,6 +20,60 @@ const rows = [
   [10, 6, 4, [3, 4, 4, 5, 5]],
 ] as const;
 
+const recommendedDecks = {
+  5: ['MERLIN', 'PERCIVAL', 'LOYAL_SERVANT', 'MORGANA', 'ASSASSIN'],
+  6: [
+    'MERLIN',
+    'PERCIVAL',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'MORGANA',
+    'ASSASSIN',
+  ],
+  7: [
+    'MERLIN',
+    'PERCIVAL',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'MORGANA',
+    'ASSASSIN',
+    'MINION',
+  ],
+  8: [
+    'MERLIN',
+    'PERCIVAL',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'MORGANA',
+    'ASSASSIN',
+    'MINION',
+  ],
+  9: [
+    'MERLIN',
+    'PERCIVAL',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'MORGANA',
+    'ASSASSIN',
+    'MORDRED',
+  ],
+  10: [
+    'MERLIN',
+    'PERCIVAL',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'LOYAL_SERVANT',
+    'MORGANA',
+    'ASSASSIN',
+    'OBERON',
+    'MORDRED',
+  ],
+} as const satisfies Readonly<Record<PlayerCount, readonly RoleId[]>>;
+
 describe('M1-001 / RULE-001 RULE-008 RULE-014 / AC-001 AC-002', () => {
   it.each(rows)(
     'covers the complete %i-player alignment and quest table',
@@ -40,13 +94,22 @@ describe('M1-001 / RULE-001 RULE-008 RULE-014 / AC-001 AC-002', () => {
   it.each(rows.map(([count]) => count))(
     'expands both legal presets for %i players',
     (playerCount) => {
-      for (const presetId of ['CLASSIC', 'COMMON_ROLES'] as const) {
+      for (const presetId of ['CLASSIC', 'RECOMMENDED'] as const) {
         const deck = expandPreset(playerCount, presetId);
         expect(deck).toHaveLength(playerCount);
         expect(validateRoleDeck(playerCount, deck)).toEqual([]);
         expect(deck.filter((role) => role === 'MERLIN')).toHaveLength(1);
         expect(deck.filter((role) => role === 'ASSASSIN')).toHaveLength(1);
       }
+    },
+  );
+
+  it.each(rows.map(([count]) => count))(
+    'expands the exact recommended %i-player deck',
+    (playerCount) => {
+      expect(expandPreset(playerCount, 'RECOMMENDED')).toEqual(
+        recommendedDecks[playerCount],
+      );
     },
   );
 

@@ -180,7 +180,7 @@ export function loadConfig(
     realtimePublicUrl: read(
       environment,
       'REALTIME_PUBLIC_URL',
-      'wss://localhost.invalid/game-v1',
+      'wss://localhost.invalid/game-v2',
     ),
     trustedProxyCidrs:
       trustedProxyValue.length === 0

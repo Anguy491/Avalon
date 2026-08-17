@@ -1,6 +1,7 @@
 appId: com.example.avalon.dev
 name: M2 join existing room happy path
 ---
+- clearKeychain
 - launchApp:
     clearState: true
 - openLink: 'exp+avalon-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
@@ -18,6 +19,9 @@ name: M2 join existing room happy path
     optional: true
 - tapOn:
     text: 'Reload'
+    optional: true
+- tapOn:
+    text: 'Close'
     optional: true
 - assertVisible: '让手机保管秘密'
 - tapOn: '你的昵称'

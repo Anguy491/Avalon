@@ -8,6 +8,7 @@ import { PrimaryButton } from '@/components/primary-button';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
+import { RoleGuideControl } from '@/features/roles/role-guide-control';
 
 import { ConfirmationModal } from './confirmation-modal';
 import { deriveGameTableState } from './game-state';
@@ -228,6 +229,12 @@ export function GameScreen() {
           连接状态：{session.status === 'CONNECTED' ? '在线' : '正在恢复'}
         </Text>
       </View>
+
+      <RoleGuideControl
+        roleId={roomView.private.selfRole}
+        available={roomView.public.phase !== 'PAUSED'}
+        resetKey={`${String(session.resyncEpoch)}:${roomView.public.phase}`}
+      />
 
       <Card backgroundColor={color.surface.card}>
         <Heading>五项任务</Heading>

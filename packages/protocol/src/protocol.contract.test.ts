@@ -50,7 +50,7 @@ const validateCommandResult = requireSchema(
 );
 
 const clientCapabilities = {
-  protocolVersion: 1,
+  protocolVersion: 2,
   platform: 'IOS',
   appVersion: '0.1.0',
   installationId: '20000000-0000-4000-8000-000000000001',
@@ -474,7 +474,7 @@ describe('TEST-contract / NFR-014 projection boundaries', () => {
     const roomView = roomViewForRole('MERLIN');
     expect(
       validateSessionReady({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'RESYNC',
         roomView,
       }),
@@ -484,7 +484,7 @@ describe('TEST-contract / NFR-014 projection boundaries', () => {
     roomView.private.shouldPlayAudio = true;
     expect(
       validateSessionReady({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'RESYNC',
         roomView,
       }),
@@ -504,12 +504,12 @@ describe('TEST-contract / HTTP and configuration schemas', () => {
     ).toBe(true);
     expect(
       validateSessionBootstrap({
-        protocolVersion: 1,
+        protocolVersion: 2,
         roomCode: '7K3M9Q',
         playerId: UUIDS.players[0],
         sessionToken: testSessionToken,
         sessionExpiresAt: '2026-08-13T12:00:00.000Z',
-        realtimeUrl: 'wss://avalon.example/game-v1',
+        realtimeUrl: 'wss://avalon.example/game-v2',
         roomView: roomViewForRole('MERLIN'),
       }),
       JSON.stringify(validateSessionBootstrap.errors),
@@ -533,16 +533,28 @@ describe('TEST-contract / HTTP and configuration schemas', () => {
     ).toBe(false);
     expect(
       validateSessionBootstrap({
-        protocolVersion: 1,
+        protocolVersion: 2,
         roomCode: '7K3M9Q',
         playerId: UUIDS.players[0],
         sessionToken: testSessionToken,
         sessionExpiresAt: '2026-08-13T12:00:00.000Z',
-        realtimeUrl: 'ws://insecure.example/game-v1',
+        realtimeUrl: 'ws://insecure.example/game-v2',
         roomView: roomViewForRole('MERLIN'),
       }),
     ).toBe(false);
     expect(validateRoomConfig({ ...presetConfig, extra: true })).toBe(false);
+    expect(
+      validateRoomConfig({
+        ...presetConfig,
+        roleSelection: { type: 'PRESET', presetId: 'RECOMMENDED' },
+      }),
+    ).toBe(true);
+    expect(
+      validateRoomConfig({
+        ...presetConfig,
+        roleSelection: { type: 'PRESET', presetId: 'COMMON_ROLES' },
+      }),
+    ).toBe(false);
   });
 });
 
@@ -561,7 +573,7 @@ describe('TEST-contract / stable error and realtime messages', () => {
     ).toBe(true);
     expect(
       validateRealtimeAuth({
-        protocolVersion: 1,
+        protocolVersion: 2,
         sessionToken: testSessionToken,
         lastStateVersion: 3,
       }),
@@ -569,7 +581,7 @@ describe('TEST-contract / stable error and realtime messages', () => {
     ).toBe(true);
     expect(
       validateRoomViewMessage({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'LIVE',
         eventId: UUIDS.event,
         roomView: roomViewForRole('MERLIN'),
@@ -598,7 +610,7 @@ describe('TEST-contract / stable error and realtime messages', () => {
     ).toBe(false);
     expect(
       validateRealtimeAuth({
-        protocolVersion: 1,
+        protocolVersion: 2,
         sessionToken: 'short',
         lastStateVersion: -1,
       }),
@@ -608,7 +620,7 @@ describe('TEST-contract / stable error and realtime messages', () => {
     roomView.private.shouldPlayAudio = true;
     expect(
       validateRoomViewMessage({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'RESYNC',
         eventId: UUIDS.event,
         roomView,

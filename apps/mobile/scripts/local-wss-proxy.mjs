@@ -69,7 +69,7 @@ server.on('upgrade', (request, client, head) => {
 
 server.listen(listenPort, '127.0.0.1', () => {
   process.stdout.write(
-    `LOCAL_WSS_READY=wss://localhost:${String(listenPort)}/game-v1\n`,
+    `LOCAL_WSS_READY=wss://localhost:${String(listenPort)}/game-v2\n`,
   );
 });
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/http.schema.json",
+  "$id": "https://avalon.example/schemas/v2/http.schema.json",
   "title": "Avalon HTTP request and response bodies",
   "$defs": {
     "SessionBootstrap": {
@@ -17,7 +17,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "roomCode": {
@@ -1134,7 +1134,7 @@
                           "type": "string"
                         },
                         {
-                          "const": "COMMON_ROLES",
+                          "const": "RECOMMENDED",
                           "type": "string"
                         }
                       ]
@@ -1215,7 +1215,7 @@
           ],
           "properties": {
             "protocolVersion": {
-              "const": 1,
+              "const": 2,
               "type": "number"
             },
             "platform": {
@@ -1277,7 +1277,7 @@
           ],
           "properties": {
             "protocolVersion": {
-              "const": 1,
+              "const": 2,
               "type": "number"
             },
             "platform": {
@@ -1326,7 +1326,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "platform": {
@@ -1380,7 +1380,7 @@
           ],
           "properties": {
             "protocolVersion": {
-              "const": 1,
+              "const": 2,
               "type": "number"
             },
             "platform": {
@@ -1427,7 +1427,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "roomView": {

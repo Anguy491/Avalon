@@ -16,7 +16,7 @@ pnpm --filter @avalon/server db:migrate
 pnpm dev
 ```
 
-移动端 Metro 默认使用 Expo Development Build；也可先执行 `pnpm --filter @avalon/mobile start --go` 走 Expo Go 基础导航回路。服务端存活与就绪端点分别是 `GET /v1/health/live`、`GET /v1/health/ready`。
+移动端 Metro 默认使用 Expo Development Build；也可先执行 `pnpm --filter @avalon/mobile start --go` 走 Expo Go 基础导航回路。服务端存活与就绪端点分别是 `GET /v2/health/live`、`GET /v2/health/ready`。
 
 或在mobile目录下运行`pnpm exec expo start --dev-client --clear`启动应用。
 

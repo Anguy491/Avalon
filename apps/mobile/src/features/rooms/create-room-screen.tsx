@@ -1,8 +1,7 @@
 import { router } from 'expo-router';
 import { Controller, useForm } from 'react-hook-form';
-import { Pressable, Text, View } from 'react-native';
-
-import type { RoomConfigInput } from '@avalon/protocol';
+import { useReducer } from 'react';
+import { Text, View } from 'react-native';
 
 import { FormField } from '@/components/form-field';
 import { PageShell } from '@/components/page-shell';
@@ -10,46 +9,44 @@ import { PrimaryButton } from '@/components/primary-button';
 import { nicknameError, normalizeNickname } from '@/rooms/nickname';
 import { usePublicDraft } from '@/session/public-draft-provider';
 import { useSession } from '@/session/session-provider';
-import { spacing, touchTarget, typography } from '@/theme/tokens';
+import { spacing, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
+
+import {
+  INITIAL_CREATE_CONFIG_DRAFT,
+  configInputFromDraft,
+  isConfigDraftStructurallySubmittable,
+  lobbyConfigReducer,
+} from './lobby-state';
+import { RoomConfigFields } from './room-config-fields';
 
 interface CreateValues {
   readonly nickname: string;
-  readonly playerCount: number;
-  readonly presetId: 'CLASSIC' | 'COMMON_ROLES';
 }
 
 export function CreateRoomScreen() {
   const { color } = useAppTheme();
   const session = useSession();
-  const draft = usePublicDraft();
+  const publicDraft = usePublicDraft();
+  const [configDraft, dispatchConfig] = useReducer(
+    lobbyConfigReducer,
+    INITIAL_CREATE_CONFIG_DRAFT,
+  );
   const {
     control,
     handleSubmit,
-    setValue,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<CreateValues>({
-    defaultValues: {
-      nickname: draft.nickname,
-      playerCount: 5,
-      presetId: 'CLASSIC',
-    },
+    defaultValues: { nickname: publicDraft.nickname },
   });
-  const playerCount = watch('playerCount');
-  const presetId = watch('presetId');
+  const configReady = isConfigDraftStructurallySubmittable(configDraft);
 
   const submit = handleSubmit(async (values) => {
+    if (!configReady) return;
     const nickname = normalizeNickname(values.nickname);
-    draft.setNickname(nickname);
-    const config: RoomConfigInput = {
-      rulesVersion: 'CLASSIC_AVALON_V1',
-      playerCount: values.playerCount,
-      roleSelection: { type: 'PRESET', presetId: values.presetId },
-      locale: 'zh-CN',
-    };
+    publicDraft.setNickname(nickname);
     try {
-      await session.createRoom(nickname, config);
+      await session.createRoom(nickname, configInputFromDraft(configDraft));
       router.replace('/lobby');
     } catch {
       // The provider exposes only a localized, token-free error string.
@@ -74,144 +71,15 @@ export function CreateRoomScreen() {
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          选择目标人数与公开角色预设。创建后你会占据第一个座次。
+          选择目标人数与公开游戏配置。创建后你会占据第一个座次。
         </Text>
       </View>
 
-      <View style={{ gap: spacing.sm }}>
-        <Text
-          selectable
-          style={{
-            color: color.text.primary,
-            fontSize: typography.body,
-            fontWeight: '700',
-          }}
-        >
-          目标人数
-        </Text>
-        <View
-          accessibilityLabel={`目标人数 ${String(playerCount)} 人`}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: spacing.md,
-          }}
-        >
-          <Pressable
-            accessibilityLabel="减少人数"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: playerCount <= 5 }}
-            disabled={playerCount <= 5}
-            onPress={() => {
-              setValue('playerCount', playerCount - 1);
-            }}
-            style={{
-              minWidth: touchTarget.minimum,
-              minHeight: touchTarget.minimum,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 12,
-              backgroundColor: color.surface.card,
-            }}
-          >
-            <Text style={{ color: color.text.primary, fontSize: 24 }}>−</Text>
-          </Pressable>
-          <Text
-            selectable
-            style={{
-              color: color.text.primary,
-              minWidth: 80,
-              textAlign: 'center',
-              fontSize: 24,
-              fontWeight: '800',
-            }}
-          >
-            {playerCount} 人
-          </Text>
-          <Pressable
-            accessibilityLabel="增加人数"
-            accessibilityRole="button"
-            accessibilityState={{ disabled: playerCount >= 10 }}
-            disabled={playerCount >= 10}
-            onPress={() => {
-              setValue('playerCount', playerCount + 1);
-            }}
-            style={{
-              minWidth: touchTarget.minimum,
-              minHeight: touchTarget.minimum,
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 12,
-              backgroundColor: color.surface.card,
-            }}
-          >
-            <Text style={{ color: color.text.primary, fontSize: 24 }}>＋</Text>
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={{ gap: spacing.sm }}>
-        <Text
-          selectable
-          style={{
-            color: color.text.primary,
-            fontSize: typography.body,
-            fontWeight: '700',
-          }}
-        >
-          角色预设
-        </Text>
-        {(
-          [
-            ['CLASSIC', '经典', '梅林、刺客与基础忠臣/爪牙'],
-            ['COMMON_ROLES', '常用角色', '加入常用特殊角色，服务端按人数补足'],
-          ] as const
-        ).map(([value, label, description]) => {
-          const selected = presetId === value;
-          return (
-            <Pressable
-              key={value}
-              accessibilityLabel={`${label}预设`}
-              accessibilityHint={description}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: selected }}
-              onPress={() => {
-                setValue('presetId', value);
-              }}
-              style={{
-                minHeight: touchTarget.minimum,
-                gap: spacing.xs,
-                padding: spacing.md,
-                borderRadius: 14,
-                borderWidth: 2,
-                borderColor: selected
-                  ? color.action.selected
-                  : color.text.secondary,
-                backgroundColor: color.surface.card,
-              }}
-            >
-              <Text
-                style={{
-                  color: color.text.primary,
-                  fontSize: typography.body,
-                  fontWeight: '800',
-                }}
-              >
-                {selected ? '已选择 · ' : ''}
-                {label}
-              </Text>
-              <Text
-                style={{
-                  color: color.text.secondary,
-                  fontSize: typography.supporting,
-                }}
-              >
-                {description}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      <RoomConfigFields
+        draft={configDraft}
+        busy={isSubmitting}
+        dispatch={dispatchConfig}
+      />
 
       <Controller
         control={control}
@@ -245,8 +113,13 @@ export function CreateRoomScreen() {
         label="创建房间"
         testID="create-room-submit"
         busy={isSubmitting}
+        disabled={!configReady}
         onPress={() => void submit()}
-        accessibilityHint="提交人数、角色预设和昵称"
+        accessibilityHint={
+          configReady
+            ? '提交人数、游戏配置和昵称'
+            : '自定义角色数量必须与目标人数一致'
+        }
       />
     </PageShell>
   );

@@ -1,6 +1,7 @@
 appId: com.example.avalon.dev
 name: M2 invalid input and denied camera fallback
 ---
+- clearKeychain
 - launchApp:
     clearState: true
     permissions:
@@ -20,6 +21,9 @@ name: M2 invalid input and denied camera fallback
     optional: true
 - tapOn:
     text: 'Reload'
+    optional: true
+- tapOn:
+    text: 'Close'
     optional: true
 - assertVisible: '让手机保管秘密'
 - tapOn: '你的昵称'

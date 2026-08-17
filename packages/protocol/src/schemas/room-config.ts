@@ -12,7 +12,7 @@ export const PresetRoleSelectionSchema = Type.Object(
     type: Type.Literal('PRESET'),
     presetId: Type.Union([
       Type.Literal('CLASSIC'),
-      Type.Literal('COMMON_ROLES'),
+      Type.Literal('RECOMMENDED'),
     ]),
   },
   { additionalProperties: false },

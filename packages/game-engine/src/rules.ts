@@ -69,13 +69,67 @@ export function requiredFails(
 
 export function expandPreset(
   playerCount: PlayerCount,
-  presetId: 'CLASSIC' | 'COMMON_ROLES',
+  presetId: 'CLASSIC' | 'RECOMMENDED',
 ): readonly RoleId[] {
+  if (presetId === 'RECOMMENDED') {
+    const recommended: Readonly<Record<PlayerCount, readonly RoleId[]>> = {
+      5: ['MERLIN', 'PERCIVAL', 'LOYAL_SERVANT', 'MORGANA', 'ASSASSIN'],
+      6: [
+        'MERLIN',
+        'PERCIVAL',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'MORGANA',
+        'ASSASSIN',
+      ],
+      7: [
+        'MERLIN',
+        'PERCIVAL',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'MORGANA',
+        'ASSASSIN',
+        'MINION',
+      ],
+      8: [
+        'MERLIN',
+        'PERCIVAL',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'MORGANA',
+        'ASSASSIN',
+        'MINION',
+      ],
+      9: [
+        'MERLIN',
+        'PERCIVAL',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'MORGANA',
+        'ASSASSIN',
+        'MORDRED',
+      ],
+      10: [
+        'MERLIN',
+        'PERCIVAL',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'LOYAL_SERVANT',
+        'MORGANA',
+        'ASSASSIN',
+        'OBERON',
+        'MORDRED',
+      ],
+    };
+    return recommended[playerCount];
+  }
   const { good, evil } = PLAYER_RULES[playerCount];
-  const goodSpecials: readonly RoleId[] =
-    presetId === 'COMMON_ROLES' ? ['MERLIN', 'PERCIVAL'] : ['MERLIN'];
-  const evilSpecials: readonly RoleId[] =
-    presetId === 'COMMON_ROLES' ? ['ASSASSIN', 'MORGANA'] : ['ASSASSIN'];
+  const goodSpecials: readonly RoleId[] = ['MERLIN'];
+  const evilSpecials: readonly RoleId[] = ['ASSASSIN'];
 
   return [
     ...goodSpecials,

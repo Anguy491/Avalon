@@ -108,6 +108,7 @@ Socket.IO 自带的临时连接恢复只能作为优化，不能替代上述应�
 | [ADR-006](./ADR-006-mobile-state-management.md) | TanStack Query 管远端投影，Zustand 仅管临时 UI | 已接受 |
 | [ADR-007](./ADR-007-contract-source-of-truth.md) | JSON Schema 兼容的共享协议包为线上契约源 | 已接受 |
 | [ADR-008](./ADR-008-m2-session-idempotency-and-delivery.md) | token 原子轮换、加密幂等响应与逐会话 Outbox 投递 | 已接受 |
+| [ADR-009](./ADR-009-protocol-v2-recommended-config.md) | 协议 v2、推荐配置枚举与 v1 升级拒绝 | 已接受 |
 
 ## 7. 部署拓扑与演进
 

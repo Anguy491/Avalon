@@ -271,7 +271,7 @@ export function registerRealtime(
         );
         if (!namespace.sockets.has(socket.id)) return;
         socket.emit('session.ready', {
-          protocolVersion: 1,
+          protocolVersion: 2,
           delivery: 'RESYNC',
           roomView,
         });
@@ -397,7 +397,7 @@ export function registerRealtime(
           }
           if (refreshed === false) {
             socket.emit('session.revoked', {
-              protocolVersion: 1,
+              protocolVersion: 2,
               reason: 'SESSION_REPLACED',
               diagnosticId: diagnosticId(ports),
             });
@@ -406,13 +406,13 @@ export function registerRealtime(
           }
           const sessionExpiresAt = await roomService.renewSession(context);
           ack?.({
-            protocolVersion: 1,
+            protocolVersion: 2,
             serverTime: now.toISOString(),
             sessionExpiresAt: sessionExpiresAt.toISOString(),
           });
         } catch {
           socket.emit('session.revoked', {
-            protocolVersion: 1,
+            protocolVersion: 2,
             reason: 'SESSION_INVALID',
             diagnosticId: diagnosticId(ports),
           });

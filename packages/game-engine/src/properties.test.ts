@@ -459,7 +459,7 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
     | { readonly kind: 'REORDER'; readonly rotateBy: number }
     | {
         readonly kind: 'RECONFIGURE';
-        readonly preset: 'CLASSIC' | 'COMMON_ROLES';
+        readonly preset: 'CLASSIC' | 'RECOMMENDED';
       }
     | { readonly kind: 'LEAVE'; readonly playerIndex: number }
     | { readonly kind: 'KICK'; readonly playerIndex: number };
@@ -476,7 +476,7 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
       .integer({ min: 0, max: 9 })
       .map((rotateBy) => ({ kind: 'REORDER' as const, rotateBy })),
     fc
-      .constantFrom('CLASSIC' as const, 'COMMON_ROLES' as const)
+      .constantFrom('CLASSIC' as const, 'RECOMMENDED' as const)
       .map((preset) => ({ kind: 'RECONFIGURE' as const, preset })),
     fc
       .integer({ min: 0, max: 9 })
@@ -648,7 +648,7 @@ describe('M3-002 lobby command sequence invariants (seed 20260813)', () => {
             actor: started.hostPlayerId,
             body: {
               type: 'ConfigureRoom',
-              configInput: configInput(6, 'COMMON_ROLES'),
+              configInput: configInput(6, 'RECOMMENDED'),
             },
           },
           {

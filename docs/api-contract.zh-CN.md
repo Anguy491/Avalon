@@ -2,7 +2,7 @@
 
 > 状态：P0 bootstrap 基线
 >
-> 协议版本：`1`
+> 协议版本：`2`
 >
 > 规则版本：`CLASSIC_AVALON_V1`
 >
@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | `Authorization: Bearer <SessionToken>` | 恢复、读取投影 | 必需；值不得出现在日志 |
 | `Idempotency-Key: <UUID>` | 创建、加入、恢复 | 必需；同键同请求返回首次响应，同键异请求报冲突 |
-| `X-Protocol-Version: 1` | 全部 `/v1` 请求 | 必需；不兼容返回 `UPGRADE_REQUIRED` |
+| `X-Protocol-Version: 2` | 全部 `/v2` 请求 | 必需；v1 路径或不兼容版本返回 `UPGRADE_REQUIRED` |
 | `X-Request-Id: <UUID>` | 可选 | 客户端诊断关联，不作为幂等键 |
 
 ### 2.3 昵称规范化
@@ -53,21 +53,21 @@
 
 | 方法与路径 | 状态机 | 身份 | 成功 | 说明 |
 | --- | --- | --- | --- | --- |
-| `POST /v1/rooms` | `SM-001` | 无 | `201` | 创建房间，房主成为座次 0 |
-| `POST /v1/rooms/{roomCode}/players` | `SM-002` | 无 | `201` | 加入大厅 |
-| `POST /v1/sessions/resume` | `SM-003` | Bearer | `200` | 轮换令牌并返回最新个性化投影 |
-| `GET /v1/rooms/current/view` | 快照读取 | Bearer | `200` | 实时缺口/回前台时读取最新投影，不轮换令牌 |
-| `GET /v1/health/live` | 运维 | 无 | `200` | 仅进程存活，不返回依赖或房间数据 |
-| `GET /v1/health/ready` | 运维 | 无 | `200/503` | 数据库、实时依赖就绪，不返回秘密配置 |
+| `POST /v2/rooms` | `SM-001` | 无 | `201` | 创建房间，房主成为座次 0 |
+| `POST /v2/rooms/{roomCode}/players` | `SM-002` | 无 | `201` | 加入大厅 |
+| `POST /v2/sessions/resume` | `SM-003` | Bearer | `200` | 轮换令牌并返回最新个性化投影 |
+| `GET /v2/rooms/current/view` | 快照读取 | Bearer | `200` | 实时缺口/回前台时读取最新投影，不轮换令牌 |
+| `GET /v2/health/live` | 运维 | 无 | `200` | 仅进程存活，不返回依赖或房间数据 |
+| `GET /v2/health/ready` | 运维 | 无 | `200/503` | 数据库、实时依赖就绪，不返回秘密配置 |
 
 房间号路径必须在应用层统一转为大写。格式错误与不存在均返回 `INVALID_ROOM_CODE`，避免高频枚举获得额外区分；限流后返回 `RATE_LIMITED`。
 
 ### 3.2 创建房间
 
 ```http
-POST /v1/rooms
+POST /v2/rooms
 Idempotency-Key: 0198-...-a341
-X-Protocol-Version: 1
+X-Protocol-Version: 2
 Content-Type: application/json
 ```
 
@@ -77,11 +77,11 @@ Content-Type: application/json
   "config": {
     "rulesVersion": "CLASSIC_AVALON_V1",
     "playerCount": 7,
-    "roleSelection": { "type": "PRESET", "presetId": "COMMON_ROLES" },
+    "roleSelection": { "type": "PRESET", "presetId": "RECOMMENDED" },
     "locale": "zh-CN"
   },
   "client": {
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "platform": "IOS",
     "appVersion": "0.1.0",
     "installationId": "20000000-0000-4000-8000-000000000001",
@@ -94,12 +94,12 @@ Content-Type: application/json
 
 ```json
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "roomCode": "7K3M9Q",
   "playerId": "f8bbfc60-1815-4e00-853a-6e2022f7c021",
   "sessionToken": "once-only-random-token",
   "sessionExpiresAt": "2026-08-13T12:00:00Z",
-  "realtimeUrl": "wss://api.example.invalid/v1/realtime",
+  "realtimeUrl": "wss://api.example.invalid/v2/realtime",
   "roomView": {
     "public": {},
     "private": {}
@@ -112,16 +112,16 @@ Content-Type: application/json
 ### 3.3 加入房间
 
 ```http
-POST /v1/rooms/7K3M9Q/players
+POST /v2/rooms/7K3M9Q/players
 Idempotency-Key: 0198-...-1bb7
-X-Protocol-Version: 1
+X-Protocol-Version: 2
 ```
 
 ```json
 {
   "nickname": "Guinevere",
   "client": {
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "platform": "ANDROID",
     "appVersion": "0.1.0",
     "installationId": "20000000-0000-4000-8000-000000000002",
@@ -137,10 +137,10 @@ X-Protocol-Version: 1
 ### 3.4 恢复会话
 
 ```http
-POST /v1/sessions/resume
+POST /v2/sessions/resume
 Authorization: Bearer <old-token>
 Idempotency-Key: 0198-...-701b
-X-Protocol-Version: 1
+X-Protocol-Version: 2
 ```
 
 请求只包含 `ClientCapabilities`。成功返回新 token 的 `SessionBootstrap`。同一幂等键重试可以取得首次响应；服务端必须保护该缓存响应，使其只可由同 token family 的恢复请求读取。
@@ -148,16 +148,16 @@ X-Protocol-Version: 1
 ### 3.5 读取当前投影
 
 ```http
-GET /v1/rooms/current/view
+GET /v2/rooms/current/view
 Authorization: Bearer <current-token>
-X-Protocol-Version: 1
+X-Protocol-Version: 2
 ```
 
 返回 `200`：
 
 ```json
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "roomView": {
     "public": {},
     "private": {}
@@ -171,11 +171,11 @@ X-Protocol-Version: 1
 
 ### 4.1 连接
 
-命名空间为 `/game-v1`，transport 优先 WebSocket并允许 Socket.IO 回退。握手 auth：
+命名空间为 `/game-v2`，transport 优先 WebSocket并允许 Socket.IO 回退。旧 `/game-v1` 命名空间只返回 `UPGRADE_REQUIRED`，不承载游戏事件。握手 auth：
 
 ```json
 {
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "sessionToken": "current-random-token",
   "lastStateVersion": 42
 }
@@ -186,7 +186,7 @@ X-Protocol-Version: 1
 成功后的第一个服务端事件是：
 
 ```text
-session.ready → { protocolVersion: 1, delivery: "RESYNC", roomView }
+session.ready → { protocolVersion: 2, delivery: "RESYNC", roomView }
 ```
 
 `RESYNC` 永不自动播放音频。
@@ -197,7 +197,7 @@ session.ready → { protocolVersion: 1, delivery: "RESYNC", roomView }
 | --- | --- | --- | --- |
 | `command.submit` | `command.schema.json` | `CommandResult` | 每会话 10 次/秒突发、2 次/秒持续 |
 | `room.terminalAck` | `{ stateVersion }` | `{ accepted: true }` | 每个终局版本最多一次有效确认 |
-| `session.ping` | `SessionPing = { protocolVersion: 1 }` | `SessionPong = { protocolVersion, serverTime, sessionExpiresAt }` | 最快每 2 秒一次；只使用服务端接收时间续期 |
+| `session.ping` | `SessionPing = { protocolVersion: 2 }` | `SessionPong = { protocolVersion, serverTime, sessionExpiresAt }` | 最快每 2 秒一次；只使用服务端接收时间续期 |
 | `audio.telemetry` | `AudioTelemetry` | 无 | 仅错误类别、平台、应用版本、语音包版本；不得含房间/玩家/安装标识 |
 
 `roomId` 虽在命令信封中存在，仍必须与 token 绑定房间一致；操作者身份只能从 token 得到。客户端可在 ack 超时后重发完全相同的 `commandId` 与载荷，但不得修改动作后复用 ID。

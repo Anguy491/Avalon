@@ -227,7 +227,7 @@ export function lobbyState(count: PlayerCount): GameState {
 
 export function configInput(
   playerCount: number,
-  presetId: 'CLASSIC' | 'COMMON_ROLES' = 'CLASSIC',
+  presetId: 'CLASSIC' | 'RECOMMENDED' = 'CLASSIC',
 ): RoomConfigInput {
   return {
     rulesVersion: 'CLASSIC_AVALON_V1',

@@ -6,7 +6,7 @@ import { createClient } from 'redis';
 
 const apiOrigin = process.env.M5_E2E_API_ORIGIN ?? 'http://127.0.0.1:3000';
 const expectedRealtimeUrl =
-  process.env.M5_E2E_REALTIME_URL ?? 'wss://localhost:3443/game-v1';
+  process.env.M5_E2E_REALTIME_URL ?? 'wss://localhost:3443/game-v2';
 const databaseUrl = process.env.DATABASE_URL;
 const redisUrl = process.env.REDIS_URL;
 
@@ -21,7 +21,7 @@ if (redisUrl === undefined) {
 }
 
 const client = {
-  protocolVersion: 1,
+  protocolVersion: 2,
   platform: 'IOS',
   appVersion: '0.1.0',
   installationId: randomUUID(),
@@ -45,7 +45,7 @@ async function request(path, body) {
       Accept: 'application/json',
       'Content-Type': 'application/json',
       'Idempotency-Key': randomUUID(),
-      'X-Protocol-Version': '1',
+      'X-Protocol-Version': '2',
     },
     body: JSON.stringify(body),
   });
@@ -57,7 +57,7 @@ async function request(path, body) {
   return response.json();
 }
 
-const created = await request('/v1/rooms', {
+const created = await request('/v2/rooms', {
   nickname: 'BotMerlin',
   config: {
     rulesVersion: 'CLASSIC_AVALON_V1',
@@ -78,7 +78,7 @@ for (const [index, nickname] of [
   'BotLoyal2',
   'BotMinion',
 ].entries()) {
-  await request(`/v1/rooms/${created.roomCode}/players`, {
+  await request(`/v2/rooms/${created.roomCode}/players`, {
     nickname,
     client: {
       ...client,
@@ -94,7 +94,7 @@ process.stdout.write('Waiting for simulator player M5Sim...\n');
 const redis = createClient({ url: redisUrl });
 try {
   let row;
-  for (let attempt = 0; attempt < 240; attempt += 1) {
+  for (let attempt = 0; attempt < 960; attempt += 1) {
     const [candidate] = await sql`
       select room_id, state_version, aggregate
         from avalon_runtime.rooms

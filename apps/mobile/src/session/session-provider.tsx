@@ -231,7 +231,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           .stateVersion ?? 0;
       const nextSocket = io(record.realtimeUrl, {
         auth: {
-          protocolVersion: 1,
+          protocolVersion: 2,
           sessionToken: record.sessionToken,
           lastStateVersion,
         },
@@ -251,7 +251,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           if (nextSocket.connected) {
             nextSocket.emit(
               'session.ping',
-              { protocolVersion: 1 },
+              { protocolVersion: 2 },
               (payload: unknown) => {
                 if (!isSessionPong(payload)) return;
                 const current = sessionRecord.current;
@@ -621,7 +621,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       const activeSocket = socket.current;
       if (activeSocket?.connected !== true) return;
       activeSocket.emit('audio.telemetry', {
-        protocolVersion: 1,
+        protocolVersion: 2,
         category,
         platform: Platform.OS === 'android' ? 'android' : 'ios',
         appVersion: Constants.expoConfig?.version ?? '0.1.0',

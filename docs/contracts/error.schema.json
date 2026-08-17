@@ -238,6 +238,6 @@
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/error.schema.json",
+  "$id": "https://avalon.example/schemas/v2/error.schema.json",
   "title": "Avalon stable error response"
 }

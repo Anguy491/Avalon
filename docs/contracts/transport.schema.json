@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/transport.schema.json",
+  "$id": "https://avalon.example/schemas/v2/transport.schema.json",
   "title": "Avalon Socket.IO transport messages",
   "$defs": {
     "RealtimeAuth": {
@@ -13,7 +13,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "sessionToken": {
@@ -38,7 +38,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "delivery": {
@@ -1395,7 +1395,7 @@
           ],
           "properties": {
             "protocolVersion": {
-              "const": 1,
+              "const": 2,
               "type": "number"
             },
             "delivery": {
@@ -2454,7 +2454,7 @@
           ],
           "properties": {
             "protocolVersion": {
-              "const": 1,
+              "const": 2,
               "type": "number"
             },
             "delivery": {
@@ -3812,7 +3812,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         }
       }
@@ -3827,7 +3827,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "serverTime": {
@@ -3850,7 +3850,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "reason": {
@@ -3887,7 +3887,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "startsAt": {
@@ -3918,7 +3918,7 @@
       ],
       "properties": {
         "protocolVersion": {
-          "const": 1,
+          "const": 2,
           "type": "number"
         },
         "category": {

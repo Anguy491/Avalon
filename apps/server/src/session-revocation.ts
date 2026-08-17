@@ -69,7 +69,7 @@ export class RedisSessionRevocationBus implements SessionRotationPublisher {
           continue;
         }
         socket.emit('session.revoked', {
-          protocolVersion: 1,
+          protocolVersion: 2,
           reason: 'SESSION_REPLACED',
           diagnosticId: `diag_${this.ports.ids.next()}`,
         });

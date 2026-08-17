@@ -20,7 +20,7 @@ const maximumRealtimeP95Milliseconds = 1_000;
 const realtimeTimeoutMilliseconds = 10_000;
 const protocol = createProtocolTestClient({
   apiOrigin: baseUrl,
-  realtimeUrl: `${baseUrl}/game-v1`,
+  realtimeUrl: `${baseUrl}/game-v2`,
   appVersion: '0.1.0-load',
 });
 
@@ -212,7 +212,7 @@ try {
   const createdRooms = await Promise.all(
     Array.from({ length: roomCount }, (_, roomIndex) =>
       timedRequest(
-        '/v1/rooms',
+        '/v2/rooms',
         {
           nickname: `LoadHost${String(roomIndex)}`,
           config: {
@@ -234,7 +234,7 @@ try {
           { length: playerCountForRoom(roomIndex) - 1 },
           (_, playerIndex) =>
             timedRequest(
-              `/v1/rooms/${payload.roomCode}/players`,
+              `/v2/rooms/${payload.roomCode}/players`,
               { nickname: `LoadP${String(roomIndex)}_${String(playerIndex)}` },
               playerIndex % 2 === 0 ? 'ANDROID' : 'IOS',
             ),

@@ -3,6 +3,7 @@ import { Type, type Static } from '@sinclair/typebox';
 import { SessionTokenSchema, UuidSchema } from './common.js';
 import { ErrorDetailSchema } from './error.js';
 import {
+  PROTOCOL_VERSION,
   JSON_SCHEMA_DRAFT,
   SCHEMA_BASE_URL,
   type SchemaDocument,
@@ -11,7 +12,7 @@ import { RoomViewSchema } from './room-view.js';
 
 export const RealtimeAuthSchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     sessionToken: SessionTokenSchema,
     lastStateVersion: Type.Integer({ minimum: 0 }),
   },
@@ -30,7 +31,7 @@ const ResyncRoomViewSchema = Type.Composite([
 
 export const SessionReadySchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     delivery: Type.Literal('RESYNC'),
     roomView: ResyncRoomViewSchema,
   },
@@ -39,7 +40,7 @@ export const SessionReadySchema = Type.Object(
 
 const liveRoomViewMessage = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     delivery: Type.Literal('LIVE'),
     eventId: UuidSchema,
     roomView: RoomViewSchema,
@@ -49,7 +50,7 @@ const liveRoomViewMessage = Type.Object(
 
 const resyncRoomViewMessage = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     delivery: Type.Literal('RESYNC'),
     eventId: UuidSchema,
     roomView: ResyncRoomViewSchema,
@@ -63,13 +64,13 @@ export const RoomViewMessageSchema = Type.Union([
 ]);
 
 export const SessionPingSchema = Type.Object(
-  { protocolVersion: Type.Literal(1) },
+  { protocolVersion: Type.Literal(PROTOCOL_VERSION) },
   { additionalProperties: false },
 );
 
 export const SessionPongSchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     serverTime: Type.String({ format: 'date-time' }),
     sessionExpiresAt: Type.String({ format: 'date-time' }),
   },
@@ -78,7 +79,7 @@ export const SessionPongSchema = Type.Object(
 
 export const SessionRevokedSchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     reason: Type.Union([
       Type.Literal('SESSION_REPLACED'),
       Type.Literal('SESSION_INVALID'),
@@ -91,7 +92,7 @@ export const SessionRevokedSchema = Type.Object(
 
 export const ServerMaintenanceSchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     startsAt: Type.String({ format: 'date-time' }),
     retryAfterMs: Type.Integer({ minimum: 0, maximum: 3_600_000 }),
     diagnosticId: Type.String({ minLength: 8, maxLength: 64 }),
@@ -101,7 +102,7 @@ export const ServerMaintenanceSchema = Type.Object(
 
 export const AudioTelemetrySchema = Type.Object(
   {
-    protocolVersion: Type.Literal(1),
+    protocolVersion: Type.Literal(PROTOCOL_VERSION),
     category: Type.Union([
       Type.Literal('ASSET_MISSING'),
       Type.Literal('HASH_MISMATCH'),

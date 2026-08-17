@@ -25,7 +25,7 @@ describe('M1-007 deterministic fixtures', () => {
     ]);
     for (const row of FIXTURE_RULE_ROWS) {
       expect(row.classicRoleIds).toHaveLength(row.playerCount);
-      expect(row.commonRoleIds).toHaveLength(row.playerCount);
+      expect(row.recommendedRoleIds).toHaveLength(row.playerCount);
       expect(row.questTeamSizes).toHaveLength(5);
     }
   });

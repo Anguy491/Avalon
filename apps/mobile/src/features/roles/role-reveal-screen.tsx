@@ -24,6 +24,7 @@ import {
   privacyGateReducer,
   roleRevealRedirectForPhase,
 } from './role-reveal-state';
+import { RoleGuideControl } from './role-guide-control';
 import { useRoleCommands } from './use-role-commands';
 
 export function RoleRevealScreen() {
@@ -366,6 +367,13 @@ export function RoleRevealScreen() {
               </>
             )}
           </Pressable>
+          {showSecret ? (
+            <RoleGuideControl
+              roleId={roleState.roleId}
+              available={roomView.public.phase !== 'PAUSED'}
+              resetKey={`${String(session.resyncEpoch)}:${roomView.public.phase}`}
+            />
+          ) : null}
           {secretAvailable && privacy.mode !== 'HOLD' ? (
             <PrimaryButton
               label={showSecret ? '隐藏身份' : '使用点按揭示'}

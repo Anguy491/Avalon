@@ -56,7 +56,7 @@ async function requestJson(
       ...Object.entries(init.headers ?? {}),
       ['Accept', 'application/json'],
       ['Content-Type', 'application/json'],
-      ['X-Protocol-Version', '1'],
+      ['X-Protocol-Version', '2'],
     ];
     const response = await fetch(`${API_ORIGIN}${path}`, {
       ...init,
@@ -93,7 +93,7 @@ function requireBootstrap(body: unknown): SessionBootstrap {
 
 export function clientCapabilities(installationId: string): ClientCapabilities {
   return {
-    protocolVersion: 1,
+    protocolVersion: 2,
     platform: Platform.OS === 'android' ? 'ANDROID' : 'IOS',
     appVersion: Constants.expoConfig?.version ?? '0.1.0',
     installationId,
@@ -105,7 +105,7 @@ export async function createRoom(
   idempotencyKey: string,
   request: CreateRoomRequest,
 ): Promise<SessionBootstrap> {
-  const { body } = await requestJson('/v1/rooms', {
+  const { body } = await requestJson('/v2/rooms', {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(request),
@@ -118,7 +118,7 @@ export async function joinRoom(
   idempotencyKey: string,
   request: JoinRoomRequest,
 ): Promise<SessionBootstrap> {
-  const { body } = await requestJson(`/v1/rooms/${roomCode}/players`, {
+  const { body } = await requestJson(`/v2/rooms/${roomCode}/players`, {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(request),
@@ -131,7 +131,7 @@ export async function resumeSession(
   idempotencyKey: string,
   installationId: string,
 ): Promise<SessionBootstrap> {
-  const { body } = await requestJson('/v1/sessions/resume', {
+  const { body } = await requestJson('/v2/sessions/resume', {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${sessionToken}`,
@@ -145,7 +145,7 @@ export async function resumeSession(
 export async function readCurrentRoomView(
   sessionToken: string,
 ): Promise<ReadRoomViewResponse> {
-  const { body } = await requestJson('/v1/rooms/current/view', {
+  const { body } = await requestJson('/v2/rooms/current/view', {
     method: 'GET',
     headers: { Authorization: `Bearer ${sessionToken}` },
   });

@@ -38,7 +38,7 @@
                   "type": "string"
                 },
                 {
-                  "const": "COMMON_ROLES",
+                  "const": "RECOMMENDED",
                   "type": "string"
                 }
               ]
@@ -108,7 +108,7 @@
     }
   },
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/room-config.schema.json",
+  "$id": "https://avalon.example/schemas/v2/room-config.schema.json",
   "title": "Avalon room configuration",
   "$defs": {
     "PresetRoleSelection": {
@@ -130,7 +130,7 @@
               "type": "string"
             },
             {
-              "const": "COMMON_ROLES",
+              "const": "RECOMMENDED",
               "type": "string"
             }
           ]
@@ -232,7 +232,7 @@
                       "type": "string"
                     },
                     {
-                      "const": "COMMON_ROLES",
+                      "const": "RECOMMENDED",
                       "type": "string"
                     }
                   ]

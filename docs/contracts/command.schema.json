@@ -167,7 +167,7 @@
                                   "type": "string"
                                 },
                                 {
-                                  "const": "COMMON_ROLES",
+                                  "const": "RECOMMENDED",
                                   "type": "string"
                                 }
                               ]
@@ -666,6 +666,6 @@
     }
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://avalon.example/schemas/v1/command.schema.json",
+  "$id": "https://avalon.example/schemas/v2/command.schema.json",
   "title": "Avalon realtime command envelope"
 }

@@ -194,7 +194,7 @@ describe('M5 assassination and terminal projections', () => {
     ]);
     expect(
       createProtocolValidator().compile(RoomViewMessageSchema)({
-        protocolVersion: 1,
+        protocolVersion: 2,
         delivery: 'LIVE',
         eventId: '30000000-0000-4000-8000-000000000001',
         roomView: assassin,

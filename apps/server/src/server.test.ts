@@ -17,11 +17,11 @@ describe('M0-003 health endpoints', () => {
 
     const live = await server.app.inject({
       method: 'GET',
-      url: '/v1/health/live',
+      url: '/v2/health/live',
     });
     const ready = await server.app.inject({
       method: 'GET',
-      url: '/v1/health/ready',
+      url: '/v2/health/ready',
     });
 
     expect(live.statusCode).toBe(200);
@@ -41,7 +41,7 @@ describe('M0-003 health endpoints', () => {
 
     const response = await server.app.inject({
       method: 'GET',
-      url: '/v1/health/ready',
+      url: '/v2/health/ready',
     });
 
     expect(response.statusCode).toBe(503);
@@ -56,14 +56,28 @@ describe('M0-003 health endpoints', () => {
       healthyDependencies(),
     );
 
-    await server.app.inject({ method: 'GET', url: '/v1/health/live' });
-    await server.app.inject({ method: 'GET', url: '/v1/health/live' });
+    await server.app.inject({ method: 'GET', url: '/v2/health/live' });
+    await server.app.inject({ method: 'GET', url: '/v2/health/live' });
     const limited = await server.app.inject({
+      method: 'GET',
+      url: '/v2/health/live',
+    });
+
+    expect(limited.statusCode).toBe(429);
+    await server.close();
+  });
+
+  it('rejects protocol v1 paths with an explicit upgrade response', async () => {
+    const server = await createServer(TEST_CONFIG, healthyDependencies());
+    const response = await server.app.inject({
       method: 'GET',
       url: '/v1/health/live',
     });
 
-    expect(limited.statusCode).toBe(429);
+    expect(response.statusCode).toBe(426);
+    expect(response.json()).toMatchObject({
+      error: { code: 'UPGRADE_REQUIRED', retryable: false },
+    });
     await server.close();
   });
 });

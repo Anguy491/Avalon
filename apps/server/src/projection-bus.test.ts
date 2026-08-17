@@ -10,7 +10,7 @@ const delivery: ProjectionDelivery = {
   eventId: '10000000-0000-4000-8000-000000000004',
   credentialGeneration: 1,
   message: {
-    protocolVersion: 1,
+    protocolVersion: 2,
     delivery: 'LIVE',
     eventId: '10000000-0000-4000-8000-000000000004',
     roomView: {

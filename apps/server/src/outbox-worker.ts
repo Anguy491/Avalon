@@ -253,7 +253,7 @@ export class OutboxWorker {
 
       for (const delivery of targetedDeliveries) {
         const message: RoomViewMessage = {
-          protocolVersion: 1,
+          protocolVersion: 2,
           delivery: 'LIVE',
           eventId: row.event_id,
           roomView: projectRoom(

@@ -11,7 +11,7 @@
 | `M2-001` | `ADR-003`、`NFR-007`、`NFR-016` | `000002_m2_rooms_sessions_outbox.cjs` 建立房间、玩家、会话、去重、Outbox 与终局回执；外键级联清除 | `M2-001` migration up/down、约束、索引、级联、无明文 token 列集成测试 |
 | `M2-002` | `SM-001`–`SM-002`、`FR-001`–`FR-005`、`NFR-013` | 严格 Schema 后创建/加入；行锁串行最后席位；规范请求摘要区分幂等重放/冲突；HMAC 限流键 | `SM-001/SM-002` 创建加入矩阵；双实例并发末席；`AC-013` Redis TTL/键/错误码检查 |
 | `M2-003` | `SM-003`、`FR-006`、`NFR-010`、`TM-002` | 256 位 token、仅摘要入库、事务轮换/撤销；AES-GCM 幂等响应；SecureStore 与崩溃恢复键 | 服务端轮换/并发/旧 token 测试；移动端 SecureStore、写入前崩溃和幂等键单测；secret scan |
-| `M2-004` | API 第 4 节、`ADR-004`、`SM-011`–`SM-012`、`TM-001`、`TM-003` | `/game-v1` Socket 鉴权；actor 只取 `SessionContext`；命令、响应与 Outbox 同事务；逐会话 `RoomView` | ack 重放/冲突/过期版本/跨房；两实例个性化 LIVE/RESYNC、伪造 actor 与 Redis 丢失集成测试 |
+| `M2-004` | API 第 4 节、`ADR-004`、`SM-011`–`SM-012`、`TM-001`、`TM-003` | `/game-v2` Socket 鉴权；actor 只取 `SessionContext`；命令、响应与 Outbox 同事务；逐会话 `RoomView` | ack 重放/冲突/过期版本/跨房；两实例个性化 LIVE/RESYNC、伪造 actor 与 Redis 丢失集成测试 |
 | `M2-005` | `UX-001`–`UX-005`、`FR-001`–`FR-006`、`FR-042`、`FR-046`、`AC-013` | Expo Router 首页、创建、单输入框加入、受控深链/扫码、权限解释与手输降级、大厅/公开 QR；Query cache 只存 `RoomView` | 房间号/QR allowlist、昵称 grapheme、版本回退单测；Maestro 正常与错误/拒权流程；模拟器截图 |
 | `M2-006` | `AC-009`、`NFR-006`–`NFR-007`、`TM-003`–`TM-004` | PostgreSQL 权威状态，Redis 非权威；Outbox 租约与至少一次发布；安全 allowlist 日志 | 提交前、发布前/后故障注入；双 worker 去重领取；双实例重连；集成套件和 M2 create/join 负载冒烟 |
 

@@ -1,5 +1,5 @@
 appId: com.example.avalon.dev
-name: M2 create room happy path
+name: M2 create room with a custom role deck
 ---
 - clearKeychain
 - launchApp:
@@ -25,19 +25,29 @@ name: M2 create room happy path
     optional: true
 - assertVisible: '让手机保管秘密'
 - tapOn: '你的昵称'
-- inputText: 'Arthur'
+- inputText: 'CustomHost'
 - hideKeyboard
 - tapOn: '创建房间'
-- assertVisible: '目标人数'
-- assertVisible: '已选择 · 基础配置'
-- assertVisible: '推荐配置'
-- assertVisible: '自定义'
-- tapOn: '增加人数'
-- assertVisible: '6 人'
-- tapOn: '推荐配置'
-- assertVisible: '已选择 · 推荐配置'
+- tapOn: '自定义'
+- assertVisible: '已选 0 个角色；目标人数为 5 人。服务器会执行完整规则校验。'
+- tapOn: '增加梅林'
+- tapOn: '增加派西维尔'
+- tapOn: '增加忠臣'
+- scrollUntilVisible:
+    element:
+      text: '增加刺客'
+    direction: DOWN
+- tapOn: '增加刺客'
+- scrollUntilVisible:
+    element:
+      text: '增加莫甘娜'
+    direction: DOWN
+- tapOn: '增加莫甘娜'
+- scrollUntilVisible:
+    element:
+      id: 'create-room-submit'
+    direction: DOWN
 - tapOn:
     id: 'create-room-submit'
 - assertVisible: '房间号'
-- assertVisible: 'Arthur · 房主'
-- assertVisible: '我已准备'
+- assertVisible: 'CustomHost · 房主'

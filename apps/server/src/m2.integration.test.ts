@@ -72,7 +72,7 @@ function createRequest(
       locale: 'zh-CN',
     },
     client: {
-      protocolVersion: 1,
+      protocolVersion: 2,
       platform: 'IOS',
       appVersion: '0.1.0',
       installationId: id(900),
@@ -85,7 +85,7 @@ function joinRequest(nickname: string) {
   return {
     nickname,
     client: {
-      protocolVersion: 1 as const,
+      protocolVersion: 2 as const,
       platform: 'ANDROID' as const,
       appVersion: '0.1.0',
       installationId: id(901),
@@ -276,7 +276,7 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       sessionTokenPepper: 'integration-session-pepper-material-0001',
       idempotencyEncryptionSecret: 'integration-idempotency-encryption-0001',
       sessionTtlSeconds: 1_800,
-      realtimePublicUrl: 'wss://localhost.invalid/game-v1',
+      realtimePublicUrl: 'wss://localhost.invalid/game-v2',
       trustedProxyCidrs: [],
       handshakeIpRateLimit: 30,
       pendingAuthLimit: 100,
@@ -468,10 +468,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     const send = (commandId: string, installationId = id(901)) =>
       server.app.inject({
         method: 'POST',
-        url: '/v1/rooms/AAAAAA/players',
+        url: '/v2/rooms/AAAAAA/players',
         headers: {
           'idempotency-key': commandId,
-          'x-protocol-version': '1',
+          'x-protocol-version': '2',
         },
         payload: {
           ...request,
@@ -777,12 +777,12 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     let socket: Socket | undefined;
     let joinedSocket: Socket | undefined;
     try {
-      const createResponse = await fetch(`${baseA}/v1/rooms`, {
+      const createResponse = await fetch(`${baseA}/v2/rooms`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           'idempotency-key': id(200),
-          'x-protocol-version': '1',
+          'x-protocol-version': '2',
         },
         body: JSON.stringify(createRequest()),
       });
@@ -793,11 +793,28 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
         playerId: string;
         roomView: { public: { roomId: string; stateVersion: number } };
       };
-      const rejectedSocket = createSocketClient(`${baseA}/game-v1`, {
+      const legacySocket = createSocketClient(`${baseA}/game-v1`, {
         transports: ['websocket'],
         reconnection: false,
         auth: {
           protocolVersion: 1,
+          sessionToken: 'legacy_session_token_value_1234',
+          lastStateVersion: 0,
+        },
+      });
+      const upgradeError = await new Promise<Error>((resolveError) => {
+        legacySocket.once('connect_error', (error) => {
+          resolveError(error);
+        });
+      });
+      expect(upgradeError.message).toBe('UPGRADE_REQUIRED');
+      legacySocket.disconnect();
+
+      const rejectedSocket = createSocketClient(`${baseA}/game-v2`, {
+        transports: ['websocket'],
+        reconnection: false,
+        auth: {
+          protocolVersion: 2,
           sessionToken: 'invalid_session_token_value_1234',
           lastStateVersion: 0,
         },
@@ -810,10 +827,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       expect(authError.message).toBe('UNAUTHORIZED');
       rejectedSocket.disconnect();
 
-      socket = createSocketClient(`${baseA}/game-v1`, {
+      socket = createSocketClient(`${baseA}/game-v2`, {
         transports: ['websocket'],
         auth: {
-          protocolVersion: 1,
+          protocolVersion: 2,
           sessionToken: created.sessionToken,
           lastStateVersion: 0,
         },
@@ -856,13 +873,13 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
         );
       });
       const joinResponse = await fetch(
-        `${baseB}/v1/rooms/${created.roomCode}/players`,
+        `${baseB}/v2/rooms/${created.roomCode}/players`,
         {
           method: 'POST',
           headers: {
             'content-type': 'application/json',
             'idempotency-key': id(201),
-            'x-protocol-version': '1',
+            'x-protocol-version': '2',
           },
           body: JSON.stringify(joinRequest('Remote player')),
         },
@@ -873,10 +890,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
         playerId: string;
         roomView: { public: { players: unknown[] } };
       };
-      joinedSocket = createSocketClient(`${baseB}/game-v1`, {
+      joinedSocket = createSocketClient(`${baseB}/game-v2`, {
         transports: ['websocket'],
         auth: {
-          protocolVersion: 1,
+          protocolVersion: 2,
           sessionToken: joined.sessionToken,
           lastStateVersion: 0,
         },
@@ -956,10 +973,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       expect(crossRoom.error.code).toBe('UNAUTHORIZED');
 
       await dependenciesA.redis.flushAll();
-      const current = await fetch(`${baseB}/v1/rooms/current/view`, {
+      const current = await fetch(`${baseB}/v2/rooms/current/view`, {
         headers: {
           authorization: `Bearer ${created.sessionToken}`,
-          'x-protocol-version': '1',
+          'x-protocol-version': '2',
         },
       });
       expect(current.status).toBe(200);

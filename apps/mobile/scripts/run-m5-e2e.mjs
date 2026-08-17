@@ -148,7 +148,7 @@ function findFile(directory, basename) {
 }
 
 function retainEvidence(mode) {
-  for (const name of ['ios-assassination', 'ios-result']) {
+  for (const name of ['ios-role-guide', 'ios-assassination', 'ios-result']) {
     const basename = `${name}-${mode}.png`;
     const source = findFile(maestroOutput, basename);
     if (source === undefined)

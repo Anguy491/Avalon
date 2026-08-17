@@ -1,6 +1,7 @@
 appId: com.example.avalon.dev
 name: M5 assassination, terminal result, and local cleanup
 ---
+- clearKeychain
 - launchApp:
     clearState: true
 - openLink: 'exp+avalon-dev://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
@@ -19,23 +20,57 @@ name: M5 assassination, terminal result, and local cleanup
 - tapOn:
     text: 'Reload'
     optional: true
+- tapOn:
+    text: 'Close'
+    optional: true
 - assertVisible: '让手机保管秘密'
 - tapOn: '你的昵称'
 - inputText: 'M5Sim'
 - hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: '输入房间号'
+    direction: DOWN
 - tapOn: '输入房间号'
 - tapOn:
     id: 'join-room-code'
 - inputText: '${ROOM_CODE}'
 - hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'join-room-submit'
+    direction: DOWN
 - tapOn:
     id: 'join-room-submit'
 - assertVisible: '房间号'
 - extendedWaitUntil:
     visible: '私密选择刺杀目标'
     timeout: 15000
-- assertVisible: '候选由服务器授权，包含除你之外的所有玩家，不按阵营分组或过滤。'
+- scrollUntilVisible:
+    element:
+      text: '候选由服务器授权，包含除你之外的所有玩家，不按阵营分组或过滤。'
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: '查看角色攻略'
+    direction: UP
+- tapOn: '查看角色攻略'
+- assertVisible: '刺客攻略'
+- scrollUntilVisible:
+    element:
+      text: '持续寻找梅林，记录谁能稳定给出正确方向又在刻意隐藏信息来源。'
+    direction: DOWN
+- takeScreenshot: 'ios-role-guide-${SCREENSHOT_MODE}'
+- scrollUntilVisible:
+    element:
+      text: '关闭角色攻略'
+    direction: DOWN
+- tapOn: '关闭角色攻略'
 - tapOn: '1号位，BotMerlin'
+- scrollUntilVisible:
+    element:
+      text: '确认刺杀目标'
+    direction: DOWN
 - tapOn: '确认刺杀目标'
 - assertVisible: '刺杀 BotMerlin，提交后立即结束游戏。'
 - takeScreenshot: 'ios-assassination-${SCREENSHOT_MODE}'
@@ -45,16 +80,25 @@ name: M5 assassination, terminal result, and local cleanup
     timeout: 15000
 - assertVisible: '刺客成功找出梅林，邪恶方翻盘获胜。'
 - assertVisible: '刺杀目标：1号位 · BotMerlin'
-- assertVisible: '全部角色'
+- scrollUntilVisible:
+    element:
+      text: '全部角色'
+    direction: DOWN
 - takeScreenshot: 'ios-result-${SCREENSHOT_MODE}'
 - scrollUntilVisible:
     element:
       text: '匿名行动：成功 2，失败 0；失败阈值 1'
     direction: DOWN
+    speed: 80
+    timeout: 40000
+    visibilityPercentage: 10
 - scrollUntilVisible:
     element:
       text: '返回首页并清理本机会话'
     direction: DOWN
+    speed: 80
+    timeout: 40000
+    visibilityPercentage: 10
 - swipe:
     start: '50%,80%'
     end: '50%,35%'

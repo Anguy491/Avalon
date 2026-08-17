@@ -136,10 +136,10 @@ flowchart LR
 
 | Surface | How reached | Trust boundary | Notes | Evidence (repo path / symbol) |
 | --- | --- | --- | --- | --- |
-| `POST /v1/rooms` | 未认证 HTTPS | 互联网→API | 昵称、配置、资源消耗、幂等 | `docs/api-contract.zh-CN.md` 3.2；`SM-001` |
-| `POST /v1/rooms/{code}/players` | 未认证 HTTPS/QR | 互联网→API/房间 | 枚举、占位、昵称输入 | 协议 3.3；`SM-002` |
-| `POST /v1/sessions/resume` | Bearer HTTPS | token→会话 | token 重放、轮换竞态 | 协议 3.4；`SM-003` |
-| `GET /v1/rooms/current/view` | Bearer HTTPS | token→投影 | 跨玩家/跨房间读取 | 协议 3.5；`room-view.schema.json` |
+| `POST /v2/rooms` | 未认证 HTTPS | 互联网→API | 昵称、配置、资源消耗、幂等 | `docs/api-contract.zh-CN.md` 3.2；`SM-001` |
+| `POST /v2/rooms/{code}/players` | 未认证 HTTPS/QR | 互联网→API/房间 | 枚举、占位、昵称输入 | 协议 3.3；`SM-002` |
+| `POST /v2/sessions/resume` | Bearer HTTPS | token→会话 | token 重放、轮换竞态 | 协议 3.4；`SM-003` |
+| `GET /v2/rooms/current/view` | Bearer HTTPS | token→投影 | 跨玩家/跨房间读取 | 协议 3.5；`room-view.schema.json` |
 | Socket.IO handshake | 互联网长连接 | token→Gateway | 连接放大、旧 token、恢复旁路 | 协议 4.1；`ADR-004` |
 | `command.submit` | 已认证 Socket.IO | 玩家→领域 | 伪造权限、重放、竞态、超大载荷 | `command.schema.json`；状态机 4.2–4.4 |
 | `room.view` | Server→单玩家 | 投影器→租户/玩家 | 错接 socket 或缓存会泄漏秘密 | 状态机第 6 节；`ADR-004` |

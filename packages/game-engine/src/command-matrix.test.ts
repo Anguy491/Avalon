@@ -156,7 +156,7 @@ const cases: readonly ValidCommandCase[] = [
         actor: state.hostPlayerId,
         body: {
           type: 'ConfigureRoom',
-          configInput: configInput(5, 'COMMON_ROLES'),
+          configInput: configInput(5, 'RECOMMENDED'),
         },
         ports,
       };

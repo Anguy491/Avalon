@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RoomView } from '@avalon/protocol/mobile';
 
 import {
+  INITIAL_CREATE_CONFIG_DRAFT,
   configInputFromDraft,
   deriveLobbyUiState,
   initialLobbyConfigDraft,
@@ -93,6 +94,20 @@ describe('seatOrderReducer', () => {
 });
 
 describe('lobbyConfigReducer', () => {
+  it('starts create-room on the base preset and preserves an empty custom draft', () => {
+    expect(INITIAL_CREATE_CONFIG_DRAFT).toEqual({
+      playerCount: 5,
+      mode: 'CLASSIC',
+      customRoleIds: [],
+    });
+    const custom = lobbyConfigReducer(INITIAL_CREATE_CONFIG_DRAFT, {
+      type: 'set-mode',
+      mode: 'CUSTOM',
+    });
+    expect(custom.customRoleIds).toEqual([]);
+    expect(isConfigDraftStructurallySubmittable(custom)).toBe(false);
+  });
+
   it('starts from the exact projected role list without guessing its preset', () => {
     const draft = initialLobbyConfigDraft(roomView([]).public.config);
     expect(draft.mode).toBe('CUSTOM');
@@ -125,12 +140,12 @@ describe('lobbyConfigReducer', () => {
 
     const preset = lobbyConfigReducer(shorter, {
       type: 'set-mode',
-      mode: 'COMMON_ROLES',
+      mode: 'RECOMMENDED',
     });
     expect(isConfigDraftStructurallySubmittable(preset)).toBe(true);
     expect(configInputFromDraft(preset).roleSelection).toEqual({
       type: 'PRESET',
-      presetId: 'COMMON_ROLES',
+      presetId: 'RECOMMENDED',
     });
   });
 });

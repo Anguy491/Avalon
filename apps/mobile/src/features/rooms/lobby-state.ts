@@ -74,13 +74,19 @@ export function seatOrderReducer(
   return { playerIds };
 }
 
-export type ConfigMode = 'CLASSIC' | 'COMMON_ROLES' | 'CUSTOM';
+export type ConfigMode = 'CLASSIC' | 'RECOMMENDED' | 'CUSTOM';
 
 export interface LobbyConfigDraft {
   readonly playerCount: number;
   readonly mode: ConfigMode;
   readonly customRoleIds: readonly RoleId[];
 }
+
+export const INITIAL_CREATE_CONFIG_DRAFT: LobbyConfigDraft = {
+  playerCount: 5,
+  mode: 'CLASSIC',
+  customRoleIds: [],
+};
 
 export type LobbyConfigAction =
   | { readonly type: 'reset'; readonly draft: LobbyConfigDraft }
@@ -140,7 +146,7 @@ export function isConfigDraftStructurallySubmittable(
     draft.playerCount >= 5 &&
     draft.playerCount <= 10 &&
     (draft.mode !== 'CUSTOM' ||
-      (draft.customRoleIds.length >= 5 && draft.customRoleIds.length <= 10))
+      draft.customRoleIds.length === draft.playerCount)
   );
 }
 
