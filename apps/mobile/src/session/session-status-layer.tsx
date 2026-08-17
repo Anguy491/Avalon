@@ -10,6 +10,7 @@ import { useSession } from './session-provider';
 import {
   countdownLabel,
   derivePauseTerminationUiState,
+  shouldRefreshPauseEligibility,
 } from './pause-termination-state';
 
 function remainingLabel(expiresAt: string | null, now: number): string {
@@ -24,7 +25,7 @@ export function SessionStatusLayer() {
   const { color } = useAppTheme();
   const session = useSession();
   const [now, setNow] = useState(Date.now());
-  const refreshedEligibilityAt = useRef<string | undefined>(undefined);
+  const eligibilityRefreshInFlight = useRef(false);
   const paused = session.roomView?.public.phase === 'PAUSED';
   const pauseTermination = useMemo(
     () =>
@@ -55,21 +56,22 @@ export function SessionStatusLayer() {
   }, [session.roomView]);
 
   useEffect(() => {
-    const availableAt =
-      session.roomView?.public.pauseTerminationVoteAvailableAt;
     if (
-      !paused ||
-      availableAt === undefined ||
-      availableAt === null ||
-      session.roomView.public.pauseTerminationVote != null ||
-      pauseTermination?.availableInMs !== 0 ||
-      pauseTermination.canStart ||
-      refreshedEligibilityAt.current === availableAt
+      session.roomView === undefined ||
+      pauseTermination === undefined ||
+      !shouldRefreshPauseEligibility(
+        session.roomView,
+        pauseTermination,
+        session.status === 'CONNECTED',
+      ) ||
+      eligibilityRefreshInFlight.current
     ) {
       return;
     }
-    refreshedEligibilityAt.current = availableAt;
-    void session.refreshView();
+    eligibilityRefreshInFlight.current = true;
+    void session.refreshView().finally(() => {
+      eligibilityRefreshInFlight.current = false;
+    });
   }, [pauseTermination, paused, session]);
 
   const offlinePlayers = useMemo(

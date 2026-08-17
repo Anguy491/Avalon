@@ -42,10 +42,10 @@ describe('AC-012 LIVE audio playback', () => {
     expect(cueFromLiveProjection(projection('LIVE', true))).toEqual(cue);
   });
 
-  it('does not lose LIVE audio when an equal-version RESYNC won the room cache race', () => {
+  it('does not lose LIVE audio when an equal-version RESYNC replaces the room cache', () => {
     const resync = projection('RESYNC', false);
     const live = projection('LIVE', true);
-    const cached = acceptNewerRoomView(resync.roomView, live.roomView);
+    const cached = acceptNewerRoomView(live.roomView, resync.roomView);
 
     expect(cached.private.shouldPlayAudio).toBe(false);
     expect(cueFromLiveProjection(live)).toEqual(cue);

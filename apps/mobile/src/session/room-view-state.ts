@@ -5,7 +5,7 @@ export function acceptNewerRoomView(
   incoming: RoomView,
 ): RoomView {
   return current === undefined ||
-    incoming.public.stateVersion > current.public.stateVersion
+    incoming.public.stateVersion >= current.public.stateVersion
     ? incoming
     : current;
 }

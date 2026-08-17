@@ -42,3 +42,20 @@ export function countdownLabel(milliseconds: number): string {
   const seconds = totalSeconds % 60;
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
+
+export function shouldRefreshPauseEligibility(
+  roomView: RoomView,
+  state: PauseTerminationUiState,
+  connected: boolean,
+): boolean {
+  const availableAt = roomView.public.pauseTerminationVoteAvailableAt;
+  return (
+    connected &&
+    roomView.public.phase === 'PAUSED' &&
+    availableAt !== undefined &&
+    availableAt !== null &&
+    roomView.public.pauseTerminationVote == null &&
+    state.availableInMs === 0 &&
+    !state.canStart
+  );
+}

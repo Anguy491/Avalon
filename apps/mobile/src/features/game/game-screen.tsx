@@ -107,7 +107,13 @@ export function GameScreen() {
       router.replace(
         roomView?.public.gameOutcome?.reason === 'ABORTED' ? '/' : '/result',
       );
-  }, [roomView?.public.gameOutcome?.reason, roomView?.public.phase]);
+    else if (phase === undefined && session.status === 'ANONYMOUS')
+      router.replace('/');
+  }, [
+    roomView?.public.gameOutcome?.reason,
+    roomView?.public.phase,
+    session.status,
+  ]);
 
   if (roomView === undefined || table === undefined) {
     return (

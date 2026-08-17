@@ -1,5 +1,6 @@
 import { randomUUID } from 'expo-crypto';
 import Constants from 'expo-constants';
+import { router } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 import {
@@ -62,6 +63,7 @@ import {
   updateSessionExpiry,
   type StoredSession,
 } from './secure-session-store';
+import { terminalSessionDisposition } from './terminal-session-state';
 
 const ROOM_VIEW_KEY = ['room-view'] as const;
 type SessionStatus =
@@ -128,6 +130,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     undefined,
   );
   const terminalAckVersion = useRef<number | undefined>(undefined);
+  const terminalHomeExitStarted = useRef(false);
   const recovery = useRef<Promise<void> | undefined>(undefined);
   const createKeys = useRef(new IdempotencyKeys());
   const joinKeys = useRef(new IdempotencyKeys());
@@ -213,6 +216,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
     setStatus('TERMINAL');
   }, [stopSocket]);
 
+  const exitAbortedGame = useCallback((): Promise<void> => {
+    router.replace('/');
+    if (terminalHomeExitStarted.current) return Promise.resolve();
+    terminalHomeExitStarted.current = true;
+    return forgetSession();
+  }, [forgetSession]);
+
   const connectSocket = useCallback(
     (record: StoredSession) => {
       stopSocket();
@@ -283,16 +293,20 @@ export function SessionProvider({ children }: PropsWithChildren) {
       });
       nextSocket.on('session.revoked', (payload: unknown) => {
         if (!isSessionRevoked(payload)) return;
-        const isTerminal =
-          queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY)?.public.phase ===
-          'GAME_OVER';
-        void (isTerminal ? retireTerminalSession() : forgetSession()).then(
-          () => {
-            if (!isTerminal) {
-              setError('本机会话已失效，请返回首页重新加入。');
-            }
-          },
+        const disposition = terminalSessionDisposition(
+          queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY),
         );
+        const cleanup =
+          disposition === 'RETURN_HOME'
+            ? exitAbortedGame
+            : disposition === 'RETAIN_RESULT'
+              ? retireTerminalSession
+              : forgetSession;
+        void cleanup().then(() => {
+          if (disposition === 'ACTIVE') {
+            setError('本机会话已失效，请返回首页重新加入。');
+          }
+        });
       });
       nextSocket.on('server.maintenance', (payload: unknown) => {
         if (!isServerMaintenance(payload)) return;
@@ -303,6 +317,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
     },
     [
       acceptRoomView,
+      exitAbortedGame,
       forgetSession,
       queryClient,
       retireTerminalSession,
@@ -312,6 +327,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const installBootstrap = useCallback(
     async (bootstrap: SessionBootstrap) => {
+      terminalHomeExitStarted.current = false;
       const record = await saveBootstrap(expoSecureStore, bootstrap);
       sessionRecord.current = record;
       sessionToken.current = record.sessionToken;
@@ -397,7 +413,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       return;
     }
     terminalAckVersion.current = view.public.stateVersion;
-    const returnsDirectlyHome = view.public.gameOutcome?.reason === 'ABORTED';
+    const disposition = terminalSessionDisposition(view);
     setStatus('TERMINAL');
     activeSocket
       .timeout(4_000)
@@ -412,12 +428,12 @@ export function SessionProvider({ children }: PropsWithChildren) {
           ) {
             setError('终局回执未确认；服务器仍会在 60 秒内自动清理房间。');
           }
-          void (returnsDirectlyHome
-            ? forgetSession()
+          void (disposition === 'RETURN_HOME'
+            ? exitAbortedGame()
             : retireTerminalSession());
         },
       );
-  }, [forgetSession, retireTerminalSession, roomViewQuery.data]);
+  }, [exitAbortedGame, retireTerminalSession, roomViewQuery.data]);
 
   useEffect(() => {
     let previous = AppState.currentState;

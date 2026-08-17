@@ -9,6 +9,7 @@ import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
 import { usePublicDraft } from '@/session/public-draft-provider';
 import { useSession } from '@/session/session-provider';
+import { terminalSessionDisposition } from '@/session/terminal-session-state';
 import { spacing, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -19,14 +20,12 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const phase = session.roomView?.public.phase;
+    const terminal = terminalSessionDisposition(session.roomView);
+    if (terminal === 'RETURN_HOME') return;
     if (phase === 'LOBBY') router.replace('/lobby');
     else if (phase === 'ROLE_REVEAL') router.replace('/role');
     else if (phase === 'ASSASSINATION') router.replace('/assassination');
-    else if (
-      phase === 'GAME_OVER' &&
-      session.roomView?.public.gameOutcome?.reason !== 'ABORTED'
-    )
-      router.replace('/result');
+    else if (terminal === 'RETAIN_RESULT') router.replace('/result');
     else if (phase !== undefined) router.replace('/game');
   }, [session.roomView]);
 

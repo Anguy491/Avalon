@@ -5,6 +5,7 @@ import type { RoomView } from '@avalon/protocol/mobile';
 import {
   countdownLabel,
   derivePauseTerminationUiState,
+  shouldRefreshPauseEligibility,
 } from './pause-termination-state';
 
 function pausedView(): RoomView {
@@ -58,5 +59,18 @@ describe('pause termination UI state', () => {
       ballotRemainingMs: 20_000,
       voterStatus: 'PENDING',
     });
+  });
+
+  it('AC-016 refreshes repeatedly after eligibility until the action appears', () => {
+    const view = pausedView();
+    const eligibleAt = Date.parse('2026-08-16T06:01:00.000Z');
+    let state = derivePauseTerminationUiState(view, eligibleAt);
+    expect(shouldRefreshPauseEligibility(view, state, true)).toBe(true);
+
+    view.private.availableActions = [
+      { commandType: 'StartPauseTerminationVote' },
+    ];
+    state = derivePauseTerminationUiState(view, eligibleAt + 1_000);
+    expect(shouldRefreshPauseEligibility(view, state, true)).toBe(false);
   });
 });
