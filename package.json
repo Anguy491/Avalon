@@ -12,6 +12,7 @@
   },
   "scripts": {
     "acceptance:bots": "node scripts/acceptance-bots.mjs",
+    "acceptance:bots:recommended-5p": "node scripts/acceptance-recommended-5p-bots.mjs",
     "acceptance:web": "node scripts/web-multi-player.mjs",
     "build": "pnpm -r --if-present build",
     "dev": "pnpm --parallel --filter @avalon/server --filter @avalon/mobile dev",

@@ -23,7 +23,7 @@ name: M2 create room with a custom role deck
 - tapOn:
     text: 'Close'
     optional: true
-- assertVisible: '让手机保管秘密'
+- assertVisible: '聚会无实体阿瓦隆助手'
 - tapOn: '你的昵称'
 - inputText: 'CustomHost'
 - hideKeyboard

@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { parseAcceptanceBotArgs } from './acceptance-bots.mjs';
+import {
+  assertExpectedRoomConfig,
+  parseAcceptanceBotArgs,
+} from './acceptance-bots.mjs';
+import { recommendedFivePlayerOptions } from './acceptance-recommended-5p-bots.mjs';
 import {
   assassinationTarget,
   chooseTeam,
@@ -128,6 +132,48 @@ test('parses the documented CLI and returns sanitized expectations', () => {
   assert.equal(options.botCount, 4);
   assert.equal(options.report, false);
   assert.deepEqual(scenarioExpectation('reconnect'), { recovered: true });
+});
+
+test('locks the recommended 5-player bot launcher to four bots and the exact public deck', () => {
+  const options = recommendedFivePlayerOptions([
+    '--',
+    '--room-code',
+    '234567',
+    '--bots',
+    '2',
+  ]);
+  assert.equal(options.botCount, 4);
+  assert.equal(options.expectedConfig, 'recommended-5p');
+  assert.equal(options.scenario, 'happy-path');
+
+  assert.doesNotThrow(() =>
+    assertExpectedRoomConfig('recommended-5p', {
+      playerCount: 5,
+      roleIds: ['MERLIN', 'PERCIVAL', 'LOYAL_SERVANT', 'MORGANA', 'ASSASSIN'],
+    }),
+  );
+  assert.throws(
+    () =>
+      assertExpectedRoomConfig('recommended-5p', {
+        playerCount: 5,
+        roleIds: [
+          'MERLIN',
+          'LOYAL_SERVANT',
+          'LOYAL_SERVANT',
+          'ASSASSIN',
+          'MINION',
+        ],
+      }),
+    /requires roles/u,
+  );
+  assert.throws(
+    () =>
+      assertExpectedRoomConfig('recommended-5p', {
+        playerCount: 6,
+        roleIds: [],
+      }),
+    /requires a 5-player room/u,
+  );
 });
 
 test('parses isolated web player launcher options', () => {

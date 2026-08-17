@@ -23,7 +23,7 @@ name: M5 assassination, terminal result, and local cleanup
 - tapOn:
     text: 'Close'
     optional: true
-- assertVisible: '让手机保管秘密'
+- assertVisible: '聚会无实体阿瓦隆助手'
 - tapOn: '你的昵称'
 - inputText: 'M5Sim'
 - hideKeyboard
@@ -105,4 +105,4 @@ name: M5 assassination, terminal result, and local cleanup
     duration: 400
 - assertVisible: '返回首页并清理本机会话'
 - tapOn: '返回首页并清理本机会话'
-- assertVisible: '让手机保管秘密'
+- assertVisible: '聚会无实体阿瓦隆助手'

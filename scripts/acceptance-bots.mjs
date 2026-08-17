@@ -18,6 +18,14 @@ import {
 } from './lib/protocol-test-client.mjs';
 
 const ROOM_CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{6}$/u;
+const EXPECTED_CONFIGS = ['recommended-5p'];
+const RECOMMENDED_5P_ROLE_IDS = [
+  'MERLIN',
+  'PERCIVAL',
+  'LOYAL_SERVANT',
+  'MORGANA',
+  'ASSASSIN',
+];
 
 function usage() {
   return `Usage:
@@ -29,6 +37,7 @@ Options:
   --api-origin <url>      Default: http://127.0.0.1:3000
   --realtime-url <url>    Override bootstrap realtime URL for local testing
   --disconnect-ms <ms>    Reconnect scenario outage; default: 20000
+  --expected-config <id>  ${EXPECTED_CONFIGS.join(' | ')}; default accepts any valid room config
   --report-dir <path>     Default: output/acceptance
   --no-report             Do not write the sanitized JSON evidence file
   --help                  Show this help
@@ -51,6 +60,7 @@ export function parseAcceptanceBotArgs(argv) {
     apiOrigin: process.env.ACCEPTANCE_API_ORIGIN ?? 'http://127.0.0.1:3000',
     botCount: undefined,
     disconnectMs: 20_000,
+    expectedConfig: process.env.ACCEPTANCE_EXPECTED_CONFIG,
     realtimeUrl: process.env.ACCEPTANCE_REALTIME_URL,
     report: true,
     reportDir: 'output/acceptance',
@@ -71,6 +81,7 @@ export function parseAcceptanceBotArgs(argv) {
     else if (argument === '--scenario') options.scenario = next();
     else if (argument === '--api-origin') options.apiOrigin = next();
     else if (argument === '--realtime-url') options.realtimeUrl = next();
+    else if (argument === '--expected-config') options.expectedConfig = next();
     else if (argument === '--report-dir') options.reportDir = next();
     else if (argument === '--no-report') options.report = false;
     else if (argument === '--bots') {
@@ -93,7 +104,37 @@ export function parseAcceptanceBotArgs(argv) {
   if (!scenarioNames().includes(options.scenario)) {
     throw new Error(`--scenario must be one of: ${scenarioNames().join(', ')}`);
   }
+  if (
+    options.expectedConfig !== undefined &&
+    !EXPECTED_CONFIGS.includes(options.expectedConfig)
+  ) {
+    throw new Error(
+      `--expected-config must be one of: ${EXPECTED_CONFIGS.join(', ')}`,
+    );
+  }
   return options;
+}
+
+export function assertExpectedRoomConfig(expectedConfig, config) {
+  if (expectedConfig === undefined) return;
+  if (expectedConfig !== 'recommended-5p') {
+    throw new Error(`Unsupported expected room config: ${expectedConfig}`);
+  }
+  if (config.playerCount !== 5) {
+    throw new Error(
+      `recommended-5p requires a 5-player room, received ${String(config.playerCount)}`,
+    );
+  }
+  if (
+    config.roleIds.length !== RECOMMENDED_5P_ROLE_IDS.length ||
+    config.roleIds.some(
+      (roleId, index) => roleId !== RECOMMENDED_5P_ROLE_IDS[index],
+    )
+  ) {
+    throw new Error(
+      `recommended-5p requires roles ${RECOMMENDED_5P_ROLE_IDS.join(', ')}, received ${config.roleIds.join(', ')}`,
+    );
+  }
 }
 
 function action(member, commandType) {
@@ -255,6 +296,7 @@ async function writeEvidence(options, definition, view, runtime, events) {
     roomCode: options.roomCode,
     scenario: options.scenario,
     scenarioLabel: definition.label,
+    expectedConfig: options.expectedConfig,
     traceability: definition.traceability,
     transportEvidence: {
       projectionIsolationErrors: runtime.projectionErrors,
@@ -294,7 +336,24 @@ export async function runAcceptanceBots(options) {
   try {
     const first = await protocol.joinRoom(options.roomCode, '验收Bot01', 'IOS');
     bootstraps.push(first.payload);
-    const playerCount = first.payload.roomView.public.config.playerCount;
+    const roomConfig = first.payload.roomView.public.config;
+    try {
+      assertExpectedRoomConfig(options.expectedConfig, roomConfig);
+    } catch (error) {
+      try {
+        const { member } = await protocol.connectMember(first.payload);
+        if (action(member, 'LeaveLobby')) {
+          await protocol.submit(member, 'LeaveLobby');
+        }
+        protocol.closeMember(member);
+      } catch (cleanupError) {
+        process.stderr.write(
+          `配置校验失败后的 Bot 清理也失败：${cleanupError instanceof Error ? cleanupError.message : String(cleanupError)}\n`,
+        );
+      }
+      throw error;
+    }
+    const playerCount = roomConfig.playerCount;
     const definition = validateScenario(options.scenario, playerCount);
     const existingPlayers = first.payload.roomView.public.players.length;
     const botCount = options.botCount ?? playerCount - existingPlayers + 1;
@@ -335,6 +394,7 @@ export async function runAcceptanceBots(options) {
       [
         `房间 ${options.roomCode} 已连接 ${String(bots.length)} 个 Bot（总人数 ${String(playerCount)}）`,
         `场景：${definition.label}`,
+        `配置校验：${options.expectedConfig ?? '接受房间当前有效配置'}`,
         `追踪：${definition.traceability.join(', ')}`,
         humanPrompt(initialView, bots, options.scenario),
       ].join('\n') + '\n',

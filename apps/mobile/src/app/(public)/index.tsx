@@ -42,7 +42,7 @@ export default function HomeScreen() {
             fontWeight: '800',
           }}
         >
-          让手机保管秘密
+          聚会无实体阿瓦隆助手
         </Text>
         <Text
           selectable

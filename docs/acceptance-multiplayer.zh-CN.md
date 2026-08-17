@@ -43,6 +43,15 @@ pnpm acceptance:bots -- --room-code ABCDEF --scenario happy-path
 
 默认根据房间配置自动填满剩余座位。若房间中另有人工/Web 玩家，使用 `--bots <数量>`。驱动器不会替真人点击房主专属的开始、继续、暂停/恢复或音频重播；终端会在每个等待点给出操作提示。
 
+通用 `acceptance:bots` 不限定基础或推荐配置；它会按房间当前服务端投影运行。若要专门手测 5 人推荐配置，先在 App 中以“5 人 + 推荐配置”建房，再运行：
+
+```bash
+ACCEPTANCE_REALTIME_URL=http://127.0.0.1:3000/game-v2 \
+pnpm acceptance:bots:recommended-5p -- --room-code ABCDEF
+```
+
+该入口固定加入 4 个 Bot，并在行动前校验公开角色数组必须精确为梅林、派西维尔、忠臣、莫甘娜、刺客；若误建成基础配置，会先让用于读取配置的 Bot 退出大厅，再立即报错且不产生通过证据。默认执行 `happy-path`，也可追加其他适用于 5 人局的 `--scenario`。
+
 | 场景 | 人数 | 命令 | 主要证据 |
 | --- | ---: | --- | --- |
 | 五轮正常流程 | 5–10 | `--scenario happy-path` | `AC-001/002/007/008/015` |
