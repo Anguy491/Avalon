@@ -84,3 +84,33 @@ test('Preview proxy overwrites forwarded client identity', async () => {
   assert.match(caddyfile, /handle \/\.well-known\/assetlinks\.json/u);
   assert.match(caddyfile, /handle \/\.well-known\/apple-app-site-association/u);
 });
+
+test('Preview Android App Links bind the reviewed package and signing certificate', async () => {
+  const statements = JSON.parse(
+    await readFile(
+      resolve(deploymentRoot, 'well-known/assetlinks.json'),
+      'utf8',
+    ),
+  );
+
+  assert.deepEqual(statements, [
+    {
+      relation: ['delegate_permission/common.handle_all_urls'],
+      target: {
+        namespace: 'android_app',
+        package_name: 'dev.anguy.avalon',
+        sha256_cert_fingerprints: [
+          '52:96:C7:39:FE:E5:BD:51:C1:70:96:74:8A:70:57:78:57:62:E1:0B:20:FC:84:E4:34:8C:FC:FB:B3:97:E0:B8',
+        ],
+      },
+    },
+  ]);
+});
+
+test('Preview mobile build exposes Sentry CLI to the native upload task', async () => {
+  const mobilePackage = JSON.parse(
+    await readFile(resolve(repositoryRoot, 'apps/mobile/package.json'), 'utf8'),
+  );
+
+  assert.equal(mobilePackage.devDependencies['@sentry/cli'], '2.58.4');
+});

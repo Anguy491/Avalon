@@ -1,8 +1,8 @@
 {
   "version": "zh-CN-v1",
   "locale": "zh-CN",
-  "status": "pending_assets",
-  "rightsReviewed": false,
+  "status": "approved",
+  "rightsReviewed": true,
   "rightsRecord": "docs/assets/audio-zh-CN-v1-rights.zh-CN.md",
   "entries": [
     {

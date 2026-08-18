@@ -2,7 +2,7 @@
 
 ## 1. 状态与范围
 
-目标状态为 `PREVIEW_READY_NOT_DEPLOYED`。本轮不创建 AWS/GCP 资源，不执行 EAS 签名/分发、DNS/TLS 变更或真实 Sentry 出站验证。
+当前 Android 内部 Preview 已完成 API/Tunnel/DNS、EAS project、签名、App Links、APK 构建和 Sentry source map 上传；尚未执行 Android 真机验收、iOS 签名/分发或外部邀请。AWS/GCP 生产候选资源仍不在本轮范围内。
 
 `M7-002`、`NFR-018`–`NFR-020`、`AC-014` 延期但不删除；这些项目以及支持系统真机矩阵继续阻塞 M8 外部邀请就绪声明。根级 AppState 遮罩属于 `FR-020`/`TM-010` 的秘密保护，不代表无障碍完成。
 
@@ -10,13 +10,15 @@
 
 | Issue | 实现 | 追踪 | 自动证据 | 当前状态 |
 | --- | --- | --- | --- | --- |
-| `M6-003` | `zh-CN-v1` 清单、生成模块、字幕降级、`expo-audio` 播放器、音量/静音/重播入口和哈希检查 | `FR-016`、`FR-035`–`FR-039`、`NFR-015`、`NFR-021` | `generate-audio-pack.mjs`、移动单元测试 | 字幕及哈希已就绪；正式音频、文件哈希和权利审核待素材，Preview fail-closed |
+| `M6-003` | `zh-CN-v1` 清单、生成模块、字幕降级、`expo-audio` 播放器、音量/静音/重播入口和哈希检查 | `FR-016`、`FR-035`–`FR-039`、`NFR-015`、`NFR-021` | `generate-audio-pack.mjs`、移动单元测试 | 正式音频、字幕、文件哈希与内部 Preview 权利审核已完成；公开商店和生产发布权利范围仍须另行确认 |
 | `M7-001` | 凭证代际、跨实例撤销、投影/ACK 代际检查、分层配额、可信代理、有限遥测维度 | `TM-001`–`TM-008`、`NFR-012`–`NFR-017`、`AC-013`、`AC-015` | `test:security`、协议/集成测试 | 自动安全、契约与集成验证通过；真实入口覆盖头仍属部署门槛 |
 | `M7-002` | 无障碍 | `NFR-018`–`NFR-020`、`AC-014` | 无 | 延期 |
-| `M7-003` | Sentry 严格允许列表、根隐私遮罩、无自动 HTTP 采集的 OpenTelemetry 指标、告警模板 | `NFR-008`、`NFR-014`、`NFR-023`、`FR-020` | Sentry canary、隐私状态、logger/metrics 审查 | DSN、DE 组织和真实出站代理为人工门槛 |
+| `M7-003` | Sentry 严格允许列表、根隐私遮罩、无自动 HTTP 采集的 OpenTelemetry 指标、告警模板 | `NFR-008`、`NFR-014`、`NFR-023`、`FR-020` | Sentry canary、隐私状态、logger/metrics 审查 | DE DSN、Metro/source map 管线、隐私配置和 EAS source map 上传已完成；真机 canary 仍为门槛 |
 | `M7-004` | 20 房 smoke 保留；worker-thread 1,000 房/10,000 Socket/30 分钟发布负载 | `NFR-002`–`NFR-004` | `test:load`、`test:load:release` | 完整场景须在隔离容量环境执行 |
 | `M7-005` | 终局相同 eventId 重投、30 秒在途排空、前向迁移和恢复演练手册 | `NFR-006`–`NFR-007`、`NFR-016` | 提交前/发布后故障、连接中断、Redis 清空、Outbox 重放、30 秒投票/60 分钟暂停时钟边界和 `pg_dump/restore` 集成测试 | 容器内恢复/RPO 0 已通过；供应商 WAL/备份残余为真实部署人工项 |
-| `M7-006` | Preview validator、AWS/GCP/EAS 手册、DigitalOcean 内部 Preview 声明、GHCR digest、OCI SBOM/provenance | `NFR-012`、`TM-008`、发布门槛 | `preview:check` 正反夹具、`deploy:preview:check`、CI OCI/GHCR artifact | Tunnel/DNS 已配置；应用仍为 `PREVIEW_READY_NOT_DEPLOYED` |
+| `M7-006` | Preview validator、AWS/GCP/EAS 手册、已审核的移动应用标识、DigitalOcean 内部 Preview 声明、GHCR digest、OCI SBOM/provenance | `NFR-012`、`TM-008`、发布门槛 | Expo public config 解析、`preview:check` 正反夹具、`deploy:preview:check`、CI OCI/GHCR artifact | API/Tunnel/DNS、EAS project、Android 签名、App Links、APK 构建与内部 Preview 音频权利审核已完成；Android 真机验收和 Apple 配置仍未完成 |
+
+2026-08-18 Android Preview 构建 `6d99d591-f752-480f-9bc2-234e5e06b1cf` 状态为 `FINISHED`。APK SHA-256 为 `ef32693258e3fb53485cf4306cdb32c07a5e3de844c02ab7ca0784ca1ec772a7`；实际 v2 签名证书 SHA-256 与线上 `assetlinks.json` 一致。Sentry release `dev.anguy.avalon@0.1.0+1`、dist `1` 的 bundle/source map debug ID 一致且上传完成。
 
 ## 3. 安全扫描闭环
 
@@ -43,10 +45,10 @@
 
 ## 5. 未执行人工门槛
 
-- 正式音频文件、逐字字幕哈希、权利审核、iOS/Android 首播/中断/重播/损坏证据；
+- iOS/Android 真机首播、中断、重播和损坏降级证据；
 - AWS 或 GCP 账号、网络、数据库、Redis、域名和 TLS；
-- EAS project、iOS UDID/签名、Android APK 分发和未认证链接关闭；
-- Sentry DE 组织、DSN、source map token 和 canary 出站代理；
+- iOS UDID/签名、Android APK 真机安装与受控分发、未认证链接关闭；
+- Sentry 真机 canary 出站代理；
 - 1,000 房/30 分钟发布负载、迁移新旧代码滚动、供应商级灾备和支持系统真机矩阵；
 - 延期的无障碍验收。
 

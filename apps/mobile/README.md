@@ -12,4 +12,4 @@ pnpm --filter @avalon/mobile android
 
 `ios`/`android` 使用包含 `expo-dev-client` 的本地 Development Build。`apps/mobile/ios` 与 `apps/mobile/android` 由 CNG 生成且不提交；配置应修改 `app.config.ts` 或 Expo config plugin，不能手工维护原生目录。
 
-当前名称、bundle ID 与 application ID 均为不可发布占位项。完整环境、EAS profile 和验证说明见仓库根目录的 `docs/development.zh-CN.md`。
+已确定的稳定应用标识为：应用名“曼波阿瓦隆”、Expo slug `anguy-avalon`、URL scheme `anguyavalon`，iOS Bundle ID 和 Android Application ID 均为 `dev.anguy.avalon`。完整环境、EAS profile 和验证说明见仓库根目录的 `docs/development.zh-CN.md`。

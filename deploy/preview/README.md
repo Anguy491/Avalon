@@ -34,7 +34,7 @@
 
 首次 GHCR 发布后，仓库所有者必须把两个 Container package 的 visibility 调整为 `Public`，并用未登录环境验证按 digest 匿名拉取。私有仓库不会自动让关联 package 公开。
 
-确定 Apple Team ID 和 EAS Android 签名证书 SHA-256 后，分别把两个 `.example` 模板复制为无 `.example` 后缀的正式文件并替换占位值。Caddy 会在无重定向的精确路径提供它们；填写前保持文件不存在，使验证 fail-closed：
+Android 正式 `assetlinks.json` 已锁定 `dev.anguy.avalon` 与当前 EAS 签名证书 SHA-256；签名证书轮换时必须同步更新并重新验证。确定 Apple Team ID 后，把 AASA `.example` 模板复制为无 `.example` 后缀的正式文件并替换占位值。Caddy 会在无重定向的精确路径提供它们；未审核的平台文件保持不存在，使验证 fail-closed：
 
 ```text
 /.well-known/apple-app-site-association

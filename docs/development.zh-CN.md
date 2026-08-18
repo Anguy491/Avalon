@@ -53,14 +53,14 @@ pnpm dev
 | `SESSION_TTL_SECONDS`                   | 会话有效期          | 否               |
 | `REALTIME_PUBLIC_URL`                   | bootstrap WSS 地址  | 否               |
 
-Compose 另外读取 `POSTGRES_DB/USER/PASSWORD`，仅用于本地容器。`.env` 不进入 Git；`.env.example` 只含不可复用占位值。服务端禁止请求体自动日志，并显式删减 Authorization、SessionToken、角色、知识、票与任务行动路径。pepper、幂等加密密钥和限流 HMAC 密钥必须彼此独立；Preview/Production 由秘密管理系统注入，不得使用示例值。
+Compose 另外读取 `POSTGRES_DB/USER/PASSWORD`，仅用于本地容器。`.env` 不进入 Git；`.env.example` 可以记录已审核的公开应用标识，所有秘密位置仍只能使用不可复用占位值。服务端禁止请求体自动日志，并显式删减 Authorization、SessionToken、角色、知识、票与任务行动路径。pepper、幂等加密密钥和限流 HMAC 密钥必须彼此独立；Preview/Production 由秘密管理系统注入，不得使用示例值。
 
-移动构建读取 `EXPO_PUBLIC_API_URL`、`EXPO_PUBLIC_JOIN_HOST` 与 `EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS`。开发默认 API 为 `http://127.0.0.1:3000`，公开加入 host 为不可发布占位值；本地 iOS Simulator 默认不生成 Associated Domains entitlement，避免无证书的模拟器构建被原生签名能力阻断。随机安装 UUID 只存在于 SecureStore，并只用于组合限流。
+移动构建读取 `EXPO_PUBLIC_API_URL`、`EXPO_PUBLIC_JOIN_HOST` 与 `EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS`。已确定的稳定标识为应用名“曼波阿瓦隆”、slug `anguy-avalon`、scheme `anguyavalon`，iOS Bundle ID 与 Android Application ID 均为 `dev.anguy.avalon`；公开加入 host 为 `avalon.anguy.dev`。开发默认 API 仍为 `http://127.0.0.1:3000`；本地 iOS Simulator 默认不生成 Associated Domains entitlement，避免无证书的模拟器构建被原生签名能力阻断。随机安装 UUID 只存在于 SecureStore，并只用于组合限流。
 
 Preview/Production（或需要在真机验证 Universal Links 的 Development Build）必须同时设置真实 HTTPS host 和 `EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS=1`，再重新生成/构建原生应用。例如：
 
 ```bash
-EXPO_PUBLIC_JOIN_HOST=anguy.dev \
+EXPO_PUBLIC_JOIN_HOST=avalon.anguy.dev \
 EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS=1 \
 pnpm --filter @avalon/mobile exec expo prebuild --platform ios --clean
 ```

@@ -4,13 +4,13 @@ import test from 'node:test';
 import { validatePreviewEnvironment } from './preview-config.mjs';
 
 const valid = {
-  EXPO_PUBLIC_APP_NAME: 'Avalon Preview',
-  EXPO_PUBLIC_APP_SLUG: 'avalon-preview',
-  EXPO_PUBLIC_APP_SCHEME: 'avalon-preview',
-  EXPO_PUBLIC_BUNDLE_ID: 'com.avalonco.avalon.preview',
-  EXPO_PUBLIC_JOIN_HOST: 'join.preview.avalonco.net',
-  EXPO_PUBLIC_API_URL: 'https://api.preview.avalonco.net',
-  REALTIME_PUBLIC_URL: 'wss://api.preview.avalonco.net/game-v2',
+  EXPO_PUBLIC_APP_NAME: '曼波阿瓦隆',
+  EXPO_PUBLIC_APP_SLUG: 'anguy-avalon',
+  EXPO_PUBLIC_APP_SCHEME: 'anguyavalon',
+  EXPO_PUBLIC_BUNDLE_ID: 'dev.anguy.avalon',
+  EXPO_PUBLIC_JOIN_HOST: 'avalon.anguy.dev',
+  EXPO_PUBLIC_API_URL: 'https://avalon.anguy.dev',
+  REALTIME_PUBLIC_URL: 'wss://avalon.anguy.dev/game-v2',
   EXPO_ENABLE_IOS_ASSOCIATED_DOMAINS: '1',
   EXPO_APP_LINKS_VERIFIED: '1',
   EXPO_PUBLIC_EAS_PROJECT_ID: '10000000-0000-4000-8000-000000000001',

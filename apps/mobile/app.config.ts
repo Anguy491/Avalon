@@ -3,11 +3,11 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 const PLACEHOLDER_BUNDLE_ID = 'com.example.avalon.dev';
 const PLACEHOLDER_JOIN_HOST = 'join.example.invalid';
 const DEPLOYMENT_ENV = process.env.EXPO_PUBLIC_DEPLOYMENT_ENV ?? 'development';
-const APP_NAME = process.env.EXPO_PUBLIC_APP_NAME ?? 'Avalon（开发占位）';
-const APP_SLUG = process.env.EXPO_PUBLIC_APP_SLUG ?? 'avalon-dev';
-const APP_SCHEME = process.env.EXPO_PUBLIC_APP_SCHEME ?? 'avalon-dev';
-const BUNDLE_ID = process.env.EXPO_PUBLIC_BUNDLE_ID ?? PLACEHOLDER_BUNDLE_ID;
-const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? PLACEHOLDER_JOIN_HOST;
+const APP_NAME = process.env.EXPO_PUBLIC_APP_NAME ?? '曼波阿瓦隆';
+const APP_SLUG = process.env.EXPO_PUBLIC_APP_SLUG ?? 'anguy-avalon';
+const APP_SCHEME = process.env.EXPO_PUBLIC_APP_SCHEME ?? 'anguyavalon';
+const BUNDLE_ID = process.env.EXPO_PUBLIC_BUNDLE_ID ?? 'dev.anguy.avalon';
+const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? 'avalon.anguy.dev';
 // Associated Domains is an Apple-signed capability. Keep it opt-in so a local
 // Simulator development build does not require a signing identity.
 const ENABLE_IOS_ASSOCIATED_DOMAINS =

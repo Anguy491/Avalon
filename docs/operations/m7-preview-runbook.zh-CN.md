@@ -32,9 +32,9 @@
 
 ## 4. EAS Internal Distribution（人工）
 
-1. 创建真实 EAS project，把 project UUID、应用名、slug、scheme、bundle/application ID 和已验证 App Links 写入 Preview 环境。
+1. 创建真实 EAS project，使用已确定的应用名“曼波阿瓦隆”、slug `anguy-avalon`、scheme `anguyavalon`、iOS Bundle ID/Android Application ID `dev.anguy.avalon`，并把 project UUID 和已验证 App Links 写入 Preview 环境。
 2. Android 使用 internal APK；iOS 使用 ad hoc，并在构建前确认全部测试设备 UDID。
-3. 签名凭证和 `SENTRY_AUTH_TOKEN` 只由获授权人员在 EAS sensitive 环境录入。
+3. 签名凭证和 `SENTRY_AUTH_TOKEN` 只由获授权人员在 EAS sensitive 环境录入。构建前必须从 `apps/mobile` 运行 `eas env:exec preview 'SENTRY_URL=https://sentry.io pnpm exec sentry-cli info'`，通过全局鉴权端点确认 token 能访问目标组织；401/403/404 均停止构建，实际上传仍使用 Preview 中的 DE 区 `SENTRY_URL`。source map 上传优先使用具有 `org:ci` 的组织 token；`sentry-cli` 管理 release 时还需要 `org:read`。
 4. 关闭未认证构建链接；只向批准名单发送安装入口。
 5. 安装后分别验证 HTTPS/WSS、恢复轮换、后台遮罩、音频与 Sentry canary；失败立即撤销构建链接。
 

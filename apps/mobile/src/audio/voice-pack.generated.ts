@@ -2,7 +2,7 @@
 import type { AudioSource } from 'expo-audio';
 
 export const VOICE_PACK_VERSION = 'zh-CN-v1' as const;
-export const VOICE_PACK_READY: boolean = false;
+export const VOICE_PACK_READY: boolean = true;
 
 export const VOICE_PACK_ENTRIES = {
   'game.role.reveal': { subtitle: '请各位玩家查看并确认自己的身份。' },

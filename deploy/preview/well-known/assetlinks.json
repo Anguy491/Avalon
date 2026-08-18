@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "dev.anguy.avalon",
+      "sha256_cert_fingerprints": [
+        "52:96:C7:39:FE:E5:BD:51:C1:70:96:74:8A:70:57:78:57:62:E1:0B:20:FC:84:E4:34:8C:FC:FB:B3:97:E0:B8"
+      ]
+    }
+  }
+]

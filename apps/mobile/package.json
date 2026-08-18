@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@react-native/metro-config": "0.85.3",
+    "@sentry/cli": "2.58.4",
     "@types/react": "~19.2.2",
     "typescript": "~6.0.3",
     "vitest": "4.0.16"

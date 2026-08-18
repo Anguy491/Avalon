@@ -9,6 +9,8 @@ export function initializeSentry(): void {
     enabled: dsn !== undefined && dsn.length > 0,
     sendDefaultPii: false,
     attachScreenshot: false,
+    replaysSessionSampleRate: 0,
+    replaysOnErrorSampleRate: 0,
     enableAutoSessionTracking: true,
     enableNdkScopeSync: false,
     beforeBreadcrumb: () => null,

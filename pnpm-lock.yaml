@@ -142,6 +142,9 @@ importers:
       '@react-native/metro-config':
         specifier: 0.85.3
         version: 0.85.3(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
+      '@sentry/cli':
+        specifier: 2.58.4
+        version: 2.58.4(supports-color@10.2.2)
       '@types/react':
         specifier: ~19.2.2
         version: 19.2.18
