@@ -109,10 +109,11 @@ Socket.IO 自带的临时连接恢复只能作为优化，不能替代上述应�
 | [ADR-007](./ADR-007-contract-source-of-truth.md) | JSON Schema 兼容的共享协议包为线上契约源 | 已接受 |
 | [ADR-008](./ADR-008-m2-session-idempotency-and-delivery.md) | token 原子轮换、加密幂等响应与逐会话 Outbox 投递 | 已接受 |
 | [ADR-009](./ADR-009-protocol-v2-recommended-config.md) | 协议 v2、推荐配置枚举与 v1 升级拒绝 | 已接受 |
+| [ADR-010](./ADR-010-digitalocean-preview-deployment.md) | DigitalOcean 单 Droplet + Cloudflare Tunnel 内部 Preview | 已接受（仅内部 Preview） |
 
 ## 7. 部署拓扑与演进
 
-MVP 采用单区域部署：至少两个无状态应用实例、托管 PostgreSQL、托管 Redis 和一个可重复执行的后台任务实例。负载均衡器必须支持 TLS 和长连接。数据库与应用处于私网，只有入口层公开。
+生产 MVP 采用单区域部署：至少两个无状态应用实例、托管 PostgreSQL、托管 Redis 和一个可重复执行的后台任务实例。负载均衡器必须支持 TLS 和长连接。数据库与应用处于私网，只有入口层公开。邀请测试前的内部 Preview 可按 [ADR-010](./ADR-010-digitalocean-preview-deployment.md) 使用单 Droplet；该例外不降低生产或 M8 门槛。
 
 本地开发可以使用单应用实例、PostgreSQL 与 Redis 容器。Redis 不可用时，单实例开发可使用内存 adapter；任何共享测试或生产环境不得依赖单进程内存恢复。
 

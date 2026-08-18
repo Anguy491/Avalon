@@ -20,7 +20,7 @@ RUN pnpm --filter @avalon/protocol build \
   && pnpm --filter @avalon/server build \
   && pnpm --filter @avalon/server deploy --prod /prod/server
 
-FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS runtime
+FROM node:24.19.0-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03 AS runtime-base
 
 ENV NODE_ENV=production
 WORKDIR /app
@@ -28,4 +28,11 @@ COPY --from=build /prod/server ./
 
 USER node
 EXPOSE 3000
+
+FROM runtime-base AS migrator
+
+CMD ["node", "node_modules/node-pg-migrate/bin/node-pg-migrate.js", "--migrations-dir", "migrations", "up"]
+
+FROM runtime-base AS runtime
+
 CMD ["node", "dist/main.js"]

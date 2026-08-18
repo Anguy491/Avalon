@@ -1,0 +1,192 @@
+name: avalon-preview
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE must be pinned by digest}
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+    command:
+      - postgres
+      - -c
+      - max_connections=40
+      - -c
+      - shared_buffers=128MB
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    mem_limit: 384m
+    pids_limit: 100
+    logging: *default-logging
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    networks:
+      - private
+
+  redis:
+    image: ${REDIS_IMAGE:?REDIS_IMAGE must be pinned by digest}
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      - --maxmemory
+      - 96mb
+      - --maxmemory-policy
+      - noeviction
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    mem_limit: 160m
+    pids_limit: 50
+    logging: *default-logging
+    volumes:
+      - redis-data:/data
+    networks:
+      - private
+
+  migrator:
+    image: ${AVALON_MIGRATOR_IMAGE:?AVALON_MIGRATOR_IMAGE must be pinned by digest}
+    restart: 'no'
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: 256m
+    pids_limit: 100
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    logging: *default-logging
+    networks:
+      - private
+
+  server:
+    image: ${AVALON_SERVER_IMAGE:?AVALON_SERVER_IMAGE must be pinned by digest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: '3000'
+      LOG_LEVEL: ${LOG_LEVEL}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX}
+      RATE_LIMIT_HMAC_SECRET: ${RATE_LIMIT_HMAC_SECRET}
+      JOIN_RATE_LIMIT_MAX: ${JOIN_RATE_LIMIT_MAX}
+      CREATE_JOIN_IP_RATE_LIMIT: ${CREATE_JOIN_IP_RATE_LIMIT}
+      CREATE_JOIN_GLOBAL_RATE_LIMIT: ${CREATE_JOIN_GLOBAL_RATE_LIMIT}
+      SESSION_TOKEN_PEPPER: ${SESSION_TOKEN_PEPPER}
+      IDEMPOTENCY_ENCRYPTION_SECRET: ${IDEMPOTENCY_ENCRYPTION_SECRET}
+      SESSION_TTL_SECONDS: ${SESSION_TTL_SECONDS}
+      REALTIME_PUBLIC_URL: wss://avalon.anguy.dev/game-v2
+      TRUSTED_PROXY_CIDRS: 172.31.77.254/32
+      HANDSHAKE_IP_RATE_LIMIT: ${HANDSHAKE_IP_RATE_LIMIT}
+      PENDING_AUTH_LIMIT: ${PENDING_AUTH_LIMIT}
+      AUTH_TIMEOUT_MS: ${AUTH_TIMEOUT_MS}
+      INSTANCE_CONNECTION_LIMIT: ${INSTANCE_CONNECTION_LIMIT}
+      GLOBAL_CONNECTION_LIMIT: ${GLOBAL_CONNECTION_LIMIT}
+      SESSION_SOCKET_LIMIT: ${SESSION_SOCKET_LIMIT}
+      TERMINAL_ACK_RATE_LIMIT: ${TERMINAL_ACK_RATE_LIMIT}
+      AUDIO_TELEMETRY_RATE_LIMIT: ${AUDIO_TELEMETRY_RATE_LIMIT}
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX}
+      DATABASE_QUERY_TIMEOUT_MS: ${DATABASE_QUERY_TIMEOUT_MS}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE}
+      OTLP_METRICS_ENDPOINT: ${OTLP_METRICS_ENDPOINT:-}
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/v2/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    mem_limit: 448m
+    pids_limit: 150
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    logging: *default-logging
+    networks:
+      - private
+
+  proxy:
+    image: ${CADDY_IMAGE:?CADDY_IMAGE must be pinned by digest}
+    restart: unless-stopped
+    command: [caddy, run, --config, /etc/caddy/Caddyfile]
+    depends_on:
+      server:
+        condition: service_healthy
+    mem_limit: 96m
+    pids_limit: 80
+    read_only: true
+    tmpfs:
+      - /config:size=16m
+      - /data:size=16m
+      - /tmp:size=16m,mode=1777
+    logging: *default-logging
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./well-known:/srv/.well-known:ro
+    networks:
+      private:
+        ipv4_address: 172.31.77.254
+      edge:
+        ipv4_address: 172.31.78.254
+
+  cloudflared:
+    image: ${CLOUDFLARED_IMAGE:?CLOUDFLARED_IMAGE must be pinned by digest}
+    restart: unless-stopped
+    command: [tunnel, --no-autoupdate, run]
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      proxy:
+        condition: service_started
+    mem_limit: 96m
+    pids_limit: 80
+    read_only: true
+    logging: *default-logging
+    networks:
+      - edge
+
+networks:
+  private:
+    internal: true
+    ipam:
+      config:
+        - subnet: 172.31.77.0/24
+  edge:
+    ipam:
+      config:
+        - subnet: 172.31.78.0/24
+
+volumes:
+  postgres-data:
+  redis-data:

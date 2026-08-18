@@ -19,6 +19,7 @@
     "dev:deps": "docker-compose up -d --wait",
     "dev:deps:down": "docker-compose down",
     "dev:wss": "node apps/mobile/scripts/run-local-wss-proxy.mjs",
+    "deploy:preview:check": "node --test scripts/preview-deployment-config.test.mjs",
     "docs:check": "pnpm protocol:check && node scripts/docs-check.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

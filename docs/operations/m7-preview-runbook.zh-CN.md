@@ -40,13 +40,24 @@
 
 参考：[EAS internal distribution](https://docs.expo.dev/build/internal-distribution/)、[EAS 环境变量](https://docs.expo.dev/eas/environment-variables/)。
 
-## 5. 滚动、回滚与销毁
+## 5. 内部 Preview：DigitalOcean Singapore + Cloudflare Tunnel
+
+该路径按 [ADR-010](../architecture/ADR-010-digitalocean-preview-deployment.md) 只用于邀请测试前的内部 Preview，不替代 AWS/GCP 生产候选拓扑，也不构成高可用或备份证明。
+
+1. `main` 校验成功后，CI 分别把 `runtime` 与 `migrator` target 推送到 GHCR，并上传包含两个 `@sha256:` 引用的 `avalon-preview-images-<commit>` artifact。首次发布后把两个 Container package 设为 Public，并匿名验证 digest 拉取；
+2. Droplet 只复制 [`deploy/preview`](../../deploy/preview/README.md) 声明文件，不 clone 仓库、不安装 Node/pnpm、不运行 `docker build`；
+3. 远程管理的 `avalon-preview` Tunnel 把 `avalon.anguy.dev` 路由到 Compose 内 `http://proxy:8080`。应用、PostgreSQL、Redis 和 Caddy 均不映射主机端口；
+4. secrets 只写入 `/opt/avalon-preview/.env`，所有者为 root、权限 `0600`。这是内部 Preview 的显式例外，进入外部邀请前仍须迁移到符合共同门槛的秘密管理方案；
+5. 按已批准选择，数据位于本机 Docker named volume，不启用 DigitalOcean 自动备份、独立 Volume 或快照。主机/磁盘故障可能永久丢失数据，且该环境不得被描述为生产；
+6. 更新只替换 CI artifact 给出的两个 digest。迁移器成功退出后服务端才启动；应用回滚不执行 down migration。
+
+## 6. 滚动、回滚与销毁
 
 - 滚动：先检查 `/v2/health/ready`，按一台实例替换，确认旧实例发出维护事件并排空，再继续。
 - 应用回滚：只回退到与当前数据库列前向兼容的上一 OCI digest；不得自动 down migration。
 - 数据恢复：仅按故障演练手册在隔离数据库验证；真实恢复需明确事件负责人。
 - 销毁顺序：撤销分发链接/DSN → 导出聚合容量证据 → 删除服务和入口 → 删除 Redis/数据库与快照 → 等待并记录供应商残余期限 → 撤销 OIDC/secrets/DNS。
 
-## 6. 预算模板
+## 7. 预算模板
 
 分别记录最小/目标/峰值的任务实例小时、ALB/Cloud Run 请求与出站、PostgreSQL 规格/存储/PITR、Redis 规格、OTLP/日志量、EAS 构建与 Sentry 事件量。预算只能用于选择，不构成购买授权。
