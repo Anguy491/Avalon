@@ -13,7 +13,7 @@
     "./mobile": {
       "types": "./src/mobile.ts",
       "react-native": "./src/mobile.ts",
-      "browser": "./src/mobile.ts",
+      "browser": "./dist/mobile.js",
       "default": "./dist/mobile.js"
     }
   },

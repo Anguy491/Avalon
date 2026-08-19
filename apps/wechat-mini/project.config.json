@@ -1,0 +1,15 @@
+{
+  "miniprogramRoot": "dist/",
+  "projectname": "avalon-wechat-mini",
+  "description": "曼波阿瓦隆微信小程序",
+  "appid": "touristappid",
+  "compileType": "miniprogram",
+  "setting": {
+    "es6": false,
+    "enhance": true,
+    "postcss": false,
+    "minified": false,
+    "ignoreUploadUnusedFiles": true,
+    "urlCheck": false
+  }
+}

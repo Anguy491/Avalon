@@ -1227,6 +1227,10 @@
                 {
                   "const": "ANDROID",
                   "type": "string"
+                },
+                {
+                  "const": "WECHAT_MINIPROGRAM",
+                  "type": "string"
                 }
               ]
             },
@@ -1289,6 +1293,10 @@
                 {
                   "const": "ANDROID",
                   "type": "string"
+                },
+                {
+                  "const": "WECHAT_MINIPROGRAM",
+                  "type": "string"
                 }
               ]
             },
@@ -1337,6 +1345,10 @@
             },
             {
               "const": "ANDROID",
+              "type": "string"
+            },
+            {
+              "const": "WECHAT_MINIPROGRAM",
               "type": "string"
             }
           ]
@@ -1391,6 +1403,10 @@
                 },
                 {
                   "const": "ANDROID",
+                  "type": "string"
+                },
+                {
+                  "const": "WECHAT_MINIPROGRAM",
                   "type": "string"
                 }
               ]

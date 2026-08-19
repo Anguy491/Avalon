@@ -556,6 +556,19 @@ describe('TEST-contract / HTTP and configuration schemas', () => {
       }),
     ).toBe(false);
   });
+
+  it('accepts the WeChat Mini Program client platform', () => {
+    expect(
+      validateCreateRoom({
+        nickname: 'Arthur',
+        config: presetConfig,
+        client: {
+          ...clientCapabilities,
+          platform: 'WECHAT_MINIPROGRAM',
+        },
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('TEST-contract / stable error and realtime messages', () => {

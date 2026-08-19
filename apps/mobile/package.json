@@ -3,6 +3,7 @@
   "main": "expo-router/entry",
   "version": "0.1.0",
   "dependencies": {
+    "@avalon/client-core": "workspace:*",
     "@avalon/protocol": "workspace:*",
     "@react-native-community/netinfo": "12.0.1",
     "@sentry/react-native": "~7.11.0",

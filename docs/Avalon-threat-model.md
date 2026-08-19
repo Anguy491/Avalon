@@ -60,6 +60,7 @@
 | 组件 | 安全职责 | 证据锚点 |
 | --- | --- | --- |
 | Expo 移动端 | 安全保存 token、只渲染本人投影、私密页遮罩、固定音频 | `docs/architecture/README.md` 第 3 节；`docs/ux-spec.zh-CN.md` 第 4/8 节 |
+| 微信小程序 | 沙箱保存短生命周期 token、只在内存渲染本人投影、前后台遮罩、固定音频 | `ADR-011`；`docs/wechat-mini-development.zh-CN.md` |
 | Fastify/Socket.IO 入口 | TLS 后的认证、Schema、大小/速率限制、命令确认 | `docs/architecture/ADR-002-server-runtime-hosting.md`；`docs/api-contract.zh-CN.md` 第 2–4 节 |
 | 应用服务/投影器 | 操作者授权、幂等事务、逐玩家投影、错误过滤 | `docs/server-state-machine.zh-CN.md` 第 4/6/8 节；`docs/architecture/README.md` 第 3/5 节 |
 | 纯游戏引擎 | 权限后的领域验证、确定性裁决、不变量 | `AGENTS.md` 第 2/5 节；`docs/server-state-machine.zh-CN.md` |
@@ -146,6 +147,7 @@ flowchart LR
 | 昵称/暂停原因 | HTTP/命令输入 | 用户文本→UI/日志 | Unicode 欺骗、注入、日志污染 | 协议 2.3；`FR-001`、`SM-014` |
 | 二维码/Universal Link | 相机/OS 深链 | 外部内容→移动路由 | 任意 URL、钓鱼、非法房间号 | `docs/ux-spec.zh-CN.md` 4.2；`NFR-013` |
 | SecureStore/任务切换器 | 本地设备 | OS/其他应用→移动秘密 | token/角色本地泄漏、截图 | UX 4.5/8；`NFR-010`、`NFR-022` |
+| 微信沙箱存储/后台预览 | 微信运行时/本地设备 | 宿主与备份→小程序秘密 | token 缺少 Keychain/Keystore 等价保护，私密视图可能留在预览 | `ADR-011`；`NFR-010`、`NFR-022` |
 | 日志/指标/崩溃 SDK | 运行时异常 | 运行时→第三方 | 自动上下文采集秘密 | `NFR-014`、`NFR-023` |
 | 依赖、CI 与 EAS | Git/包注册表/CI | 开发供应链→构建 | 恶意依赖、密钥和产物篡改 | Roadmap M0/M8；`ADR-005` |
 
@@ -212,6 +214,8 @@ flowchart LR
 | `packages/game-engine/` | 权限后的确定性裁决和善方动作限制（计划路径） | `TM-003` |
 | `packages/protocol/` | 运行时 Schema 和生成投影契约（计划路径） | `TM-001`、`TM-004`、`TM-007` |
 | `apps/mobile/src/session/` | SecureStore、token 清理、终局内存保留和恢复 | `TM-002`、`TM-009` |
+| `apps/wechat-mini/src/session/` | 微信沙箱 token、轮换、终局清理和前后台遮罩 | `TM-002`、`TM-009`、`TM-010` |
+| `apps/wechat-mini/src/realtime/` | `SocketTask` transport 必须保持握手鉴权、ACK 与重连语义 | `TM-001`、`TM-003`、`TM-006` |
 | `apps/mobile/src/features/private/` | 身份/任务/刺杀遮罩和侧信道（计划路径） | `TM-010` |
 | `apps/mobile/app.config.*` | deep link、平台权限、截图/录屏和 EAS 配置（计划路径） | `TM-007`、`TM-008`、`TM-010` |
 | `.github/workflows/`、`eas.json` | 供应链权限、签名和发布环境（计划路径） | `TM-008` |

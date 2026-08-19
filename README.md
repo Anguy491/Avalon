@@ -18,6 +18,8 @@ pnpm dev
 
 移动端 Metro 默认使用 Expo Development Build；也可先执行 `pnpm --filter @avalon/mobile start --go` 走 Expo Go 基础导航回路。服务端存活与就绪端点分别是 `GET /v2/health/live`、`GET /v2/health/ready`。
 
+微信小程序开发执行 `pnpm dev:weapp`，再由微信开发者工具导入 `apps/wechat-mini`；构建产物执行 `pnpm build:weapp`。完整环境变量、平台限制和发布门槛见[微信小程序开发指南](./docs/wechat-mini-development.zh-CN.md)。
+
 或在mobile目录下运行`pnpm exec expo start --dev-client --clear`启动应用。
 
 完整配置、验证命令和故障排查见 [M0 开发指南](./docs/development.zh-CN.md)。
@@ -32,6 +34,7 @@ pnpm dev
 - [API/实时协议](./docs/api-contract.zh-CN.md)
 - [UX 规范](./docs/ux-spec.zh-CN.md)
 - [测试策略](./docs/test-strategy.zh-CN.md)
+- [微信小程序开发指南](./docs/wechat-mini-development.zh-CN.md)
 - [安全威胁模型](./docs/Avalon-threat-model.md)
 - [实施路线图](./docs/roadmap.zh-CN.md)
 - [M2 追踪与验收证据](./docs/m2-traceability.zh-CN.md)
