@@ -13,6 +13,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:e2e": "node scripts/run-e2e.mjs",
+    "test:e2e:preview": "node scripts/run-preview-e2e.mjs",
     "test:runtime": "node scripts/check-runtime-compat.mjs",
     "test:size": "node scripts/check-package-size.mjs",
     "typecheck": "tsc --noEmit"

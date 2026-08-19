@@ -34,6 +34,7 @@
     "test:contract": "pnpm --filter @avalon/protocol test:contract",
     "test:e2e:mobile": "pnpm --filter @avalon/mobile test:e2e",
     "test:e2e:weapp": "pnpm --filter @avalon/wechat-mini test:e2e",
+    "test:e2e:weapp:preview": "pnpm --filter @avalon/wechat-mini test:e2e:preview",
     "test:integration": "pnpm --filter @avalon/server test:integration",
     "test:load": "node scripts/load-smoke.mjs",
     "test:load:release": "node scripts/load-release.mjs",

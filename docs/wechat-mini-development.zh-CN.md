@@ -31,6 +31,14 @@ pnpm install --frozen-lockfile
 pnpm dev:weapp
 ```
 
+内部 Preview 示例：
+
+```dotenv
+TARO_APP_API_URL=https://preview.example.invalid
+TARO_APP_JOIN_HOST=preview.example.invalid
+TARO_APP_VERSION=0.1.0
+```
+
 然后用微信开发者工具导入 `apps/wechat-mini`；`project.config.json` 的 `miniprogramRoot` 已指向 `dist/`。CLI 自动化必须使用当前登录开发者有权限的测试或正式 AppID；`touristappid` 只能用于不依赖 CLI 的有限手工开发。开发阶段关闭 URL 校验。联调服务需允许 HTTPS 与 WSS；真机不能使用电脑的 `127.0.0.1`，应填局域网可达的 TLS 地址或 Preview 域名。
 
 环境变量：
@@ -72,6 +80,27 @@ WECHAT_DEVTOOLS_CLI=/path/to/cli pnpm test:e2e:weapp
 ```
 
 该 E2E 是首页构建/渲染冒烟，不代替真机验收。真实 AppID 与合法 request/socket 域名就绪后，至少用 5 台设备或 1 台 UI 设备加头部测试客户端走通一局，并留存正常状态、后台遮罩、扫码拒绝、断网恢复和音频中断证据。
+
+连接已批准的内部 Preview 后，可运行单模拟器完整流程；命令要求显式 HTTPS 地址，创建一名微信房主和四名头部 Bot，检查首页、创建、加入、扫码、大厅、身份遮挡、对局、刺杀和结果页，并把无私密身份的截图写入被 Git 忽略的 `apps/wechat-mini/test-results/preview/`：
+
+```bash
+WECHAT_DEVTOOLS_CLI=/path/to/cli \
+WECHAT_PREVIEW_API_ORIGIN=https://preview.example.invalid \
+pnpm test:e2e:weapp:preview
+```
+
+脚本先从 Node 和小程序运行时分别检查 Preview 健康状态。当前开发者工具的自动化会话可能忽略 `project.config.json` 中的 URL 校验设置；检测到 `url not in domain list` 时，脚本会暂停。此时在自动化窗口的“详情 → 本地设置”勾选“不校验合法域名、web-view（业务域名）、TLS 版本以及 HTTPS 证书”，再回到终端按回车。该设置只用于模拟器，不能替代真机合法域名配置。
+
+Preview 服务必须接受协议能力 `platform: WECHAT_MINIPROGRAM`。若旧 Preview 尚未部署该协议，可仅为页面流程验收显式启用兼容垫片：
+
+```bash
+WECHAT_DEVTOOLS_CLI=/path/to/cli \
+WECHAT_PREVIEW_API_ORIGIN=https://preview.example.invalid \
+WECHAT_PREVIEW_LEGACY_PLATFORM_SHIM=1 \
+pnpm test:e2e:weapp:preview
+```
+
+垫片只在 E2E 进程中把 REST 能力声明改写为 `IOS`，不改变产品构建，并会输出醒目标记；使用它得到的结果不证明已部署服务兼容微信协议。更新 Preview 服务后必须去掉该变量再跑一次。
 
 当前固定的 `miniprogram-automator` 仍从 `Tool.getInfo.SDKVersion` 读取基础库版本，而新版开发者工具只返回工具 `version`。E2E 启动器在缺少该字段时改从小程序公开的系统信息读取 `SDKVersion`，继续执行最低版本校验，并把首页运行时异常作为测试失败处理。
 
