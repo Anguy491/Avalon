@@ -31,7 +31,7 @@ pnpm install --frozen-lockfile
 pnpm dev:weapp
 ```
 
-然后用微信开发者工具导入 `apps/wechat-mini`；`project.config.json` 的 `miniprogramRoot` 已指向 `dist/`。当前使用 `touristappid`，并关闭开发阶段 URL 校验。联调服务需允许 HTTPS 与 WSS；真机不能使用电脑的 `127.0.0.1`，应填局域网可达的 TLS 地址或 Preview 域名。
+然后用微信开发者工具导入 `apps/wechat-mini`；`project.config.json` 的 `miniprogramRoot` 已指向 `dist/`。CLI 自动化必须使用当前登录开发者有权限的测试或正式 AppID；`touristappid` 只能用于不依赖 CLI 的有限手工开发。开发阶段关闭 URL 校验。联调服务需允许 HTTPS 与 WSS；真机不能使用电脑的 `127.0.0.1`，应填局域网可达的 TLS 地址或 Preview 域名。
 
 环境变量：
 
@@ -40,6 +40,8 @@ pnpm dev:weapp
 | `TARO_APP_API_URL` | HTTP API 根地址，不带末尾 `/` |
 | `TARO_APP_JOIN_HOST` | 二维码加入链接允许的唯一 host |
 | `TARO_APP_VERSION` | 上报到能力声明和无秘密音频错误遥测的版本 |
+
+这些变量由 Taro 配置在构建时序列化为字符串常量；微信运行时不得直接读取 Node.js `process.env`。未设置时分别使用 `http://127.0.0.1:3000`、`join.example.invalid` 和 `0.1.0`。`postbuild:weapp` 会扫描构建产物，阻止未替换的 `TARO_APP_*` 引用进入开发者工具。
 
 ## 4. 平台实现
 
@@ -70,6 +72,8 @@ WECHAT_DEVTOOLS_CLI=/path/to/cli pnpm test:e2e:weapp
 ```
 
 该 E2E 是首页构建/渲染冒烟，不代替真机验收。真实 AppID 与合法 request/socket 域名就绪后，至少用 5 台设备或 1 台 UI 设备加头部测试客户端走通一局，并留存正常状态、后台遮罩、扫码拒绝、断网恢复和音频中断证据。
+
+当前固定的 `miniprogram-automator` 仍从 `Tool.getInfo.SDKVersion` 读取基础库版本，而新版开发者工具只返回工具 `version`。E2E 启动器在缺少该字段时改从小程序公开的系统信息读取 `SDKVersion`，继续执行最低版本校验，并把首页运行时异常作为测试失败处理。
 
 ## 6. 发布前人工门槛
 

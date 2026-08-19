@@ -14,7 +14,7 @@
 - 小程序继续消费协议 v2 和服务端个性化 `RoomView`，HTTP 使用 `Taro.request`，Socket.IO 只启用包装 `Taro.SocketTask` 的 WebSocket transport；不新增小程序专用裁决接口；
 - 页面按主包、`room` 分包和 `game` 分包组织；固定中文主持音频在构建时从现有语音包复制到小程序产物；
 - 小程序只持久化恢复所需的 token、房间摘要、实时地址和随机 installationId，不持久化 `RoomView`、角色、知识、票或任务行动；前后台切换时断开连接、停止音频并显示中性遮罩；
-- 开发阶段使用 `touristappid` 和本地/Preview API。真实 AppID、合法域名、隐私声明、代码上传和发布均是后续人工门槛。
+- 开发阶段使用测试 AppID 和本地/Preview API；Taro 在构建时注入平台配置，产物不得依赖 Node.js `process.env`。正式 AppID、合法域名、隐私声明、代码上传和发布均是后续人工门槛。
 
 ## 安全例外与发布门槛
 

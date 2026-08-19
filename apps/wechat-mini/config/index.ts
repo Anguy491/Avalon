@@ -11,6 +11,17 @@ export default defineConfig((merge) => {
     outputRoot: 'dist',
     framework: 'react',
     compiler: 'webpack5',
+    defineConstants: {
+      'process.env.TARO_APP_API_URL': JSON.stringify(
+        process.env.TARO_APP_API_URL ?? 'http://127.0.0.1:3000',
+      ),
+      'process.env.TARO_APP_JOIN_HOST': JSON.stringify(
+        process.env.TARO_APP_JOIN_HOST ?? 'join.example.invalid',
+      ),
+      'process.env.TARO_APP_VERSION': JSON.stringify(
+        process.env.TARO_APP_VERSION ?? '0.1.0',
+      ),
+    },
     alias: {
       '@': path.resolve(__dirname, '..', 'src'),
     },
