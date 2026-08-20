@@ -45,7 +45,7 @@
 - 服务端仅保存不可逆摘要，并绑定 `roomId/playerId/tokenFamily`；
 - 恢复成功原子轮换 token；旧 token 随即失效；并发恢复只有一个成功；
 - 大厅会话失效可重新加入；发牌后不得冒领或创建替代会话；
-- 客户端把 token 保存到 Keychain/Keystore 支持的 SecureStore，不得复制或显示。
+- 原生客户端把 token 保存到 Keychain/Keystore 支持的 SecureStore；微信小程序开发/内部测试版使用应用沙箱存储且不得持久化 `RoomView`。所有平台均不得复制、显示或记录 token，恢复成功后必须覆盖旧 token；小程序公开发布需满足 `NFR-010` 的专项门槛。
 
 ## 3. HTTP 接口
 
@@ -133,6 +133,8 @@ X-Protocol-Version: 2
 成功同样返回 `201 SessionBootstrap`。加入必须在一个数据库事务中检查房间仍为 `LOBBY`、容量和昵称冲突。二维码只编码 `https://{joinHost}/join/7K3M9Q`，不得附 token、playerId、昵称或应用私密状态。
 
 `installationId` 是客户端首次启动后生成的随机 UUID，可选用于创建/加入限流；它不是硬件或广告标识符，不参与玩家身份判断。服务端只把其 HMAC 摘要用于最长 10 分钟的临时限流键，不记录原值。旧版客户端缺少该字段时按匿名安装维度处理。
+
+`ClientCapabilities.platform` 接受 `IOS`、`ANDROID` 和 `WECHAT_MINIPROGRAM`。平台值只用于兼容性和无秘密遥测，不授予房主、角色或动作权限。
 
 ### 3.4 恢复会话
 

@@ -18,7 +18,11 @@ import { RoomViewSchema } from './room-view.js';
 export const ClientCapabilitiesSchema = Type.Object(
   {
     protocolVersion: Type.Literal(PROTOCOL_VERSION),
-    platform: Type.Union([Type.Literal('IOS'), Type.Literal('ANDROID')]),
+    platform: Type.Union([
+      Type.Literal('IOS'),
+      Type.Literal('ANDROID'),
+      Type.Literal('WECHAT_MINIPROGRAM'),
+    ]),
     appVersion: Type.String({ minLength: 1, maxLength: 40 }),
     installationId: Type.Optional(UuidSchema),
     voicePackVersions: Type.Array(

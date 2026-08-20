@@ -109,7 +109,11 @@ export const AudioTelemetrySchema = Type.Object(
       Type.Literal('LOAD_FAILED'),
       Type.Literal('PLAYBACK_INTERRUPTED'),
     ]),
-    platform: Type.Union([Type.Literal('ios'), Type.Literal('android')]),
+    platform: Type.Union([
+      Type.Literal('ios'),
+      Type.Literal('android'),
+      Type.Literal('wechat_miniprogram'),
+    ]),
     appVersion: Type.String({ minLength: 1, maxLength: 32 }),
     voicePackVersion: Type.Literal('zh-CN-v1'),
   },

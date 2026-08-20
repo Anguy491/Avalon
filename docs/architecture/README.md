@@ -16,8 +16,8 @@ MVP 不采用端到端 P2P、本地房主服务器或客户端裁决。目标容
 
 ```mermaid
 flowchart LR
-    P["普通玩家 Expo 客户端"] -->|"HTTPS + Socket.IO/TLS"| API["Fastify API / Realtime Gateway"]
-    H["房主 Expo 客户端\n公共音频播放"] -->|"HTTPS + Socket.IO/TLS"| API
+    P["普通玩家 Expo / 微信小程序客户端"] -->|"HTTPS + Socket.IO/TLS"| API["Fastify API / Realtime Gateway"]
+    H["房主 Expo / 微信小程序客户端\n公共音频播放"] -->|"HTTPS + Socket.IO/TLS"| API
     API --> AUTH["会话鉴权与限流"]
     API --> APP["应用服务\n命令编排与投影"]
     APP --> ENGINE["纯游戏引擎\n状态 + 命令 → 状态 + 事件"]
@@ -32,7 +32,7 @@ flowchart LR
 
 | 组件 | 职责 | 明确禁止 |
 | --- | --- | --- |
-| Expo 客户端 | 安全保存会话、提交意图、渲染个性化 `RoomView`、房主播放固定音频 | 本地计票、推断其他角色、离线推进、自动重放秘密动作 |
+| Expo / 微信小程序客户端 | 按平台保存恢复会话、提交意图、渲染个性化 `RoomView`、房主播放固定音频 | 本地计票、推断其他角色、离线推进、自动重放秘密动作 |
 | HTTP API | 创建、加入、恢复、读取当前投影、健康检查 | 在 URL、日志或缓存键中放会话令牌 |
 | Realtime Gateway | 认证连接、接收命令、确认结果、推送完整个性化投影 | 把内部领域事件或通用聚合直接广播 |
 | 应用服务 | 授权、事务、幂等、调用引擎、构建投影、写 Outbox | 在事务外决定胜负或提交进度 |
@@ -46,6 +46,10 @@ flowchart LR
 ```mermaid
 flowchart TD
     MOBILE["apps/mobile"] --> PROTOCOL["packages/protocol"]
+    WECHAT["apps/wechat-mini"] --> CLIENTCORE["packages/client-core"]
+    MOBILE --> CLIENTCORE
+    CLIENTCORE --> PROTOCOL
+    WECHAT --> PROTOCOL
     SERVER["apps/server"] --> PROTOCOL
     SERVER --> ENGINE["packages/game-engine"]
     SERVER --> FIXTURES["packages/test-fixtures"]
@@ -110,6 +114,7 @@ Socket.IO 自带的临时连接恢复只能作为优化，不能替代上述应�
 | [ADR-008](./ADR-008-m2-session-idempotency-and-delivery.md) | token 原子轮换、加密幂等响应与逐会话 Outbox 投递 | 已接受 |
 | [ADR-009](./ADR-009-protocol-v2-recommended-config.md) | 协议 v2、推荐配置枚举与 v1 升级拒绝 | 已接受 |
 | [ADR-010](./ADR-010-digitalocean-preview-deployment.md) | DigitalOcean 单 Droplet + Cloudflare Tunnel 内部 Preview | 已接受（仅内部 Preview） |
+| [ADR-011](./ADR-011-wechat-mini-program-client.md) | 独立 Taro 微信小程序 UI + 无平台共享客户端核心 | 已接受（开发与内部测试） |
 
 ## 7. 部署拓扑与演进
 

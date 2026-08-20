@@ -5,7 +5,13 @@ packages:
 injectWorkspacePackages: true
 
 allowBuilds:
+  '@parcel/watcher': true
   '@sentry/cli': true
+  '@swc/core': true
+  '@tarojs/binding': true
+  '@tarojs/cli': true
+  core-js: false
+  core-js-pure: false
   cpu-features: false
   esbuild: true
   protobufjs: false

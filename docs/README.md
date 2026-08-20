@@ -14,6 +14,7 @@
 - [架构总览](./architecture/README.md)与 [ADR 目录](./architecture/README.md#6-决策记录)；
 - [HTTP 与实时协议契约](./api-contract.zh-CN.md)和 [Schema 目录](./contracts/README.md)；
 - [测试策略](./test-strategy.zh-CN.md)；
+- [微信小程序开发指南](./wechat-mini-development.zh-CN.md)；
 - [单模拟器多玩家验收手册](./acceptance-multiplayer.zh-CN.md)；
 - [安全威胁模型](./Avalon-threat-model.md)；
 - [MVP 实施路线图](./roadmap.zh-CN.md)；
@@ -30,7 +31,7 @@
 | 文档                     | 状态      | 变更方式                                |
 | ------------------------ | --------- | --------------------------------------- |
 | 游戏规则、状态机、FR/NFR | MVP 基线  | 产品规则变更，必须同步追踪表与测试      |
-| ADR-001–ADR-009          | 已接受    | 新 ADR 取代，不覆盖历史决定             |
+| ADR-001–ADR-011          | 已接受    | 新 ADR 取代，不覆盖历史决定             |
 | 协议 Schema              | M0 已生成 | 由 `packages/protocol` 导出并做快照校验 |
 | UX、测试、安全、Roadmap  | P0 基线   | 随实现发现更新，但不得弱化上游要求      |
 

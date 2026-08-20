@@ -3950,6 +3950,10 @@
             {
               "const": "android",
               "type": "string"
+            },
+            {
+              "const": "wechat_miniprogram",
+              "type": "string"
             }
           ]
         },
