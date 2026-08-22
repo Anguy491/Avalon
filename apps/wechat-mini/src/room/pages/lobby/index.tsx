@@ -1,14 +1,38 @@
 import { Button, Text, View } from '@tarojs/components';
-import Taro from '@tarojs/taro';
-import { useState } from 'react';
+import Taro, { useDidHide } from '@tarojs/taro';
+import { useEffect, useRef, useState } from 'react';
 
 import { CLIENT_ROLE_IDS, rolePresentation } from '@avalon/client-core';
-import type { RoomConfigInput, RoomView } from '@avalon/protocol/mobile';
+import type {
+  RoomConfigInput,
+  RoomConfigValidationError,
+  RoomConfigValidationErrorCode,
+  RoomView,
+} from '@avalon/protocol/mobile';
 
 import { PageShell } from '@/components/page-shell';
 import { PlayerList } from '@/components/player-list';
 import { RoomQr } from '@/components/room-qr';
 import { useSession } from '@/session/session-provider';
+import { validateRoomConfig } from '@/api/client';
+import {
+  VOICE_PACK_READY,
+  voicePackEntryFor,
+} from '@/audio/voice-pack.generated';
+
+const CONFIG_ERROR_MESSAGES: Readonly<
+  Record<RoomConfigValidationErrorCode, string>
+> = {
+  INVALID_PLAYER_COUNT: '玩家人数必须为 5–10 人。',
+  ROLE_COUNT_MISMATCH: '角色数量必须与玩家人数一致。',
+  ALIGNMENT_COUNT_MISMATCH: '正义与邪恶阵营人数不符合当前人数规则。',
+  MERLIN_REQUIRED_ONCE: '必须且只能有一名梅林。',
+  ASSASSIN_REQUIRED_ONCE: '必须且只能有一名刺客。',
+  UNIQUE_ROLE_REPEATED: '特殊角色不能重复。',
+  MORGANA_REQUIRES_PERCIVAL: '选择莫甘娜时必须同时选择派西维尔。',
+  FIVE_PLAYER_PERCIVAL_REQUIRES_DECEPTION_ROLE:
+    '五人局选择派西维尔时，必须加入莫甘娜或莫德雷德。',
+};
 
 async function confirm(title: string, content: string): Promise<boolean> {
   const result = await Taro.showModal({
@@ -26,6 +50,93 @@ export default function LobbyPage() {
   const [customRoles, setCustomRoles] = useState<
     RoomView['public']['config']['roleIds'][number][]
   >([]);
+  const [qrOpen, setQrOpen] = useState(false);
+  const [previewStatus, setPreviewStatus] = useState<
+    'IDLE' | 'PLAYING' | 'FAILED'
+  >('IDLE');
+  const previewPlayer = useRef<Taro.InnerAudioContext>();
+  const [configValidation, setConfigValidation] = useState<
+    | { readonly status: 'IDLE' | 'CHECKING' | 'UNAVAILABLE' }
+    | {
+        readonly status: 'VALIDATED';
+        readonly errors: readonly RoomConfigValidationError[];
+      }
+  >({ status: 'IDLE' });
+  const effectivePlayerCount =
+    draftPlayerCount ?? roomView?.public.config.playerCount ?? 5;
+  useEffect(() => {
+    const isHost = roomView?.public.players.some(
+      (player) =>
+        player.playerId === roomView.private.playerId && player.isHost,
+    );
+    if (isHost !== true) {
+      setConfigValidation({ status: 'IDLE' });
+      return;
+    }
+    let active = true;
+    setConfigValidation({ status: 'CHECKING' });
+    const timeout = setTimeout(() => {
+      void validateRoomConfig({
+        playerCount: effectivePlayerCount,
+        roleIds: customRoles,
+      })
+        .then((result) => {
+          if (active) {
+            setConfigValidation({ status: 'VALIDATED', errors: result.errors });
+          }
+        })
+        .catch(() => {
+          if (active) setConfigValidation({ status: 'UNAVAILABLE' });
+        });
+    }, 200);
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [customRoles, effectivePlayerCount, roomView]);
+  const stopPreview = () => {
+    previewPlayer.current?.stop();
+    previewPlayer.current?.destroy();
+    previewPlayer.current = undefined;
+    setPreviewStatus('IDLE');
+  };
+  const togglePreview = () => {
+    if (previewStatus === 'PLAYING') {
+      stopPreview();
+      return;
+    }
+    const preview = voicePackEntryFor('game.role.reveal');
+    if (!VOICE_PACK_READY || preview === undefined) {
+      setPreviewStatus('FAILED');
+      return;
+    }
+    stopPreview();
+    const audio = Taro.createInnerAudioContext();
+    previewPlayer.current = audio;
+    audio.src = preview.source;
+    audio.volume = 0.8;
+    audio.onPlay(() => {
+      setPreviewStatus('PLAYING');
+    });
+    audio.onEnded(() => {
+      if (previewPlayer.current === audio) previewPlayer.current = undefined;
+      audio.destroy();
+      setPreviewStatus('IDLE');
+    });
+    audio.onError(() => {
+      if (previewPlayer.current === audio) previewPlayer.current = undefined;
+      audio.destroy();
+      setPreviewStatus('FAILED');
+    });
+    audio.play();
+  };
+  useDidHide(stopPreview);
+  useEffect(
+    () => () => {
+      stopPreview();
+    },
+    [],
+  );
   if (roomView === undefined || summary === undefined) {
     return (
       <PageShell title="正在恢复大厅" subtitle="正在读取服务端当前状态…" />
@@ -44,7 +155,7 @@ export default function LobbyPage() {
   const busy = pendingCommandType !== undefined;
   const send = (input: Parameters<typeof submitCommand>[0]) =>
     void submitCommand(input);
-  const playerCount = draftPlayerCount ?? roomView.public.config.playerCount;
+  const playerCount = effectivePlayerCount;
   const configure = (presetId: 'CLASSIC' | 'RECOMMENDED') => {
     const config: RoomConfigInput = {
       rulesVersion: 'CLASSIC_AVALON_V1',
@@ -76,8 +187,16 @@ export default function LobbyPage() {
     <PageShell title="房间大厅" subtitle="所有玩家在线并准备后，房主即可开始。">
       <View className="card">
         <View className="room-code">{summary.roomCode}</View>
-        <RoomQr roomCode={summary.roomCode} />
         <View className="row-wrap">
+          <Button
+            className="button button-secondary button-small"
+            ariaLabel="全屏显示房间二维码"
+            onClick={() => {
+              setQrOpen(true);
+            }}
+          >
+            全屏二维码
+          </Button>
           <Button
             className="button button-secondary button-small"
             onClick={() =>
@@ -88,18 +207,20 @@ export default function LobbyPage() {
           </Button>
           <Button
             className="button button-secondary button-small"
-            onClick={() => {
-              const audio = Taro.createInnerAudioContext();
-              audio.src = '/assets/audio/zh-CN-v1/game-role-reveal.mp3';
-              audio.onEnded(() => {
-                audio.destroy();
-              });
-              audio.play();
-            }}
+            onClick={togglePreview}
           >
-            测试主持语音
+            {previewStatus === 'PLAYING' ? '停止主持语音' : '测试主持语音'}
           </Button>
         </View>
+        <View className="subtitle">
+          字幕：
+          {voicePackEntryFor('game.role.reveal')?.subtitle ??
+            '语音资源不可用，请根据当前阶段继续。'}
+        </View>
+        <View className="progress">播放状态：{previewStatus}</View>
+        {previewStatus === 'FAILED' ? (
+          <View className="error">音频加载失败，可继续使用字幕主持。</View>
+        ) : null}
       </View>
 
       <Text className="section-title">
@@ -171,16 +292,17 @@ export default function LobbyPage() {
           <Text className="section-title">目标人数</Text>
           <View className="row-wrap">
             {Array.from({ length: 6 }, (_, index) => index + 5).map((count) => (
-              <View
+              <Button
                 className={`choice${playerCount === count ? ' choice-selected' : ''}`}
                 key={count}
+                ariaLabel={`${playerCount === count ? '已选择，' : ''}${String(count)} 人`}
                 onClick={() => {
                   setDraftPlayerCount(count);
                   setCustomRoles((current) => current.slice(0, count));
                 }}
               >
                 {count} 人
-              </View>
+              </Button>
             ))}
           </View>
           <View className="row-wrap">
@@ -242,9 +364,29 @@ export default function LobbyPage() {
               </View>
             );
           })}
+          {configValidation.status === 'CHECKING' ? (
+            <View className="subtitle">正在校验角色配置…</View>
+          ) : null}
+          {configValidation.status === 'UNAVAILABLE' ? (
+            <View className="error">校验服务暂时不可用，无法保存配置。</View>
+          ) : null}
+          {configValidation.status === 'VALIDATED'
+            ? configValidation.errors.map((validationError, index) => (
+                <View
+                  className="error"
+                  key={`${validationError.code}-${validationError.roleId ?? 'none'}-${String(index)}`}
+                >
+                  {CONFIG_ERROR_MESSAGES[validationError.code]}
+                </View>
+              ))
+            : null}
           <Button
             className="button"
-            disabled={busy || customRoles.length !== playerCount}
+            disabled={
+              busy ||
+              configValidation.status !== 'VALIDATED' ||
+              configValidation.errors.length > 0
+            }
             onClick={configureCustom}
           >
             保存自定义配置
@@ -266,21 +408,44 @@ export default function LobbyPage() {
           {self?.ready === true ? '取消准备' : '我已准备'}
         </Button>
       ) : null}
-      {actions.has('StartGame') ? (
-        <Button
-          className="button"
-          disabled={busy}
-          onClick={() =>
-            void confirm(
-              '开始游戏',
-              '开始后将随机分配身份，玩家不能退出或替换。',
-            ).then((ok) => {
-              if (ok) send({ type: 'StartGame', payload: {} });
-            })
-          }
-        >
-          开始游戏
-        </Button>
+      {self?.isHost === true ? (
+        <View className="card">
+          <Text className="section-title">开始对局</Text>
+          {players.length === roomView.public.config.playerCount ? null : (
+            <View className="error">
+              还需 {roomView.public.config.playerCount - players.length}{' '}
+              名玩家。
+            </View>
+          )}
+          {players
+            .filter((player) => !player.connected)
+            .map((player) => (
+              <View className="error" key={`offline-${player.playerId}`}>
+                {player.nickname} 当前离线。
+              </View>
+            ))}
+          {players
+            .filter((player) => !player.ready)
+            .map((player) => (
+              <View className="error" key={`ready-${player.playerId}`}>
+                {player.nickname} 尚未准备。
+              </View>
+            ))}
+          <Button
+            className="button"
+            disabled={busy || !actions.has('StartGame')}
+            onClick={() =>
+              void confirm(
+                '开始游戏',
+                '开始后将随机分配身份，玩家不能退出或替换。',
+              ).then((ok) => {
+                if (ok) send({ type: 'StartGame', payload: {} });
+              })
+            }
+          >
+            开始游戏
+          </Button>
+        </View>
       ) : null}
       {actions.has('LeaveLobby') ? (
         <Button
@@ -309,6 +474,24 @@ export default function LobbyPage() {
         >
           关闭房间
         </Button>
+      ) : null}
+      {qrOpen ? (
+        <View className="qr-overlay">
+          <Text className="title">扫码加入房间</Text>
+          <View className="room-code">{summary.roomCode}</View>
+          <RoomQr roomCode={summary.roomCode} />
+          <View className="subtitle">
+            请调高屏幕亮度并避免反光；扫码失败时可手动输入房间号。
+          </View>
+          <Button
+            className="button"
+            onClick={() => {
+              setQrOpen(false);
+            }}
+          >
+            关闭二维码
+          </Button>
+        </View>
       ) : null}
     </PageShell>
   );

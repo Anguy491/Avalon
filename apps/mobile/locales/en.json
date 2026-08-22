@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "Used only to scan public room QR codes. The app does not capture photos, video, or audio."
+  }
+}

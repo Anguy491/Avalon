@@ -6,6 +6,8 @@
     "build": "pnpm run build:weapp",
     "prebuild:weapp": "pnpm --filter @avalon/protocol build && pnpm --filter @avalon/client-core build",
     "build:weapp": "taro build --type weapp",
+    "prebuild:weapp:release": "pnpm --filter @avalon/protocol build && pnpm --filter @avalon/client-core build && node ../../scripts/generate-audio-pack.mjs --check --verify-assets",
+    "build:weapp:release": "TARO_APP_BUILD_PROFILE=release node scripts/validate-release-config.mjs && TARO_APP_BUILD_PROFILE=release taro build --type weapp && TARO_APP_BUILD_PROFILE=release node scripts/validate-release-config.mjs --check-output",
     "postbuild:weapp": "node scripts/check-runtime-compat.mjs",
     "dev": "pnpm run dev:weapp",
     "predev:weapp": "pnpm --filter @avalon/protocol build && pnpm --filter @avalon/client-core build",

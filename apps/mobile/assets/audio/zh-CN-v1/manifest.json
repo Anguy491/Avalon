@@ -4,6 +4,11 @@
   "status": "approved",
   "rightsReviewed": true,
   "rightsRecord": "docs/assets/audio-zh-CN-v1-rights.zh-CN.md",
+  "usageScopes": [
+    "INTERNAL_PREVIEW",
+    "PUBLIC_WECHAT_MINIPROGRAM",
+    "PUBLIC_IOS_ANDROID"
+  ],
   "entries": [
     {
       "key": "game.role.reveal",

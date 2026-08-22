@@ -2,6 +2,8 @@ import { Button, Text, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
 import { useEffect, useState } from 'react';
 
+import { rolePresentation } from '@avalon/client-core';
+
 import { PageShell } from '@/components/page-shell';
 import { useSession } from '@/session/session-provider';
 
@@ -9,9 +11,11 @@ export default function AssassinationPage() {
   const { roomView, submitCommand, pendingCommandType, privacyHidden } =
     useSession();
   const [targetId, setTargetId] = useState<string>();
+  const [guideOpen, setGuideOpen] = useState(false);
   useEffect(() => {
-    if (privacyHidden) setTargetId(undefined);
-  }, [privacyHidden]);
+    setTargetId(undefined);
+    setGuideOpen(false);
+  }, [privacyHidden, roomView?.public.phase, roomView?.public.stateVersion]);
   if (roomView === undefined)
     return <PageShell privatePage title="正在恢复刺杀阶段" />;
   const players = [...roomView.public.players].sort((a, b) => a.seat - b.seat);
@@ -27,6 +31,7 @@ export default function AssassinationPage() {
   const targets = players.filter((player) => eligible.has(player.playerId));
   const target = targets.find((player) => player.playerId === targetId);
   const busy = pendingCommandType !== undefined;
+  const role = rolePresentation(roomView.private.selfRole);
   return (
     <PageShell
       privatePage
@@ -56,9 +61,10 @@ export default function AssassinationPage() {
         <View className="card" style="color:#171a22;">
           <Text className="section-title">可选目标</Text>
           {targets.map((player) => (
-            <View
+            <Button
               key={player.playerId}
               className={`player${targetId === player.playerId ? ' choice-selected' : ''}`}
+              ariaLabel={`${targetId === player.playerId ? '已选择，' : ''}${String(player.seat + 1)} 号，${player.nickname}`}
               onClick={() => {
                 setTargetId(player.playerId);
               }}
@@ -70,7 +76,7 @@ export default function AssassinationPage() {
               {targetId === player.playerId ? (
                 <Text className="badge">已选择</Text>
               ) : null}
-            </View>
+            </Button>
           ))}
           <Button
             className="button button-danger"
@@ -94,6 +100,35 @@ export default function AssassinationPage() {
           </Button>
         </View>
       )}
+      {role === undefined || privacyHidden ? null : (
+        <Button
+          className="button button-secondary"
+          onClick={() => {
+            setGuideOpen(true);
+          }}
+        >
+          查看本人角色攻略
+        </Button>
+      )}
+      {guideOpen && role !== undefined && !privacyHidden ? (
+        <View className="private-action-overlay">
+          <Text className="title">{role.label} · 私密攻略</Text>
+          <View className="subtitle">只展示你的本人角色信息。</View>
+          {role.guide.map((tip) => (
+            <View className="card" key={tip}>
+              {tip}
+            </View>
+          ))}
+          <Button
+            className="button"
+            onClick={() => {
+              setGuideOpen(false);
+            }}
+          >
+            关闭并遮挡
+          </Button>
+        </View>
+      ) : null}
     </PageShell>
   );
 }

@@ -1,0 +1,69 @@
+appId: dev.anguy.avalon
+name: AC-020 English invalid input and denied camera fallback
+---
+- clearKeychain
+- launchApp:
+    clearState: true
+    permissions:
+      camera: deny
+- openLink: 'exp+anguy-avalon://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8081'
+- runFlow:
+    when:
+      visible: 'Open in "曼波阿瓦隆"'
+    commands:
+      - tapOn: 'Open'
+- runFlow:
+    when:
+      visible:
+        id: 'xmark'
+    commands:
+      - tapOn:
+          id: 'xmark'
+- extendedWaitUntil:
+    visible: 'Card-free Avalon for your table'
+    timeout: 30000
+- takeScreenshot: 'ac-020-english-home'
+- tapOn: 'Your nickname'
+- inputText: 'Arthur'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      text: 'Enter room code'
+    direction: DOWN
+- tapOn: 'Enter room code'
+- assertVisible: 'Join room'
+- scrollUntilVisible:
+    element:
+      id: 'join-room-code'
+    direction: DOWN
+- tapOn:
+    id: 'join-room-code'
+- inputText: '22222'
+- hideKeyboard
+- scrollUntilVisible:
+    element:
+      id: 'join-room-submit'
+    direction: DOWN
+- tapOn:
+    id: 'join-room-submit'
+- assertVisible: 'Enter the complete six-character room code.'
+- tapOn:
+    id: 'BackButton'
+- scrollUntilVisible:
+    element:
+      text: 'Scan QR code'
+    direction: DOWN
+- tapOn: 'Scan QR code'
+- assertVisible: 'The camera is used only to read a public join link. The app does not take photos or videos and never requests microphone access.'
+- scrollUntilVisible:
+    element:
+      text: 'Allow camera and start scanning'
+    direction: DOWN
+- tapOn: 'Allow camera and start scanning'
+- assertVisible: 'Camera access is off. You can still enter a room code.'
+- scrollUntilVisible:
+    element:
+      text: 'Use a room code'
+    direction: DOWN
+- assertVisible: 'Use a room code'
+- takeScreenshot: 'ac-020-english-camera-denied'

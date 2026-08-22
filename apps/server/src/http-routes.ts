@@ -10,20 +10,33 @@ import {
   JoinRoomRequestSchema,
   ReadRoomViewResponseSchema,
   ResumeSessionRequestSchema,
+  RoomConfigValidationRequestSchema,
+  RoomConfigValidationResponseSchema,
   SessionBootstrapSchema,
   UuidSchema,
+  WechatIdentityBootstrapSchema,
+  WechatLoginRequestSchema,
   type CreateRoomRequest,
   type ErrorResponse,
   type JoinRoomRequest,
+  type RoomConfigValidationRequest,
   type ResumeSessionRequest,
+  type WechatLoginRequest,
 } from '@avalon/protocol';
+import {
+  validateRoleDeck,
+  type PlayerCount,
+  type RoleId,
+} from '@avalon/game-engine';
 
+import type { ClientIdentity } from './client-identity.js';
 import type { ServerConfig } from './config.js';
 import { ServiceError } from './room-service.js';
 import type { RoomService } from './room-service.js';
 import type { RuntimePorts } from './runtime-ports.js';
 import { withinFixedWindow } from './redis-rate-limit.js';
 import type { MetricsPort } from './metrics.js';
+import { WechatLoginError, type WechatIdentityService } from './wechat-auth.js';
 
 const idempotencyHeadersSchema = Type.Object(
   {
@@ -37,9 +50,29 @@ const authenticatedHeadersSchema = Type.Object(
   {
     authorization: Type.String({ pattern: '^Bearer [A-Za-z0-9_-]{43}$' }),
     'x-protocol-version': Type.Literal('2'),
+    'x-wechat-identity': Type.Optional(
+      Type.String({ pattern: '^[A-Za-z0-9_-]{43}$' }),
+    ),
   },
   { additionalProperties: true },
 );
+
+const protocolHeadersSchema = Type.Object(
+  { 'x-protocol-version': Type.Literal('2') },
+  { additionalProperties: true },
+);
+
+const identityIdempotencyHeadersSchema = Type.Intersect([
+  idempotencyHeadersSchema,
+  Type.Object(
+    {
+      'x-wechat-identity': Type.Optional(
+        Type.String({ pattern: '^[A-Za-z0-9_-]{43}$' }),
+      ),
+    },
+    { additionalProperties: true },
+  ),
+]);
 
 const authenticatedIdempotencyHeadersSchema = Type.Intersect([
   authenticatedHeadersSchema,
@@ -134,6 +167,7 @@ export function registerRoomRoutes(
   redis: RedisClientType,
   ports: RuntimePorts,
   metrics: MetricsPort,
+  wechatIdentity: WechatIdentityService,
 ): void {
   const commonErrorResponses = {
     400: ErrorResponseSchema,
@@ -178,9 +212,115 @@ export function registerRoomRoutes(
     }
   };
 
+  const resolveWechatSubject = async (
+    token: string | undefined,
+  ): Promise<string | undefined> => {
+    if (token === undefined) return undefined;
+    const subject = await wechatIdentity.resolve(token);
+    if (subject === undefined) {
+      throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+    }
+    return subject;
+  };
+  const resolveClientIdentity = async (
+    platform: CreateRoomRequest['client']['platform'],
+    token: string | undefined,
+  ): Promise<ClientIdentity> => {
+    if (platform !== 'WECHAT_MINIPROGRAM') {
+      return { clientPlatform: platform };
+    }
+    const wechatSubjectDigest = await resolveWechatSubject(token);
+    if (wechatSubjectDigest === undefined) {
+      throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+    }
+    return { clientPlatform: platform, wechatSubjectDigest };
+  };
+  const wechatLoginLimit = async (request: FastifyRequest): Promise<void> => {
+    const now = ports.clock.now();
+    const ipDigest = createHmac('sha256', config.rateLimitHmacSecret)
+      .update(request.ip)
+      .digest('base64url');
+    const [withinIp, withinGlobal] = await Promise.all([
+      withinFixedWindow(redis, `avalon:wechat-login-ip:${ipDigest}`, 10, now),
+      withinFixedWindow(redis, 'avalon:wechat-login-global', 600, now),
+    ]);
+    if (!withinIp || !withinGlobal) {
+      throw new ServiceError('RATE_LIMITED', 429, true);
+    }
+  };
+
+  app.post<{
+    Body: WechatLoginRequest;
+    Headers: { 'x-protocol-version': '2' };
+  }>(
+    '/v2/auth/wechat',
+    {
+      config: { rateLimit: false },
+      preHandler: wechatLoginLimit,
+      schema: {
+        body: WechatLoginRequestSchema,
+        headers: protocolHeadersSchema,
+        response: {
+          200: WechatIdentityBootstrapSchema,
+          ...commonErrorResponses,
+        },
+      },
+    },
+    async (request, reply) => {
+      try {
+        return await reply
+          .code(200)
+          .send(await wechatIdentity.login(request.body.loginCode));
+      } catch (error) {
+        if (error instanceof WechatLoginError) {
+          if (error.failure === 'INVALID') {
+            throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+          }
+          if (error.failure === 'RATE_LIMITED') {
+            throw new ServiceError('RATE_LIMITED', 429, true);
+          }
+          throw new ServiceError('WECHAT_AUTH_UNAVAILABLE', 503, true);
+        }
+        throw error;
+      }
+    },
+  );
+
+  app.post<{
+    Body: RoomConfigValidationRequest;
+    Headers: { 'x-protocol-version': '2' };
+  }>(
+    '/v2/room-config/validate',
+    {
+      schema: {
+        body: RoomConfigValidationRequestSchema,
+        headers: protocolHeadersSchema,
+        response: {
+          200: RoomConfigValidationResponseSchema,
+          ...commonErrorResponses,
+        },
+      },
+    },
+    (request, reply) => {
+      const errors = validateRoleDeck(
+        request.body.playerCount as PlayerCount,
+        request.body.roleIds as readonly RoleId[],
+      );
+      return reply.code(200).send({
+        protocolVersion: 2 as const,
+        valid: errors.length === 0,
+        errors,
+      });
+    },
+  );
+
   app.post<{
     Body: CreateRoomRequest;
-    Headers: { 'idempotency-key': string; 'x-protocol-version': '2' };
+    Headers: {
+      'idempotency-key': string;
+      'x-protocol-version': '2';
+      'x-wechat-identity'?: string;
+    };
   }>(
     '/v2/rooms',
     {
@@ -188,7 +328,7 @@ export function registerRoomRoutes(
       preHandler: layeredCreateJoinLimit,
       schema: {
         body: CreateRoomRequestSchema,
-        headers: idempotencyHeadersSchema,
+        headers: identityIdempotencyHeadersSchema,
         response: { 201: SessionBootstrapSchema, ...commonErrorResponses },
       },
     },
@@ -198,6 +338,10 @@ export function registerRoomRoutes(
         const result = await service.createRoom(
           request.headers['idempotency-key'],
           request.body,
+          await resolveClientIdentity(
+            request.body.client.platform,
+            request.headers['x-wechat-identity'],
+          ),
         );
         metrics.recordHttp('create', performance.now() - started, 'accepted');
         return await reply.code(201).send(result.body);
@@ -215,7 +359,11 @@ export function registerRoomRoutes(
   app.post<{
     Body: JoinRoomRequest;
     Params: { roomCode: string };
-    Headers: { 'idempotency-key': string; 'x-protocol-version': '2' };
+    Headers: {
+      'idempotency-key': string;
+      'x-protocol-version': '2';
+      'x-wechat-identity'?: string;
+    };
   }>(
     '/v2/rooms/:roomCode/players',
     {
@@ -224,7 +372,7 @@ export function registerRoomRoutes(
       schema: {
         body: JoinRoomRequestSchema,
         params: roomCodeParamsSchema,
-        headers: idempotencyHeadersSchema,
+        headers: identityIdempotencyHeadersSchema,
         response: { 201: SessionBootstrapSchema, ...commonErrorResponses },
       },
     },
@@ -235,6 +383,10 @@ export function registerRoomRoutes(
           request.headers['idempotency-key'],
           request.params.roomCode,
           request.body,
+          await resolveClientIdentity(
+            request.body.client.platform,
+            request.headers['x-wechat-identity'],
+          ),
         );
         metrics.recordHttp('join', performance.now() - started, 'accepted');
         return await reply.code(201).send(result.body);
@@ -255,6 +407,7 @@ export function registerRoomRoutes(
       authorization: string;
       'idempotency-key': string;
       'x-protocol-version': '2';
+      'x-wechat-identity'?: string;
     };
   }>(
     '/v2/sessions/resume',
@@ -270,13 +423,21 @@ export function registerRoomRoutes(
         request.headers['idempotency-key'],
         bearerToken(request.headers.authorization),
         request.body,
+        await resolveClientIdentity(
+          request.body.client.platform,
+          request.headers['x-wechat-identity'],
+        ),
       );
       return reply.code(200).send(result.body);
     },
   );
 
   app.get<{
-    Headers: { authorization: string; 'x-protocol-version': '2' };
+    Headers: {
+      authorization: string;
+      'x-protocol-version': '2';
+      'x-wechat-identity'?: string;
+    };
   }>(
     '/v2/rooms/current/view',
     {
@@ -291,6 +452,7 @@ export function registerRoomRoutes(
         .send(
           await service.readCurrentView(
             bearerToken(request.headers.authorization),
+            await resolveWechatSubject(request.headers['x-wechat-identity']),
           ),
         ),
   );

@@ -6,7 +6,7 @@ import NetInfo from '@react-native-community/netinfo';
 import {
   createContext,
   useCallback,
-  useContext,
+  use,
   useEffect,
   useMemo,
   useRef,
@@ -42,6 +42,11 @@ import {
   resumeSession,
 } from '@/api/client';
 import { isInvalidSession, userFacingError } from '@/api/errors';
+import {
+  translateDescriptor,
+  useI18n,
+  type MessageDescriptor,
+} from '@/localization/localization-provider';
 
 import { expoSecureStore } from './expo-secure-store-driver';
 import {
@@ -123,6 +128,7 @@ function summaryFrom(session: StoredSession): SessionSummary {
 
 export function SessionProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
+  const { t } = useI18n();
   const sessionToken = useRef<string | undefined>(undefined);
   const sessionRecord = useRef<StoredSession | undefined>(undefined);
   const socket = useRef<Socket | undefined>(undefined);
@@ -139,7 +145,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const installationId = useRef<Promise<string> | undefined>(undefined);
   const [status, setStatus] = useState<SessionStatus>('LOADING');
   const [summary, setSummary] = useState<SessionSummary>();
-  const [error, setError] = useState<string>();
+  const [error, setError] = useState<MessageDescriptor>();
   const [pendingCommandType, setPendingCommandType] = useState<CommandType>();
   const [lastProjection, setLastProjection] = useState<RoomViewMessage>();
   const [connectionGapStartedAt, setConnectionGapStartedAt] =
@@ -304,13 +310,16 @@ export function SessionProvider({ children }: PropsWithChildren) {
               : forgetSession;
         void cleanup().then(() => {
           if (disposition === 'ACTIVE') {
-            setError('本机会话已失效，请返回首页重新加入。');
+            setError({ key: 'errorSessionRevoked' });
           }
         });
       });
       nextSocket.on('server.maintenance', (payload: unknown) => {
         if (!isServerMaintenance(payload)) return;
-        setError(`服务器维护中，请稍后重试。诊断码：${payload.diagnosticId}`);
+        setError({
+          key: 'errorMaintenance',
+          options: { diagnosticId: payload.diagnosticId },
+        });
         setConnectionGapStartedAt((current) => current ?? Date.now());
         setStatus('OFFLINE');
       });
@@ -426,7 +435,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
             !isTerminalViewAckResult(payload) ||
             !payload.accepted
           ) {
-            setError('终局回执未确认；服务器仍会在 60 秒内自动清理房间。');
+            setError({ key: 'errorTerminalAck' });
           }
           void (disposition === 'RETURN_HOME'
             ? exitAbortedGame()
@@ -525,7 +534,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
           },
           0,
         );
-        setError('上一项操作仍在等待服务器确认。');
+        setError({ key: 'errorCommandPending' });
         throw busyError;
       }
       const roomView = queryClient.getQueryData<RoomView>(ROOM_VIEW_KEY);
@@ -598,12 +607,10 @@ export function SessionProvider({ children }: PropsWithChildren) {
       } catch (caught) {
         if (caught instanceof ApiError) throw caught;
         if (caught instanceof CommandAckTimeoutError) {
-          setError(
-            '未收到服务器确认。请检查网络后重试；相同操作会沿用原命令编号。',
-          );
+          setError({ key: 'errorAckTimeout' });
         } else if (caught instanceof InvalidCommandAckError) {
           await refreshView();
-          setError('服务器确认格式异常，请刷新大厅后重试。');
+          setError({ key: 'errorInvalidAck' });
         } else {
           setError(userFacingError(caught));
         }
@@ -644,7 +651,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         : { connectionGapStartedAt }),
       networkReachable,
       resyncEpoch,
-      ...(error === undefined ? {} : { error }),
+      ...(error === undefined ? {} : { error: translateDescriptor(t, error) }),
       ...(pendingCommandType === undefined ? {} : { pendingCommandType }),
       createRoom,
       joinRoom,
@@ -674,6 +681,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       status,
       submitCommand,
       summary,
+      t,
     ],
   );
 
@@ -683,7 +691,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 }
 
 export function useSession(): SessionContextValue {
-  const context = useContext(SessionContext);
+  const context = use(SessionContext);
   if (context === undefined) {
     throw new Error('useSession must be used within SessionProvider');
   }

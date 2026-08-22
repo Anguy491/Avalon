@@ -85,12 +85,53 @@ export default function ResultPage() {
         </View>
       )}
       <View className="card">
-        <Text className="section-title">任务记录</Text>
+        <Text className="section-title">完整提案记录</Text>
+        {roomView.public.proposalHistory.length === 0 ? (
+          <View className="muted">没有已结算的提案。</View>
+        ) : null}
+        {roomView.public.proposalHistory.map((proposal, index) => (
+          <View className="history-record" key={`proposal-${String(index)}`}>
+            <View>
+              任务 {proposal.questIndex} · 第 {proposal.proposalAttempt} 次 ·
+              队长 {names.get(proposal.leaderPlayerId) ?? '同桌玩家'} ·
+              {proposal.approved ? '通过' : '否决'}
+            </View>
+            <View className="progress">
+              队伍：
+              {proposal.teamPlayerIds
+                .map((playerId) => names.get(playerId) ?? '同桌玩家')
+                .join('、')}
+            </View>
+            <View className="progress">
+              {proposal.votes
+                .map(
+                  (entry) =>
+                    `${names.get(entry.playerId) ?? '同桌玩家'}：${entry.vote === 'APPROVE' ? '同意' : '否决'}`,
+                )
+                .join('；')}
+            </View>
+          </View>
+        ))}
+      </View>
+      <View className="card">
+        <Text className="section-title">完整任务记录</Text>
+        {roomView.public.questHistory.length === 0 ? (
+          <View className="muted">没有已结算的任务。</View>
+        ) : null}
         {roomView.public.questHistory.map((quest) => (
-          <View className="subtitle" key={quest.questIndex}>
-            任务 {quest.questIndex}：
-            {quest.result === 'SUCCESS' ? '成功' : '失败'}（成功{' '}
-            {quest.successChoices} / 失败 {quest.failChoices}）
+          <View className="history-record" key={quest.questIndex}>
+            <View className="subtitle">
+              任务 {quest.questIndex}：
+              {quest.result === 'SUCCESS' ? '成功' : '失败'}（成功{' '}
+              {quest.successChoices} / 失败 {quest.failChoices}；需要{' '}
+              {quest.requiredFails} 张失败票）
+            </View>
+            <View className="progress">
+              队伍：
+              {quest.teamPlayerIds
+                .map((playerId) => names.get(playerId) ?? '同桌玩家')
+                .join('、')}
+            </View>
           </View>
         ))}
       </View>

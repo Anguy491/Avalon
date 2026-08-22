@@ -161,6 +161,18 @@
               "type": "string"
             },
             {
+              "const": "WECHAT_AUTH_INVALID",
+              "type": "string"
+            },
+            {
+              "const": "WECHAT_AUTH_UNAVAILABLE",
+              "type": "string"
+            },
+            {
+              "const": "WECHAT_IDENTITY_CONFLICT",
+              "type": "string"
+            },
+            {
               "const": "UNAUTHORIZED",
               "type": "string"
             },

@@ -14,6 +14,10 @@ export const CONFIG_KEYS = [
   'SESSION_TOKEN_PEPPER',
   'IDEMPOTENCY_ENCRYPTION_SECRET',
   'SESSION_TTL_SECONDS',
+  'WECHAT_APP_ID',
+  'WECHAT_APP_SECRET',
+  'WECHAT_IDENTITY_PEPPER',
+  'WECHAT_AUTH_ENFORCEMENT',
   'REALTIME_PUBLIC_URL',
   'TRUSTED_PROXY_CIDRS',
   'HANDSHAKE_IP_RATE_LIMIT',
@@ -60,6 +64,13 @@ const ConfigSchema = Type.Object(
     sessionTokenPepper: Type.String({ minLength: 32 }),
     idempotencyEncryptionSecret: Type.String({ minLength: 32 }),
     sessionTtlSeconds: Type.Integer({ minimum: 60, maximum: 86_400 }),
+    wechatAppId: Type.Literal('wx0240d55d0f3e4811'),
+    wechatAppSecret: Type.String({ minLength: 16 }),
+    wechatIdentityPepper: Type.String({ minLength: 32 }),
+    wechatAuthEnforcement: Type.Union([
+      Type.Literal('transition'),
+      Type.Literal('required'),
+    ]),
     realtimePublicUrl: Type.String({ pattern: '^wss://' }),
     trustedProxyCidrs: Type.Array(Type.String({ minLength: 3 }), {
       maxItems: 32,
@@ -105,6 +116,10 @@ export interface ServerConfig {
   readonly sessionTokenPepper: string;
   readonly idempotencyEncryptionSecret: string;
   readonly sessionTtlSeconds: number;
+  readonly wechatAppId: 'wx0240d55d0f3e4811';
+  readonly wechatAppSecret: string;
+  readonly wechatIdentityPepper: string;
+  readonly wechatAuthEnforcement: 'transition' | 'required';
   readonly realtimePublicUrl: string;
   readonly trustedProxyCidrs: readonly string[];
   readonly handshakeIpRateLimit: number;
@@ -176,6 +191,14 @@ export function loadConfig(
     sessionTtlSeconds: parseInteger(
       read(environment, 'SESSION_TTL_SECONDS', '1800'),
       'SESSION_TTL_SECONDS',
+    ),
+    wechatAppId: read(environment, 'WECHAT_APP_ID', 'wx0240d55d0f3e4811'),
+    wechatAppSecret: read(environment, 'WECHAT_APP_SECRET'),
+    wechatIdentityPepper: read(environment, 'WECHAT_IDENTITY_PEPPER'),
+    wechatAuthEnforcement: read(
+      environment,
+      'WECHAT_AUTH_ENFORCEMENT',
+      nodeEnv === 'production' ? 'required' : 'transition',
     ),
     realtimePublicUrl: read(
       environment,

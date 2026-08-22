@@ -81,6 +81,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     bundleIdentifier: BUNDLE_ID,
     icon: './assets/expo.icon',
     supportsTablet: true,
+    infoPlist: {
+      CFBundleAllowMixedLocalizations: true,
+    },
     ...(ENABLE_IOS_ASSOCIATED_DOMAINS
       ? { associatedDomains: [`applinks:${JOIN_HOST}`] }
       : {}),
@@ -112,8 +115,22 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     output: 'single',
     favicon: './assets/images/favicon.png',
   },
+  locales: {
+    en: './locales/en.json',
+    'zh-CN': './locales/zh-CN.json',
+  },
   plugins: [
     'expo-router',
+    [
+      'expo-localization',
+      {
+        supportedLocales: {
+          ios: ['en', 'zh'],
+          android: ['en', 'zh'],
+        },
+        supportsRTL: false,
+      },
+    ],
     'expo-secure-store',
     '@sentry/react-native/expo',
     [

@@ -1,17 +1,20 @@
 import { useCallback, useState } from 'react';
 
+import { useI18n } from '@/localization/localization-provider';
+import type { MessageKey } from '@/localization/messages';
 import { useSession } from '@/session/session-provider';
 
 export function useRoleCommands() {
   const session = useSession();
-  const [notice, setNotice] = useState<string>();
+  const { t } = useI18n();
+  const [noticeKey, setNoticeKey] = useState<MessageKey>();
 
   const continuePhase = useCallback(async (): Promise<boolean> => {
-    setNotice(undefined);
+    setNoticeKey(undefined);
     session.dismissError();
     try {
       await session.submitCommand({ type: 'ContinuePhase', payload: {} });
-      setNotice('身份确认已开始。');
+      setNoticeKey('roleNoticeStarted');
       return true;
     } catch {
       return false;
@@ -19,11 +22,11 @@ export function useRoleCommands() {
   }, [session]);
 
   const acknowledgeRole = useCallback(async (): Promise<boolean> => {
-    setNotice(undefined);
+    setNoticeKey(undefined);
     session.dismissError();
     try {
       await session.submitCommand({ type: 'AckRole', payload: {} });
-      setNotice('身份已确认，请等待其他玩家。');
+      setNoticeKey('roleNoticeConfirmed');
       return true;
     } catch {
       return false;
@@ -31,7 +34,7 @@ export function useRoleCommands() {
   }, [session]);
 
   return {
-    notice,
+    notice: noticeKey === undefined ? undefined : t(noticeKey),
     pendingCommandType: session.pendingCommandType,
     continuePhase,
     acknowledgeRole,

@@ -1,6 +1,10 @@
 import { Type, type Static } from '@sinclair/typebox';
 
-import { SessionTokenSchema, UuidSchema } from './common.js';
+import {
+  SessionTokenSchema,
+  UuidSchema,
+  WechatIdentityTokenSchema,
+} from './common.js';
 import { ErrorDetailSchema } from './error.js';
 import {
   PROTOCOL_VERSION,
@@ -14,6 +18,7 @@ export const RealtimeAuthSchema = Type.Object(
   {
     protocolVersion: Type.Literal(PROTOCOL_VERSION),
     sessionToken: SessionTokenSchema,
+    wechatIdentityToken: Type.Optional(WechatIdentityTokenSchema),
     lastStateVersion: Type.Integer({ minimum: 0 }),
   },
   { additionalProperties: false },

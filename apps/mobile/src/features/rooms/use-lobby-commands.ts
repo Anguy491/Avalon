@@ -3,22 +3,25 @@ import { useCallback, useState } from 'react';
 
 import type { RoomConfigInput } from '@avalon/protocol/mobile';
 
+import { useI18n } from '@/localization/localization-provider';
+import type { MessageKey } from '@/localization/messages';
 import { useSession } from '@/session/session-provider';
 
 export function useLobbyCommands() {
   const session = useSession();
-  const [notice, setNotice] = useState<string>();
+  const { t } = useI18n();
+  const [noticeKey, setNoticeKey] = useState<MessageKey>();
 
   const run = useCallback(
     async (
       command: Parameters<typeof session.submitCommand>[0],
-      successNotice: string,
+      successNoticeKey: MessageKey,
     ): Promise<boolean> => {
-      setNotice(undefined);
+      setNoticeKey(undefined);
       session.dismissError();
       try {
         await session.submitCommand(command);
-        setNotice(successNotice);
+        setNoticeKey(successNoticeKey);
         return true;
       } catch {
         return false;
@@ -31,7 +34,7 @@ export function useLobbyCommands() {
     (config: RoomConfigInput) =>
       run(
         { type: 'ConfigureRoom', payload: { config } },
-        '配置已更新，请所有人重新准备。',
+        'lobbyNoticeConfigUpdated',
       ),
     [run],
   );
@@ -40,7 +43,7 @@ export function useLobbyCommands() {
     (playerIds: readonly string[]) =>
       run(
         { type: 'ReorderSeats', payload: { playerIds } },
-        '座次已更新，请所有人重新准备。',
+        'lobbyNoticeSeatsUpdated',
       ),
     [run],
   );
@@ -49,7 +52,7 @@ export function useLobbyCommands() {
     (ready: boolean) =>
       run(
         { type: 'SetReady', payload: { ready } },
-        ready ? '你已准备。' : '你已取消准备。',
+        ready ? 'lobbyNoticeReady' : 'lobbyNoticeNotReady',
       ),
     [run],
   );
@@ -57,7 +60,7 @@ export function useLobbyCommands() {
   const startGame = useCallback(async () => {
     const succeeded = await run(
       { type: 'StartGame', payload: {} },
-      '身份已分配。',
+      'lobbyNoticeStarted',
     );
     if (succeeded) router.replace('/role');
     return succeeded;
@@ -67,7 +70,7 @@ export function useLobbyCommands() {
     (targetPlayerId: string) =>
       run(
         { type: 'KickLobbyPlayer', payload: { targetPlayerId } },
-        '玩家已移出大厅，全员需重新准备。',
+        'lobbyNoticePlayerRemoved',
       ),
     [run],
   );
@@ -75,7 +78,7 @@ export function useLobbyCommands() {
   const leaveLobby = useCallback(async () => {
     const succeeded = await run(
       { type: 'LeaveLobby', payload: {} },
-      '你已离开大厅。',
+      'lobbyNoticeLeft',
     );
     if (succeeded) router.replace('/');
     return succeeded;
@@ -84,14 +87,14 @@ export function useLobbyCommands() {
   const closeRoom = useCallback(async () => {
     const succeeded = await run(
       { type: 'CloseRoom', payload: {} },
-      '房间已关闭。',
+      'lobbyNoticeClosed',
     );
     if (succeeded) router.replace('/');
     return succeeded;
   }, [run]);
 
   return {
-    notice,
+    notice: noticeKey === undefined ? undefined : t(noticeKey),
     pendingCommandType: session.pendingCommandType,
     configureRoom,
     reorderSeats,

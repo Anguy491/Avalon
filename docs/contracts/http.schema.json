@@ -2482,6 +2482,285 @@
           }
         }
       }
+    },
+    "WechatLoginRequest": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "loginCode"
+      ],
+      "properties": {
+        "loginCode": {
+          "minLength": 1,
+          "maxLength": 128,
+          "type": "string"
+        }
+      }
+    },
+    "WechatIdentityBootstrap": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "wechatIdentityToken",
+        "expiresAt"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 2,
+          "type": "number"
+        },
+        "wechatIdentityToken": {
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$",
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        }
+      }
+    },
+    "RoomConfigValidationRequest": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "playerCount",
+        "roleIds"
+      ],
+      "properties": {
+        "playerCount": {
+          "minimum": 5,
+          "maximum": 10,
+          "type": "integer"
+        },
+        "roleIds": {
+          "minItems": 0,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "const": "MERLIN",
+                "type": "string"
+              },
+              {
+                "const": "LOYAL_SERVANT",
+                "type": "string"
+              },
+              {
+                "const": "PERCIVAL",
+                "type": "string"
+              },
+              {
+                "const": "ASSASSIN",
+                "type": "string"
+              },
+              {
+                "const": "MINION",
+                "type": "string"
+              },
+              {
+                "const": "MORGANA",
+                "type": "string"
+              },
+              {
+                "const": "MORDRED",
+                "type": "string"
+              },
+              {
+                "const": "OBERON",
+                "type": "string"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "RoomConfigValidationError": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "const": "INVALID_PLAYER_COUNT",
+              "type": "string"
+            },
+            {
+              "const": "ROLE_COUNT_MISMATCH",
+              "type": "string"
+            },
+            {
+              "const": "ALIGNMENT_COUNT_MISMATCH",
+              "type": "string"
+            },
+            {
+              "const": "MERLIN_REQUIRED_ONCE",
+              "type": "string"
+            },
+            {
+              "const": "ASSASSIN_REQUIRED_ONCE",
+              "type": "string"
+            },
+            {
+              "const": "UNIQUE_ROLE_REPEATED",
+              "type": "string"
+            },
+            {
+              "const": "MORGANA_REQUIRES_PERCIVAL",
+              "type": "string"
+            },
+            {
+              "const": "FIVE_PLAYER_PERCIVAL_REQUIRES_DECEPTION_ROLE",
+              "type": "string"
+            }
+          ]
+        },
+        "roleId": {
+          "anyOf": [
+            {
+              "const": "MERLIN",
+              "type": "string"
+            },
+            {
+              "const": "LOYAL_SERVANT",
+              "type": "string"
+            },
+            {
+              "const": "PERCIVAL",
+              "type": "string"
+            },
+            {
+              "const": "ASSASSIN",
+              "type": "string"
+            },
+            {
+              "const": "MINION",
+              "type": "string"
+            },
+            {
+              "const": "MORGANA",
+              "type": "string"
+            },
+            {
+              "const": "MORDRED",
+              "type": "string"
+            },
+            {
+              "const": "OBERON",
+              "type": "string"
+            }
+          ]
+        }
+      }
+    },
+    "RoomConfigValidationResponse": {
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "protocolVersion",
+        "valid",
+        "errors"
+      ],
+      "properties": {
+        "protocolVersion": {
+          "const": 2,
+          "type": "number"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "errors": {
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "anyOf": [
+                  {
+                    "const": "INVALID_PLAYER_COUNT",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ROLE_COUNT_MISMATCH",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ALIGNMENT_COUNT_MISMATCH",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MERLIN_REQUIRED_ONCE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ASSASSIN_REQUIRED_ONCE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "UNIQUE_ROLE_REPEATED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MORGANA_REQUIRES_PERCIVAL",
+                    "type": "string"
+                  },
+                  {
+                    "const": "FIVE_PLAYER_PERCIVAL_REQUIRES_DECEPTION_ROLE",
+                    "type": "string"
+                  }
+                ]
+              },
+              "roleId": {
+                "anyOf": [
+                  {
+                    "const": "MERLIN",
+                    "type": "string"
+                  },
+                  {
+                    "const": "LOYAL_SERVANT",
+                    "type": "string"
+                  },
+                  {
+                    "const": "PERCIVAL",
+                    "type": "string"
+                  },
+                  {
+                    "const": "ASSASSIN",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MINION",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MORGANA",
+                    "type": "string"
+                  },
+                  {
+                    "const": "MORDRED",
+                    "type": "string"
+                  },
+                  {
+                    "const": "OBERON",
+                    "type": "string"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   }
 }

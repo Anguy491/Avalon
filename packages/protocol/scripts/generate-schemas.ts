@@ -16,6 +16,8 @@ import {
   SessionBootstrapSchema,
   SessionReadySchema,
   TerminalViewAckResultSchema,
+  WechatIdentityBootstrapSchema,
+  RoomConfigValidationResponseSchema,
 } from '../src/schemas/index.js';
 
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -40,6 +42,8 @@ const mobileContracts = {
   sessionReady: SessionReadySchema,
   commandResult: CommandResultSchema,
   terminalViewAckResult: TerminalViewAckResultSchema,
+  wechatIdentityBootstrap: WechatIdentityBootstrapSchema,
+  roomConfigValidationResponse: RoomConfigValidationResponseSchema,
 };
 
 for (const [filename, schema] of Object.entries(schemaDocuments)) {

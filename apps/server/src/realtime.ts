@@ -27,10 +27,11 @@ import { withinFixedWindow } from './redis-rate-limit.js';
 import type { RealtimeAdmission } from './realtime-admission.js';
 import type { MetricsPort } from './metrics.js';
 import type { TrustedProxyPolicy } from './trusted-client-ip.js';
-import type { RoomService } from './room-service.js';
+import { ServiceError, type RoomService } from './room-service.js';
 import type { RuntimePorts } from './runtime-ports.js';
 import type { SessionContext } from './session-context.js';
 import type { SessionPresencePort } from './session-presence.js';
+import type { WechatIdentityService } from './wechat-auth.js';
 
 const INVALID_COMMAND_ID = '00000000-0000-4000-8000-000000000000';
 
@@ -154,6 +155,7 @@ export function registerRealtime(
   admission: RealtimeAdmission,
   metrics: MetricsPort,
   trustedProxies: TrustedProxyPolicy,
+  wechatIdentity: WechatIdentityService,
 ): RealtimeLifecycle {
   const validator = createProtocolValidator();
   const validateAuth = validator.compile(RealtimeAuthSchema);
@@ -207,7 +209,22 @@ export function registerRealtime(
         return;
       }
       const session = await admission.authenticateWithinBudget(() =>
-        roomService.authenticate(auth.sessionToken),
+        (async () => {
+          const wechatSubjectDigest =
+            auth.wechatIdentityToken === undefined
+              ? undefined
+              : await wechatIdentity.resolve(auth.wechatIdentityToken);
+          if (
+            auth.wechatIdentityToken !== undefined &&
+            wechatSubjectDigest === undefined
+          ) {
+            throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+          }
+          return roomService.authenticate(
+            auth.sessionToken,
+            wechatSubjectDigest,
+          );
+        })(),
       );
       if (
         !(await admission.reserve(
@@ -222,9 +239,15 @@ export function registerRealtime(
       (untypedSocket as unknown as GameSocket).data = { session };
       metrics.recordHandshake(performance.now() - started, 'accepted');
       next();
-    } catch {
+    } catch (error) {
       metrics.recordHandshake(performance.now() - started, 'rejected');
-      next(new Error('UNAUTHORIZED'));
+      next(
+        new Error(
+          error instanceof ServiceError && error.code === 'WECHAT_AUTH_INVALID'
+            ? 'WECHAT_AUTH_INVALID'
+            : 'UNAUTHORIZED',
+        ),
+      );
     }
   };
 

@@ -39,6 +39,8 @@ interface ReconciliationRow {
   readonly token_digest: string;
   readonly credential_generation: number;
   readonly expires_at: Date;
+  readonly client_platform: 'IOS' | 'ANDROID' | 'WECHAT_MINIPROGRAM' | null;
+  readonly wechat_subject_digest: string | null;
 }
 
 function enginePorts(ports: RuntimePorts): EnginePorts {
@@ -180,7 +182,8 @@ export class ConnectionService {
     const rows = await this.sql<ReconciliationRow[]>`
       select distinct on (p.room_id, p.player_id)
              s.session_id, s.token_family, s.room_id, s.player_id,
-             s.token_digest, s.credential_generation, s.expires_at
+             s.token_digest, s.credential_generation, s.expires_at,
+             s.client_platform, s.wechat_subject_digest
         from ${this.sql(SCHEMA)}.players p
         join ${this.sql(SCHEMA)}.rooms r on r.room_id = p.room_id
         join ${this.sql(SCHEMA)}.sessions s
@@ -201,6 +204,10 @@ export class ConnectionService {
         tokenDigest: row.token_digest,
         credentialGeneration: row.credential_generation,
         expiresAt: row.expires_at,
+        clientPlatform: row.client_platform,
+        ...(row.wechat_subject_digest === null
+          ? {}
+          : { wechatSubjectDigest: row.wechat_subject_digest }),
       };
       await this.presence.markOnline(
         context,

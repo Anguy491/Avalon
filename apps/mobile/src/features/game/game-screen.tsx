@@ -5,6 +5,14 @@ import { AppState, Pressable, Text, View, type ColorValue } from 'react-native';
 
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import {
+  CONTINUE_ACTION_KEYS,
+  mappedMessageKey,
+  OUTCOME_REASON_KEYS,
+  PHASE_KEYS,
+} from '@/localization/game-messages';
+import { useI18n } from '@/localization/localization-provider';
+import type { MessageKey } from '@/localization/messages';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -20,6 +28,13 @@ type Confirmation =
   | { readonly type: 'QUEST'; readonly choice: 'SUCCESS' | 'FAIL' };
 
 type LocallySubmittedAction = 'VOTE' | 'QUEST';
+
+const QUEST_STATE_KEYS = {
+  SUCCESS: 'gameQuestStateSuccess',
+  FAILURE: 'gameQuestStateFailure',
+  CURRENT: 'gameQuestStateCurrent',
+  PENDING: 'gameQuestStatePending',
+} as const satisfies Readonly<Record<string, MessageKey>>;
 
 function Card({
   children,
@@ -62,6 +77,7 @@ function Heading({ children }: { readonly children: React.ReactNode }) {
 
 export function GameScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const commands = useGameCommands();
   const roomView = session.roomView;
@@ -119,16 +135,16 @@ export function GameScreen() {
   if (roomView === undefined || table === undefined) {
     return (
       <PageShell>
-        <Stack.Screen options={{ title: '对局' }} />
+        <Stack.Screen options={{ title: t('navGame') }} />
         <Text
           accessibilityRole="header"
           selectable
           style={{ color: color.text.primary, fontSize: typography.title }}
         >
-          正在同步公共桌面
+          {t('gameSyncing')}
         </Text>
         <PrimaryButton
-          label="重新同步"
+          label={t('commonResync')}
           onPress={() => void session.refreshView()}
         />
       </PageShell>
@@ -143,6 +159,9 @@ export function GameScreen() {
   const selectedPlayers = table.players.filter((player) =>
     selectedTeam.includes(player.playerId),
   );
+  const phaseLabel = t(mappedMessageKey(PHASE_KEYS, table.phase, 'navGame'));
+  const seatPlayerLabel = (seat: number, nickname: string) =>
+    t('gameSeatPlayer', { seat: seat + 1, nickname });
 
   const submitConfirmation = async () => {
     const pending = confirmation;
@@ -166,26 +185,32 @@ export function GameScreen() {
   const confirmationContent = (() => {
     if (confirmation?.type === 'TEAM') {
       return {
-        title: '确认提交队伍？',
+        title: t('gameConfirmTeamTitle'),
         description: selectedPlayers
-          .map((player) => `${String(player.seat + 1)}号位 ${player.nickname}`)
-          .join('、'),
-        confirmLabel: '确认提交队伍',
+          .map((player) => seatPlayerLabel(player.seat, player.nickname))
+          .join(t('commonListSeparator')),
+        confirmLabel: t('gameConfirmTeam'),
       };
     }
     if (confirmation?.type === 'VOTE') {
-      const label = confirmation.vote === 'APPROVE' ? '同意' : '否决';
+      const label =
+        confirmation.vote === 'APPROVE'
+          ? t('commonApprove')
+          : t('commonReject');
       return {
-        title: `确认提交${label}？`,
-        description: `你选择了“${label}”。提交后不能修改，结算前不会公开你的选择。`,
-        confirmLabel: `确认${label}`,
+        title: t('gameConfirmVoteTitle', { choice: label }),
+        description: t('gameConfirmVoteBody', { choice: label }),
+        confirmLabel: t('gameConfirmChoice', { choice: label }),
       };
     }
-    const label = confirmation?.choice === 'FAIL' ? '任务失败' : '任务成功';
+    const label =
+      confirmation?.choice === 'FAIL'
+        ? t('gameQuestFailed')
+        : t('gameQuestSucceeded');
     return {
-      title: `确认提交${label}？`,
-      description: `你选择了“${label}”。提交后不能修改，系统只会公开匿名汇总。`,
-      confirmLabel: `确认${label}`,
+      title: t('gameConfirmQuestTitle', { choice: label }),
+      description: t('gameConfirmQuestBody', { choice: label }),
+      confirmLabel: t('gameConfirmChoice', { choice: label }),
     };
   })();
 
@@ -193,7 +218,10 @@ export function GameScreen() {
     <PageShell>
       <Stack.Screen
         options={{
-          title: `任务 ${String(table.questIndex ?? '—')} · ${table.phaseTitle}`,
+          title: t('gameHeaderTitle', {
+            quest: table.questIndex ?? '—',
+            phase: phaseLabel,
+          }),
           headerBackVisible: false,
           gestureEnabled: false,
         }}
@@ -209,14 +237,16 @@ export function GameScreen() {
             fontWeight: '900',
           }}
         >
-          {table.phaseTitle}
+          {phaseLabel}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          当前队长：{table.leader?.nickname ?? '等待服务端分配'} · 第{' '}
-          {table.proposalAttempt} 次组队尝试
+          {t('gameCurrentLeader', {
+            leader: table.leader?.nickname ?? t('gameAwaitingLeader'),
+            attempt: table.proposalAttempt,
+          })}
         </Text>
         <Text
           accessibilityLiveRegion="polite"
@@ -226,7 +256,13 @@ export function GameScreen() {
             fontSize: typography.supporting,
           }}
         >
-          连接状态：{session.status === 'CONNECTED' ? '在线' : '正在恢复'}
+          {t('lobbyConnectionStatus', {
+            status:
+              session.status === 'CONNECTED'
+                ? t('commonOnline')
+                : t('commonRecovering'),
+            copiedSuffix: '',
+          })}
         </Text>
       </View>
 
@@ -237,19 +273,12 @@ export function GameScreen() {
       />
 
       <Card backgroundColor={color.surface.card}>
-        <Heading>五项任务</Heading>
+        <Heading>{t('gameQuestTrack')}</Heading>
         <View
           style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}
         >
           {table.questTrack.map((quest) => {
-            const label =
-              quest.state === 'SUCCESS'
-                ? '成功'
-                : quest.state === 'FAILURE'
-                  ? '失败'
-                  : quest.state === 'CURRENT'
-                    ? '当前'
-                    : '待进行';
+            const label = t(QUEST_STATE_KEYS[quest.state]);
             const background =
               quest.state === 'SUCCESS'
                 ? color.result.success
@@ -261,7 +290,14 @@ export function GameScreen() {
             return (
               <View
                 accessible
-                accessibilityLabel={`任务 ${String(quest.questIndex)}，${label}${quest.requiredFails === 2 ? '，需要两张失败票' : ''}`}
+                accessibilityLabel={t('gameQuestAccessibility', {
+                  quest: quest.questIndex,
+                  state: label,
+                  twoFailsSuffix:
+                    quest.requiredFails === 2
+                      ? t('gameTwoFailsAccessibilitySuffix')
+                      : '',
+                })}
                 key={quest.questIndex}
                 style={{
                   minWidth: 86,
@@ -277,7 +313,7 @@ export function GameScreen() {
                   selectable
                   style={{ color: color.text.inverse, fontWeight: '900' }}
                 >
-                  任务 {quest.questIndex}
+                  {t('gameQuestLabel', { quest: quest.questIndex })}
                 </Text>
                 <Text selectable style={{ color: color.text.inverse }}>
                   {label}
@@ -295,38 +331,40 @@ export function GameScreen() {
             fontWeight: '800',
           }}
         >
-          善方成功 {table.successCount} · 邪恶方成功 {table.failureCount}
+          {t('gameScore', {
+            successes: table.successCount,
+            failures: table.failureCount,
+          })}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          本轮队伍需要 {table.requiredTeamSize ?? '—'} 人
-          {table.requiredQuestFails === 2
-            ? '；本轮需要至少两张失败票才会失败'
-            : ''}
+          {t('gameTeamRequirement', {
+            teamSize: table.requiredTeamSize ?? '—',
+            twoFailsSuffix:
+              table.requiredQuestFails === 2 ? t('gameTwoFailsSuffix') : '',
+          })}
         </Text>
       </Card>
 
       {table.proposedTeam.length === 0 ? null : (
         <Card backgroundColor={color.surface.card}>
-          <Heading>当前拟议队伍</Heading>
+          <Heading>{t('gameProposedTeam')}</Heading>
           <Text
             selectable
             style={{ color: color.text.primary, fontSize: typography.body }}
           >
             {table.proposedTeam
-              .map(
-                (player) => `${String(player.seat + 1)}号位 ${player.nickname}`,
-              )
-              .join('、')}
+              .map((player) => seatPlayerLabel(player.seat, player.nickname))
+              .join(t('commonListSeparator'))}
           </Text>
         </Card>
       )}
 
       {table.submissionProgress === undefined ? null : (
         <Card backgroundColor={color.surface.card}>
-          <Heading>匿名提交进度</Heading>
+          <Heading>{t('gameSubmissionProgress')}</Heading>
           <Text
             accessibilityLiveRegion="polite"
             selectable
@@ -347,7 +385,7 @@ export function GameScreen() {
               fontSize: typography.supporting,
             }}
           >
-            结算前只显示总数，不显示哪些玩家已经提交。
+            {t('gameSubmissionPrivacy')}
           </Text>
         </Card>
       )}
@@ -359,17 +397,17 @@ export function GameScreen() {
             selectable
             style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
           >
-            先进行线下讨论
+            {t('gameDiscussFirst')}
           </Text>
           <Text
             selectable
             style={{ color: '#D5D9E2', fontSize: typography.body }}
           >
-            当前操作尚未开放。请等待房主继续。
+            {t('gameDiscussFirstBody')}
           </Text>
-          {table.canContinue && table.continueLabel !== undefined ? (
+          {table.canContinue && table.continueAction !== undefined ? (
             <PrimaryButton
-              label={table.continueLabel}
+              label={t(CONTINUE_ACTION_KEYS[table.continueAction])}
               busy={commands.pendingCommandType === 'ContinuePhase'}
               disabled={!interactive}
               onPress={() => void commands.continuePhase()}
@@ -381,12 +419,21 @@ export function GameScreen() {
       {table.phase === 'TEAM_PROPOSAL' && table.phaseStage === 'COLLECTING' ? (
         table.canSubmitTeam ? (
           <Card backgroundColor={color.surface.card}>
-            <Heading>选择 {requiredTeamSize} 名任务队员</Heading>
+            <Heading>
+              {t('gameChooseTeam', { count: requiredTeamSize })}
+            </Heading>
             {table.players.map((player) => {
               const selected = selectedTeam.includes(player.playerId);
               return (
                 <Pressable
-                  accessibilityLabel={`${String(player.seat + 1)}号位，${player.nickname}${player.playerId === table.selfPlayerId ? '，本人' : ''}`}
+                  accessibilityLabel={t('gamePlayerAccessibility', {
+                    seat: player.seat + 1,
+                    nickname: player.nickname,
+                    selfSuffix:
+                      player.playerId === table.selfPlayerId
+                        ? t('gameSelfSuffix')
+                        : '',
+                  })}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: selected }}
                   key={player.playerId}
@@ -423,14 +470,23 @@ export function GameScreen() {
                       fontWeight: '800',
                     }}
                   >
-                    {player.seat + 1}号位 · {player.nickname}
-                    {player.playerId === table.selfPlayerId ? '（你）' : ''}
+                    {t('gamePlayerOption', {
+                      seat: player.seat + 1,
+                      nickname: player.nickname,
+                      selfSuffix:
+                        player.playerId === table.selfPlayerId
+                          ? t('gameSelfBadge')
+                          : '',
+                    })}
                   </Text>
                 </Pressable>
               );
             })}
             <PrimaryButton
-              label={`提交队伍（${String(selectedTeam.length)}/${String(requiredTeamSize)}）`}
+              label={t('gameSubmitTeam', {
+                selected: selectedTeam.length,
+                required: requiredTeamSize,
+              })}
               disabled={
                 !interactive || selectedTeam.length !== requiredTeamSize
               }
@@ -441,12 +497,12 @@ export function GameScreen() {
           </Card>
         ) : (
           <Card backgroundColor={color.surface.card}>
-            <Heading>等待队长组队</Heading>
+            <Heading>{t('gameWaitingLeader')}</Heading>
             <Text
               selectable
               style={{ color: color.text.secondary, fontSize: typography.body }}
             >
-              当前只有队长可以选择并提交队伍。
+              {t('gameWaitingLeaderBody')}
             </Text>
           </Card>
         )
@@ -460,13 +516,13 @@ export function GameScreen() {
               selectable
               style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
             >
-              你的投票已提交
+              {t('gameVoteSubmitted')}
             </Text>
             <Text
               selectable
               style={{ color: '#D5D9E2', fontSize: typography.body }}
             >
-              选择已隐藏。请等待所有玩家完成投票。
+              {t('gameVoteSubmittedBody')}
             </Text>
           </Card>
         ) : table.allowedTeamVotes.length > 0 ? (
@@ -476,17 +532,17 @@ export function GameScreen() {
               selectable
               style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
             >
-              私密组队票
+              {t('gamePrivateVote')}
             </Text>
             <Text
               selectable
               style={{ color: '#D5D9E2', fontSize: typography.body }}
             >
-              请选择后再次确认。提交前请遮挡屏幕。
+              {t('gamePrivateVoteBody')}
             </Text>
             {table.allowedTeamVotes.includes('APPROVE') ? (
               <PrimaryButton
-                label="✓ 同意这支队伍"
+                label={t('gameApproveTeam')}
                 disabled={!interactive}
                 onPress={() => {
                   setConfirmation({ type: 'VOTE', vote: 'APPROVE' });
@@ -520,7 +576,7 @@ export function GameScreen() {
                     fontWeight: '900',
                   }}
                 >
-                  ✕ 否决这支队伍
+                  {t('gameRejectTeam')}
                 </Text>
               </Pressable>
             ) : null}
@@ -533,7 +589,9 @@ export function GameScreen() {
       latestProposal !== undefined ? (
         <Card backgroundColor={color.surface.card}>
           <Heading>
-            {latestProposal.approved ? '队伍已通过' : '队伍被否决'}
+            {latestProposal.approved
+              ? t('gameTeamApproved')
+              : t('gameTeamRejected')}
           </Heading>
           <Text
             selectable
@@ -543,8 +601,10 @@ export function GameScreen() {
               fontWeight: '900',
             }}
           >
-            同意 {latestProposal.approveCount} · 否决{' '}
-            {latestProposal.rejectCount}
+            {t('gameVoteSummary', {
+              approves: latestProposal.approveCount,
+              rejects: latestProposal.rejectCount,
+            })}
           </Text>
           {latestProposal.votes.map((vote) => {
             const player = table.players.find(
@@ -556,11 +616,16 @@ export function GameScreen() {
                 selectable
                 style={{ color: color.text.primary, fontSize: typography.body }}
               >
-                {player?.seat === undefined
-                  ? '—'
-                  : `${String(player.seat + 1)}号位`}{' '}
-                {player?.nickname ?? '未知玩家'}：
-                {vote.vote === 'APPROVE' ? '同意' : '否决'}
+                {t('historyVote', {
+                  player:
+                    player === undefined
+                      ? t('commonUnknownPlayer')
+                      : seatPlayerLabel(player.seat, player.nickname),
+                  vote:
+                    vote.vote === 'APPROVE'
+                      ? t('commonApprove')
+                      : t('commonReject'),
+                })}
               </Text>
             );
           })}
@@ -574,18 +639,20 @@ export function GameScreen() {
                 fontWeight: '800',
               }}
             >
-              平票按规则视为否决。
+              {t('gameTieRejected')}
             </Text>
           ) : null}
-          {!latestProposal.approved && table.outcomeLabel === undefined ? (
+          {!latestProposal.approved && table.outcomeReason === undefined ? (
             <Text
               selectable
               style={{ color: color.text.secondary, fontSize: typography.body }}
             >
-              下一位队长：{table.leader?.nickname ?? '等待服务端分配'}
+              {t('gameNextLeader', {
+                leader: table.leader?.nickname ?? t('gameAwaitingLeader'),
+              })}
             </Text>
           ) : null}
-          {table.outcomeLabel === undefined ? null : (
+          {table.outcomeReason === undefined ? null : (
             <Text
               accessibilityLiveRegion="assertive"
               selectable
@@ -595,12 +662,18 @@ export function GameScreen() {
                 fontWeight: '900',
               }}
             >
-              {table.outcomeLabel}
+              {t(
+                mappedMessageKey(
+                  OUTCOME_REASON_KEYS,
+                  table.outcomeReason,
+                  'outcomeEnded',
+                ),
+              )}
             </Text>
           )}
-          {table.canContinue && table.continueLabel !== undefined ? (
+          {table.canContinue && table.continueAction !== undefined ? (
             <PrimaryButton
-              label={table.continueLabel}
+              label={t(CONTINUE_ACTION_KEYS[table.continueAction])}
               busy={commands.pendingCommandType === 'ContinuePhase'}
               disabled={!interactive}
               onPress={() => void commands.continuePhase()}
@@ -618,13 +691,13 @@ export function GameScreen() {
               selectable
               style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
             >
-              任务行动已提交
+              {t('gameQuestSubmitted')}
             </Text>
             <Text
               selectable
               style={{ color: '#D5D9E2', fontSize: typography.body }}
             >
-              具体选择已隐藏。请保持中性画面并等待结算。
+              {t('gameQuestSubmittedBody')}
             </Text>
           </Card>
         ) : table.allowedQuestChoices.length > 0 ? (
@@ -634,7 +707,7 @@ export function GameScreen() {
               selectable
               style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
             >
-              私密任务行动
+              {t('gamePrivateQuest')}
             </Text>
             {!questChoicesVisible ? (
               <>
@@ -642,10 +715,10 @@ export function GameScreen() {
                   selectable
                   style={{ color: '#D5D9E2', fontSize: typography.body }}
                 >
-                  请先遮挡屏幕，确认旁人无法看到后再显示合法选项。
+                  {t('gamePrivateQuestBody')}
                 </Text>
                 <PrimaryButton
-                  label="显示我的任务选项"
+                  label={t('gameShowQuestChoices')}
                   disabled={!interactive}
                   onPress={() => {
                     setQuestChoicesVisible(true);
@@ -663,12 +736,12 @@ export function GameScreen() {
                       fontWeight: '900',
                     }}
                   >
-                    本轮需要至少两张失败票才会失败。
+                    {t('gameTwoFailsNotice')}
                   </Text>
                 ) : null}
                 {table.allowedQuestChoices.includes('SUCCESS') ? (
                   <PrimaryButton
-                    label="✓ 任务成功"
+                    label={t('gameQuestSuccessChoice')}
                     disabled={!interactive}
                     onPress={() => {
                       setConfirmation({ type: 'QUEST', choice: 'SUCCESS' });
@@ -702,7 +775,7 @@ export function GameScreen() {
                         fontWeight: '900',
                       }}
                     >
-                      ✕ 任务失败
+                      {t('gameQuestFailureChoice')}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -711,12 +784,12 @@ export function GameScreen() {
           </Card>
         ) : (
           <Card backgroundColor={color.surface.card}>
-            <Heading>等待任务队员</Heading>
+            <Heading>{t('gameWaitingQuestTeam')}</Heading>
             <Text
               selectable
               style={{ color: color.text.secondary, fontSize: typography.body }}
             >
-              你不在本次获批队伍中。公开页面只显示匿名提交总数。
+              {t('gameWaitingQuestTeamBody')}
             </Text>
           </Card>
         )
@@ -725,7 +798,9 @@ export function GameScreen() {
       {table.phase === 'QUEST_RESOLUTION' && latestQuest !== undefined ? (
         <Card backgroundColor={color.surface.card}>
           <Heading>
-            {latestQuest.result === 'SUCCESS' ? '任务成功' : '任务失败'}
+            {latestQuest.result === 'SUCCESS'
+              ? t('gameQuestSucceeded')
+              : t('gameQuestFailed')}
           </Heading>
           <Text
             selectable
@@ -736,17 +811,20 @@ export function GameScreen() {
               fontVariant: ['tabular-nums'],
             }}
           >
-            成功票 {latestQuest.successChoices} · 失败票{' '}
-            {latestQuest.failChoices}
+            {t('gameQuestVoteSummary', {
+              successes: latestQuest.successChoices,
+              failures: latestQuest.failChoices,
+            })}
           </Text>
           <Text
             selectable
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            本次任务需要 {latestQuest.requiredFails}{' '}
-            张失败票才会失败。行动始终匿名，不公开玩家对应关系。
+            {t('gameQuestThreshold', {
+              requiredFails: latestQuest.requiredFails,
+            })}
           </Text>
-          {table.outcomeLabel === undefined ? null : (
+          {table.outcomeReason === undefined ? null : (
             <Text
               accessibilityLiveRegion="assertive"
               selectable
@@ -756,12 +834,18 @@ export function GameScreen() {
                 fontWeight: '900',
               }}
             >
-              {table.outcomeLabel}
+              {t(
+                mappedMessageKey(
+                  OUTCOME_REASON_KEYS,
+                  table.outcomeReason,
+                  'outcomeEnded',
+                ),
+              )}
             </Text>
           )}
-          {table.canContinue && table.continueLabel !== undefined ? (
+          {table.canContinue && table.continueAction !== undefined ? (
             <PrimaryButton
-              label={table.continueLabel}
+              label={t(CONTINUE_ACTION_KEYS[table.continueAction])}
               busy={commands.pendingCommandType === 'ContinuePhase'}
               disabled={!interactive}
               onPress={() => void commands.continuePhase()}
@@ -772,16 +856,16 @@ export function GameScreen() {
 
       {table.phase === 'ASSASSINATION' ? (
         <Card backgroundColor={color.surface.card}>
-          <Heading>三项任务成功</Heading>
+          <Heading>{t('assassinationThreeSuccesses')}</Heading>
           <Text
             selectable
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            现在进入刺杀讨论。角色仍然保密；刺杀选择将在下一阶段由服务端授权给刺客。
+            {t('gameAssassinationBody')}
           </Text>
-          {table.canContinue && table.continueLabel !== undefined ? (
+          {table.canContinue && table.continueAction !== undefined ? (
             <PrimaryButton
-              label={table.continueLabel}
+              label={t(CONTINUE_ACTION_KEYS[table.continueAction])}
               busy={commands.pendingCommandType === 'ContinuePhase'}
               disabled={!interactive}
               onPress={() => void commands.continuePhase()}
@@ -792,7 +876,7 @@ export function GameScreen() {
 
       {table.phase === 'GAME_OVER' ? (
         <Card backgroundColor={color.surface.card}>
-          <Heading>裁决已锁定</Heading>
+          <Heading>{t('gameRulingLocked')}</Heading>
           <Text
             accessibilityLiveRegion="assertive"
             selectable
@@ -802,13 +886,21 @@ export function GameScreen() {
               fontWeight: '900',
             }}
           >
-            {table.outcomeLabel ?? '对局已结束。'}
+            {table.outcomeReason === undefined
+              ? t('outcomeEnded')
+              : t(
+                  mappedMessageKey(
+                    OUTCOME_REASON_KEYS,
+                    table.outcomeReason,
+                    'outcomeEnded',
+                  ),
+                )}
           </Text>
           <Text
             selectable
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            完整角色揭示和结果页将在终局流程中显示；本页不会公开任务行动归属。
+            {t('gameRulingPrivacy')}
           </Text>
         </Card>
       ) : null}
@@ -837,19 +929,19 @@ export function GameScreen() {
             fontWeight: '900',
           }}
         >
-          {historyExpanded ? '收起对局记录' : '展开对局记录'}
+          {historyExpanded ? t('gameCollapseHistory') : t('gameExpandHistory')}
         </Text>
       </Pressable>
       {historyExpanded ? (
         <Card backgroundColor={color.surface.card}>
-          <Heading>公开对局记录</Heading>
+          <Heading>{t('gamePublicHistory')}</Heading>
           {table.proposalHistory.length === 0 &&
           table.questHistory.length === 0 ? (
             <Text
               selectable
               style={{ color: color.text.secondary, fontSize: typography.body }}
             >
-              暂无已公开记录。
+              {t('gameNoPublicHistory')}
             </Text>
           ) : null}
           {table.proposalHistory.map((proposal) => {
@@ -869,8 +961,13 @@ export function GameScreen() {
                     fontWeight: '900',
                   }}
                 >
-                  任务 {proposal.questIndex} · 第 {proposal.proposalAttempt}{' '}
-                  次组队 · {proposal.approved ? '通过' : '否决'}
+                  {t('historyProposalTitle', {
+                    quest: proposal.questIndex,
+                    attempt: proposal.proposalAttempt,
+                    result: proposal.approved
+                      ? t('commonApproved')
+                      : t('commonReject'),
+                  })}
                 </Text>
                 <Text
                   selectable
@@ -879,8 +976,11 @@ export function GameScreen() {
                     fontSize: typography.supporting,
                   }}
                 >
-                  队长 {leader?.nickname ?? '—'}；同意 {proposal.approveCount}
-                  ，否决 {proposal.rejectCount}
+                  {t('historyLeaderVotes', {
+                    leader: leader?.nickname ?? '—',
+                    approves: proposal.approveCount,
+                    rejects: proposal.rejectCount,
+                  })}
                 </Text>
                 <Text
                   selectable
@@ -889,17 +989,18 @@ export function GameScreen() {
                     fontSize: typography.supporting,
                   }}
                 >
-                  队伍：
-                  {proposal.teamPlayerIds
-                    .flatMap((playerId) => {
-                      const player = table.players.find(
-                        (candidate) => candidate.playerId === playerId,
-                      );
-                      return player === undefined
-                        ? []
-                        : [`${String(player.seat + 1)}号位 ${player.nickname}`];
-                    })
-                    .join('、')}
+                  {t('historyTeam', {
+                    players: proposal.teamPlayerIds
+                      .flatMap((playerId) => {
+                        const player = table.players.find(
+                          (candidate) => candidate.playerId === playerId,
+                        );
+                        return player === undefined
+                          ? []
+                          : [seatPlayerLabel(player.seat, player.nickname)];
+                      })
+                      .join(t('commonListSeparator')),
+                  })}
                 </Text>
                 {proposal.votes.map((vote) => {
                   const player = table.players.find(
@@ -914,10 +1015,16 @@ export function GameScreen() {
                         fontSize: typography.supporting,
                       }}
                     >
-                      {player === undefined
-                        ? '未知玩家'
-                        : `${String(player.seat + 1)}号位 ${player.nickname}`}
-                      ：{vote.vote === 'APPROVE' ? '同意' : '否决'}
+                      {t('historyVote', {
+                        player:
+                          player === undefined
+                            ? t('commonUnknownPlayer')
+                            : seatPlayerLabel(player.seat, player.nickname),
+                        vote:
+                          vote.vote === 'APPROVE'
+                            ? t('commonApprove')
+                            : t('commonReject'),
+                      })}
                     </Text>
                   );
                 })}
@@ -937,8 +1044,13 @@ export function GameScreen() {
                   fontWeight: '900',
                 }}
               >
-                任务 {quest.questIndex} ·{' '}
-                {quest.result === 'SUCCESS' ? '成功' : '失败'}
+                {t('historyQuestTitle', {
+                  quest: quest.questIndex,
+                  result:
+                    quest.result === 'SUCCESS'
+                      ? t('commonSuccess')
+                      : t('commonFailure'),
+                })}
               </Text>
               <Text
                 selectable
@@ -947,8 +1059,11 @@ export function GameScreen() {
                   fontSize: typography.supporting,
                 }}
               >
-                匿名成功票 {quest.successChoices}，失败票 {quest.failChoices}
-                ，失败阈值 {quest.requiredFails}
+                {t('gameHistoryQuestActions', {
+                  successes: quest.successChoices,
+                  failures: quest.failChoices,
+                  requiredFails: quest.requiredFails,
+                })}
               </Text>
               <Text
                 selectable
@@ -957,17 +1072,18 @@ export function GameScreen() {
                   fontSize: typography.supporting,
                 }}
               >
-                获批队伍：
-                {quest.teamPlayerIds
-                  .flatMap((playerId) => {
-                    const player = table.players.find(
-                      (candidate) => candidate.playerId === playerId,
-                    );
-                    return player === undefined
-                      ? []
-                      : [`${String(player.seat + 1)}号位 ${player.nickname}`];
-                  })
-                  .join('、')}
+                {t('gameApprovedTeam', {
+                  players: quest.teamPlayerIds
+                    .flatMap((playerId) => {
+                      const player = table.players.find(
+                        (candidate) => candidate.playerId === playerId,
+                      );
+                      return player === undefined
+                        ? []
+                        : [seatPlayerLabel(player.seat, player.nickname)];
+                    })
+                    .join(t('commonListSeparator')),
+                })}
               </Text>
             </View>
           ))}
@@ -993,7 +1109,7 @@ export function GameScreen() {
             {session.error}
           </Text>
           <PrimaryButton
-            label="重新同步"
+            label={t('commonResync')}
             disabled={busy}
             onPress={() => void session.refreshView()}
           />

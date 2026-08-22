@@ -10,6 +10,7 @@ import { Linking, Text, View } from 'react-native';
 import { ActionLink } from '@/components/action-link';
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { parseJoinLink } from '@/rooms/room-code';
 import { spacing, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -18,6 +19,7 @@ const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? 'join.example.invalid';
 
 export function ScanRoomScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
   const [attempted, setAttempted] = useState(false);
   const [cameraStarted, setCameraStarted] = useState(false);
@@ -45,19 +47,22 @@ export function ScanRoomScreen() {
     setCameraStarted(result.granted);
   }, [permission?.granted, requestPermission]);
 
-  const handleBarcode = useCallback((result: BarcodeScanningResult) => {
-    if (!acceptingScan.current) return;
-    acceptingScan.current = false;
-    const roomCode = parseJoinLink(result.data, [JOIN_HOST]);
-    if (roomCode === undefined) {
-      setScanError('二维码不是受信任的 Avalon 加入链接。');
-      setTimeout(() => {
-        acceptingScan.current = true;
-      }, 1_200);
-      return;
-    }
-    router.replace(`/join/${roomCode}` as Href);
-  }, []);
+  const handleBarcode = useCallback(
+    (result: BarcodeScanningResult) => {
+      if (!acceptingScan.current) return;
+      acceptingScan.current = false;
+      const roomCode = parseJoinLink(result.data, [JOIN_HOST]);
+      if (roomCode === undefined) {
+        setScanError(t('scanUntrusted'));
+        setTimeout(() => {
+          acceptingScan.current = true;
+        }, 1_200);
+        return;
+      }
+      router.replace(`/join/${roomCode}` as Href);
+    },
+    [t],
+  );
 
   const denied = attempted && permission?.granted !== true;
 
@@ -73,19 +78,19 @@ export function ScanRoomScreen() {
             fontWeight: '800',
           }}
         >
-          扫描二维码
+          {t('scanTitle')}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          相机只用于读取公开加入链接，不拍照、不录像，也不会请求麦克风权限。
+          {t('scanSubtitle')}
         </Text>
       </View>
 
       {!cameraStarted || !focused || permission?.granted !== true ? null : (
         <View
-          accessibilityLabel="房间二维码取景框"
+          accessibilityLabel={t('scanFrameAccessibility')}
           style={{
             minHeight: 320,
             overflow: 'hidden',
@@ -104,9 +109,9 @@ export function ScanRoomScreen() {
 
       {!cameraStarted ? (
         <PrimaryButton
-          label="允许相机并开始扫描"
+          label={t('scanStart')}
           onPress={() => void startCamera()}
-          accessibilityHint="显示系统相机权限对话框"
+          accessibilityHint={t('scanStartHint')}
         />
       ) : null}
 
@@ -124,13 +129,13 @@ export function ScanRoomScreen() {
             selectable
             style={{ color: color.result.failure, fontSize: typography.body }}
           >
-            相机权限未开启。你仍可手动输入房间号。
+            {t('scanDenied')}
           </Text>
           {permission?.canAskAgain === false ? (
             <PrimaryButton
-              label="打开系统设置"
+              label={t('scanOpenSettings')}
               onPress={() => void Linking.openSettings()}
-              accessibilityHint="前往系统设置修改相机权限"
+              accessibilityHint={t('scanOpenSettingsHint')}
             />
           ) : null}
         </View>
@@ -142,14 +147,14 @@ export function ScanRoomScreen() {
           accessibilityLiveRegion="assertive"
           style={{ color: color.result.failure, fontSize: typography.body }}
         >
-          {scanError} 请换一个二维码，或改用房间号。
+          {t('scanErrorRecovery', { error: scanError })}
         </Text>
       )}
 
       <ActionLink
         href="/join"
-        label="改用房间号"
-        description="无需相机权限即可继续"
+        label={t('scanUseCode')}
+        description={t('scanUseCodeDescription')}
         primary
       />
     </PageShell>

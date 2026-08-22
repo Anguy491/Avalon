@@ -12,6 +12,8 @@ import type {
   SessionRevoked,
   ServerMaintenance,
   TerminalViewAckResult,
+  WechatIdentityBootstrap,
+  RoomConfigValidationResponse,
 } from './schemas/index.js';
 
 interface JsonSchema {
@@ -54,6 +56,8 @@ interface MobileContracts {
   readonly sessionReady: JsonSchema;
   readonly commandResult: JsonSchema;
   readonly terminalViewAckResult: JsonSchema;
+  readonly wechatIdentityBootstrap: JsonSchema;
+  readonly roomConfigValidationResponse: JsonSchema;
 }
 
 const contracts = generatedContracts as unknown as MobileContracts;
@@ -260,6 +264,18 @@ export function isTerminalViewAckResult(
   return matchesSchema(contracts.terminalViewAckResult, value);
 }
 
+export function isWechatIdentityBootstrap(
+  value: unknown,
+): value is WechatIdentityBootstrap {
+  return matchesSchema(contracts.wechatIdentityBootstrap, value);
+}
+
+export function isRoomConfigValidationResponse(
+  value: unknown,
+): value is RoomConfigValidationResponse {
+  return matchesSchema(contracts.roomConfigValidationResponse, value);
+}
+
 export type {
   AudioTelemetry,
   ClientCapabilities,
@@ -272,6 +288,10 @@ export type {
   JoinRoomRequest,
   ReadRoomViewResponse,
   RoomConfigInput,
+  RoomConfigValidationError,
+  RoomConfigValidationErrorCode,
+  RoomConfigValidationRequest,
+  RoomConfigValidationResponse,
   RoomView,
   RoomViewMessage,
   SessionBootstrap,
@@ -281,4 +301,6 @@ export type {
   SessionRevoked,
   ServerMaintenance,
   TerminalViewAckResult,
+  WechatIdentityBootstrap,
+  WechatLoginRequest,
 } from './schemas/index.js';

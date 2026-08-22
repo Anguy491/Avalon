@@ -7,6 +7,7 @@ import { ActionLink } from '@/components/action-link';
 import { FormField } from '@/components/form-field';
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { usePublicDraft } from '@/session/public-draft-provider';
 import { useSession } from '@/session/session-provider';
 import { terminalSessionDisposition } from '@/session/terminal-session-state';
@@ -15,6 +16,7 @@ import { useAppTheme } from '@/theme/use-app-theme';
 
 export default function HomeScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const draft = usePublicDraft();
   const session = useSession();
 
@@ -31,7 +33,7 @@ export default function HomeScreen() {
 
   return (
     <PageShell>
-      <Stack.Screen options={{ title: 'Avalon' }} />
+      <Stack.Screen options={{ title: t('commonAvalon') }} />
       <View style={{ gap: spacing.sm, paddingTop: spacing.lg }}>
         <Text
           selectable
@@ -42,25 +44,25 @@ export default function HomeScreen() {
             fontWeight: '800',
           }}
         >
-          聚会无实体阿瓦隆助手
+          {t('homeTitle')}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          面向同桌 5–10 人的服务端权威阿瓦隆主持应用。
+          {t('homeSubtitle')}
         </Text>
       </View>
 
       <FormField
-        label="你的昵称"
+        label={t('homeNickname')}
         value={draft.nickname}
         onChangeText={draft.setNickname}
         autoFocus
         autoCapitalize="none"
         autoCorrect={false}
         maxLength={48}
-        placeholder="1–16 个可见字符"
+        placeholder={t('homeNicknamePlaceholder')}
         returnKeyType="done"
       />
 
@@ -77,7 +79,7 @@ export default function HomeScreen() {
           <Text
             style={{ color: color.text.inverse, fontSize: typography.body }}
           >
-            正在恢复对局…
+            {t('homeRecovering')}
           </Text>
         </View>
       ) : null}
@@ -95,15 +97,16 @@ export default function HomeScreen() {
           <Text
             style={{ color: color.text.primary, fontSize: typography.body }}
           >
-            房间 {session.summary.roomCode}{' '}
-            暂时无法恢复。你可以继续等待或清除本机会话。
+            {t('homeOfflineSummary', {
+              roomCode: session.summary.roomCode,
+            })}
           </Text>
           <PrimaryButton
-            label="继续等待并重试"
+            label={t('homeWaitRetry')}
             onPress={() => void session.recover()}
           />
           <PrimaryButton
-            label="清除本机会话"
+            label={t('homeClearSession')}
             onPress={() => void session.forgetSession()}
           />
         </View>
@@ -112,19 +115,19 @@ export default function HomeScreen() {
       <View style={{ gap: spacing.md }}>
         <ActionLink
           href="/create"
-          label="创建房间"
-          description="选择人数与角色配置，成为房主"
+          label={t('navCreateRoom')}
+          description={t('homeCreateDescription')}
           primary
         />
         <ActionLink
           href="/join"
-          label="输入房间号"
-          description="使用六位公开房间号加入"
+          label={t('homeJoin')}
+          description={t('homeJoinDescription')}
         />
         <ActionLink
           href="/scan"
-          label="扫描二维码"
-          description="相机被拒绝时仍可改用房间号"
+          label={t('navScanQr')}
+          description={t('homeScanDescription')}
         />
       </View>
 
@@ -132,7 +135,7 @@ export default function HomeScreen() {
         selectable
         style={{ color: color.text.secondary, fontSize: typography.supporting }}
       >
-        昵称只用于当前房间；会话令牌不会进入链接、剪贴板或普通偏好存储。
+        {t('homePrivacy')}
       </Text>
     </PageShell>
   );

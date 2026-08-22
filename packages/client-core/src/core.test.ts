@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   IdempotencyKeys,
   nicknameError,
+  nicknameErrorCode,
   normalizeRoomCode,
   parseJoinLink,
 } from './index.js';
@@ -27,6 +28,9 @@ describe('client core', () => {
   });
 
   it('rejects empty and control-character nicknames', () => {
+    expect(nicknameErrorCode('')).toBe('INVALID_LENGTH');
+    expect(nicknameErrorCode('玩家\u202e')).toBe('CONTROL_CHARACTER');
+    expect(nicknameErrorCode('玩家一号')).toBeUndefined();
     expect(nicknameError('')).toBeDefined();
     expect(nicknameError('玩家\u202e')).toBeDefined();
     expect(nicknameError('玩家一号')).toBeUndefined();

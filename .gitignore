@@ -27,6 +27,8 @@ node_modules/
 .cache/
 .eslintcache
 *.tsbuildinfo
+.swc/
+apps/wechat-mini/project.private.config.json
 
 # Tests and generated build output
 coverage/

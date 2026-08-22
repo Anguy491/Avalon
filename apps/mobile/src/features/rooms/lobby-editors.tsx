@@ -5,6 +5,7 @@ import type { RoomConfigInput, RoomView } from '@avalon/protocol/mobile';
 
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -72,6 +73,7 @@ export function LobbySeatEditor({
   readonly onSave: (playerIds: readonly string[]) => Promise<void>;
 }) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const projectedOrder = players.map((player) => player.playerId);
   const [state, dispatch] = useReducer(seatOrderReducer, {
     playerIds: projectedOrder,
@@ -104,13 +106,13 @@ export function LobbySeatEditor({
               fontWeight: '800',
             }}
           >
-            调整座次
+            {t('lobbySeatEditorTitle')}
           </Text>
           <Text
             selectable
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            使用上移和下移调整顺序，保存时一次提交完整座次。成功后全员需重新准备。
+            {t('lobbySeatEditorBody')}
           </Text>
         </View>
 
@@ -121,7 +123,11 @@ export function LobbySeatEditor({
             return (
               <View
                 key={playerId}
-                accessibilityLabel={`座次 ${String(index + 1)}，${player.nickname}${player.isHost ? '，房主' : ''}`}
+                accessibilityLabel={t('lobbySeatAccessibility', {
+                  seat: index + 1,
+                  nickname: player.nickname,
+                  hostSuffix: player.isHost ? t('lobbyHostSuffix') : '',
+                })}
                 style={{
                   minHeight: touchTarget.minimum,
                   flexDirection: 'row',
@@ -154,17 +160,17 @@ export function LobbySeatEditor({
                     fontWeight: '700',
                   }}
                 >
-                  {player.nickname} {player.isHost ? '· 房主' : ''}
+                  {player.nickname} {player.isHost ? t('lobbyHostBadge') : ''}
                 </Text>
                 <SmallButton
-                  label={`上移 ${player.nickname}`}
+                  label={t('lobbyMoveUp', { nickname: player.nickname })}
                   disabled={busy || index === 0}
                   onPress={() => {
                     dispatch({ type: 'move', playerId, delta: -1 });
                   }}
                 />
                 <SmallButton
-                  label={`下移 ${player.nickname}`}
+                  label={t('lobbyMoveDown', { nickname: player.nickname })}
                   disabled={busy || index === state.playerIds.length - 1}
                   onPress={() => {
                     dispatch({ type: 'move', playerId, delta: 1 });
@@ -176,13 +182,17 @@ export function LobbySeatEditor({
         </View>
 
         <PrimaryButton
-          label="保存完整座次"
+          label={t('lobbySaveSeats')}
           busy={busy}
           onPress={() => {
             void onSave(state.playerIds);
           }}
         />
-        <SmallButton label="取消调整" disabled={busy} onPress={onClose} />
+        <SmallButton
+          label={t('lobbyCancelSeatEdit')}
+          disabled={busy}
+          onPress={onClose}
+        />
       </PageShell>
     </Modal>
   );
@@ -202,6 +212,7 @@ export function LobbyConfigEditor({
   readonly onSave: (config: RoomConfigInput) => Promise<void>;
 }) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const [draft, dispatch] = useReducer(
     lobbyConfigReducer,
     config,
@@ -235,32 +246,36 @@ export function LobbyConfigEditor({
               fontWeight: '800',
             }}
           >
-            房间配置
+            {t('lobbyConfigEditorTitle')}
           </Text>
           <Text
             selectable
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            保存成功会让所有玩家恢复为未准备。角色组合的最终合法性始终由服务器检查。
+            {t('lobbyConfigEditorBody')}
           </Text>
         </View>
 
         <RoomConfigFields draft={draft} busy={busy} dispatch={dispatch} />
 
         <PrimaryButton
-          label="保存配置"
+          label={t('lobbySaveConfig')}
           disabled={!canSave}
           busy={busy}
           accessibilityHint={
             canSave
-              ? '提交完整配置，由服务器校验角色组合'
-              : '自定义角色数量必须为五到十个'
+              ? t('lobbySaveConfigHint')
+              : t('lobbyInvalidCustomConfigHint')
           }
           onPress={() => {
             void onSave(configInputFromDraft(draft));
           }}
         />
-        <SmallButton label="取消编辑" disabled={busy} onPress={onClose} />
+        <SmallButton
+          label={t('lobbyCancelConfigEdit')}
+          disabled={busy}
+          onPress={onClose}
+        />
       </PageShell>
     </Modal>
   );

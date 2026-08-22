@@ -1,6 +1,7 @@
 import { Modal, Pressable, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -24,6 +25,7 @@ export function ConfirmationModal({
   onConfirm,
 }: ConfirmationModalProps) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   return (
     <Modal
       animationType="fade"
@@ -95,7 +97,7 @@ export function ConfirmationModal({
                 fontWeight: '700',
               }}
             >
-              返回检查
+              {t('commonBackToReview')}
             </Text>
           </Pressable>
         </View>

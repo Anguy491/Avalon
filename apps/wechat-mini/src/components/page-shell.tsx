@@ -1,4 +1,5 @@
 import { Button, Text, View } from '@tarojs/components';
+import Taro from '@tarojs/taro';
 import type { PropsWithChildren, ReactNode } from 'react';
 
 import { useSession } from '@/session/session-provider';
@@ -17,7 +18,9 @@ export function PageShell({
   footer,
   children,
 }: PageShellProps) {
-  const { status, error, dismissError, networkReachable } = useSession();
+  const { status, error, dismissError, networkReachable, recover } =
+    useSession();
+  const diagnosticId = /诊断码：([^\s]+)/u.exec(error ?? '')?.[1];
   return (
     <View className={`page${privatePage ? ' private-page' : ''}`}>
       <Text className="title">{title}</Text>
@@ -42,6 +45,24 @@ export function PageShell({
           >
             知道了
           </Button>
+          {diagnosticId === undefined ? null : (
+            <Button
+              className="button button-secondary button-small"
+              ariaLabel="复制匿名诊断码"
+              onClick={() => void Taro.setClipboardData({ data: diagnosticId })}
+            >
+              复制诊断码
+            </Button>
+          )}
+          {status === 'OFFLINE' || status === 'RECOVERING' ? (
+            <Button
+              className="button button-secondary button-small"
+              ariaLabel="重试恢复连接"
+              onClick={() => void recover()}
+            >
+              重试
+            </Button>
+          ) : null}
         </View>
       )}
       {children}

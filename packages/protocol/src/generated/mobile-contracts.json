@@ -162,6 +162,18 @@
                 "type": "string"
               },
               {
+                "const": "WECHAT_AUTH_INVALID",
+                "type": "string"
+              },
+              {
+                "const": "WECHAT_AUTH_UNAVAILABLE",
+                "type": "string"
+              },
+              {
+                "const": "WECHAT_IDENTITY_CONFLICT",
+                "type": "string"
+              },
+              {
                 "const": "UNAUTHORIZED",
                 "type": "string"
               },
@@ -6503,6 +6515,18 @@
                     "type": "string"
                   },
                   {
+                    "const": "WECHAT_AUTH_INVALID",
+                    "type": "string"
+                  },
+                  {
+                    "const": "WECHAT_AUTH_UNAVAILABLE",
+                    "type": "string"
+                  },
+                  {
+                    "const": "WECHAT_IDENTITY_CONFLICT",
+                    "type": "string"
+                  },
+                  {
                     "const": "UNAUTHORIZED",
                     "type": "string"
                   },
@@ -6591,6 +6615,134 @@
     "properties": {
       "accepted": {
         "type": "boolean"
+      }
+    }
+  },
+  "wechatIdentityBootstrap": {
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "protocolVersion",
+      "wechatIdentityToken",
+      "expiresAt"
+    ],
+    "properties": {
+      "protocolVersion": {
+        "const": 2,
+        "type": "number"
+      },
+      "wechatIdentityToken": {
+        "minLength": 43,
+        "maxLength": 43,
+        "pattern": "^[A-Za-z0-9_-]{43}$",
+        "type": "string"
+      },
+      "expiresAt": {
+        "format": "date-time",
+        "type": "string"
+      }
+    }
+  },
+  "roomConfigValidationResponse": {
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+      "protocolVersion",
+      "valid",
+      "errors"
+    ],
+    "properties": {
+      "protocolVersion": {
+        "const": 2,
+        "type": "number"
+      },
+      "valid": {
+        "type": "boolean"
+      },
+      "errors": {
+        "maxItems": 10,
+        "type": "array",
+        "items": {
+          "additionalProperties": false,
+          "type": "object",
+          "required": [
+            "code"
+          ],
+          "properties": {
+            "code": {
+              "anyOf": [
+                {
+                  "const": "INVALID_PLAYER_COUNT",
+                  "type": "string"
+                },
+                {
+                  "const": "ROLE_COUNT_MISMATCH",
+                  "type": "string"
+                },
+                {
+                  "const": "ALIGNMENT_COUNT_MISMATCH",
+                  "type": "string"
+                },
+                {
+                  "const": "MERLIN_REQUIRED_ONCE",
+                  "type": "string"
+                },
+                {
+                  "const": "ASSASSIN_REQUIRED_ONCE",
+                  "type": "string"
+                },
+                {
+                  "const": "UNIQUE_ROLE_REPEATED",
+                  "type": "string"
+                },
+                {
+                  "const": "MORGANA_REQUIRES_PERCIVAL",
+                  "type": "string"
+                },
+                {
+                  "const": "FIVE_PLAYER_PERCIVAL_REQUIRES_DECEPTION_ROLE",
+                  "type": "string"
+                }
+              ]
+            },
+            "roleId": {
+              "anyOf": [
+                {
+                  "const": "MERLIN",
+                  "type": "string"
+                },
+                {
+                  "const": "LOYAL_SERVANT",
+                  "type": "string"
+                },
+                {
+                  "const": "PERCIVAL",
+                  "type": "string"
+                },
+                {
+                  "const": "ASSASSIN",
+                  "type": "string"
+                },
+                {
+                  "const": "MINION",
+                  "type": "string"
+                },
+                {
+                  "const": "MORGANA",
+                  "type": "string"
+                },
+                {
+                  "const": "MORDRED",
+                  "type": "string"
+                },
+                {
+                  "const": "OBERON",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
       }
     }
   }

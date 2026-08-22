@@ -110,13 +110,12 @@ describe('M5 terminal result adapter', () => {
     const state = deriveResultState(terminalView('MERLIN_ASSASSINATED'));
     expect(state).toMatchObject({
       winner: 'EVIL',
-      winnerLabel: '邪恶方获胜',
       reason: 'MERLIN_ASSASSINATED',
       assassinationTarget: { playerId: playerIds[0] },
     });
     expect(state?.revealedPlayers).toHaveLength(5);
     expect(state?.revealedPlayers[0]).toMatchObject({
-      roleLabel: '梅林',
+      roleId: 'MERLIN',
       wasAssassinationTarget: true,
     });
     expect(state?.questHistory[0]).toMatchObject({
@@ -129,32 +128,23 @@ describe('M5 terminal result adapter', () => {
     const state = deriveResultState(terminalView('ABORTED'));
     expect(state).toMatchObject({
       winner: 'NONE',
-      winnerLabel: '对局中止',
-      reasonLabel: '对局已中止，不判定阵营胜负。',
+      reason: 'ABORTED',
     });
     expect(state?.assassinationTarget).toBeUndefined();
   });
 
   it.each([
-    ['THREE_QUEST_FAILURES', 'EVIL', '三项任务失败，邪恶方赢得对局。'],
-    [
-      'FIVE_REJECTED_TEAMS',
-      'EVIL',
-      '同一任务连续五次组队被否决，邪恶方赢得对局。',
-    ],
-    ['MERLIN_ASSASSINATED', 'EVIL', '刺客成功找出梅林，邪恶方翻盘获胜。'],
-    ['MERLIN_SURVIVED', 'GOOD', '刺客未能找出梅林，善良方守住胜利。'],
-    ['ABORTED', 'NONE', '对局已中止，不判定阵营胜负。'],
-  ] as const)(
-    'uses the distinct %s outcome copy',
-    (reason, winner, reasonLabel) => {
-      const view = terminalView('ABORTED');
-      view.public.gameOutcome = { winner, reason };
-      expect(deriveResultState(view)).toMatchObject({
-        winner,
-        reason,
-        reasonLabel,
-      });
-    },
-  );
+    ['THREE_QUEST_FAILURES', 'EVIL'],
+    ['FIVE_REJECTED_TEAMS', 'EVIL'],
+    ['MERLIN_ASSASSINATED', 'EVIL'],
+    ['MERLIN_SURVIVED', 'GOOD'],
+    ['ABORTED', 'NONE'],
+  ] as const)('preserves the semantic %s outcome', (reason, winner) => {
+    const view = terminalView('ABORTED');
+    view.public.gameOutcome = { winner, reason };
+    expect(deriveResultState(view)).toMatchObject({
+      winner,
+      reason,
+    });
+  });
 });

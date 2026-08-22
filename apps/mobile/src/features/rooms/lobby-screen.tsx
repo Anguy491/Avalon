@@ -7,6 +7,9 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import { mappedMessageKey, ROLE_NAME_KEYS } from '@/localization/game-messages';
+import { useI18n } from '@/localization/localization-provider';
+import type { MessageKey } from '@/localization/messages';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -17,10 +20,14 @@ import { useLobbyCommands } from './use-lobby-commands';
 
 const JOIN_HOST = process.env.EXPO_PUBLIC_JOIN_HOST ?? 'join.example.invalid';
 
-function connectionLabel(status: ReturnType<typeof useSession>['status']) {
-  if (status === 'CONNECTED') return '在线';
-  if (status === 'RECOVERING' || status === 'LOADING') return '正在恢复';
-  return '离线';
+function connectionMessageKey(
+  status: ReturnType<typeof useSession>['status'],
+): MessageKey {
+  if (status === 'CONNECTED') return 'commonOnline';
+  if (status === 'RECOVERING' || status === 'LOADING') {
+    return 'commonRecovering';
+  }
+  return 'commonOffline';
 }
 
 function ActionButton({
@@ -39,10 +46,13 @@ function ActionButton({
   readonly accessibilityHint?: string;
 }) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   return (
     <Pressable
       accessibilityHint={accessibilityHint}
-      accessibilityLabel={busy ? `${label}，正在处理` : label}
+      accessibilityLabel={
+        busy ? t('commonBusyAccessibility', { label }) : label
+      }
       accessibilityRole="button"
       accessibilityState={{ disabled: disabled || busy, busy }}
       disabled={disabled || busy}
@@ -71,7 +81,7 @@ function ActionButton({
           fontWeight: '800',
         }}
       >
-        {busy ? '正在处理…' : label}
+        {busy ? t('commonProcessing') : label}
       </Text>
     </Pressable>
   );
@@ -79,6 +89,7 @@ function ActionButton({
 
 export function LobbyScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const commands = useLobbyCommands();
   const [showQr, setShowQr] = useState(false);
@@ -119,23 +130,23 @@ export function LobbyScreen() {
   if (roomCode === undefined) {
     return (
       <PageShell>
-        <Stack.Screen options={{ title: '房间大厅' }} />
+        <Stack.Screen options={{ title: t('navLobby') }} />
         <Text
           selectable
           accessibilityRole="header"
           style={{ color: color.text.primary, fontSize: typography.title }}
         >
-          无法恢复房间
+          {t('lobbyUnableToRestore')}
         </Text>
         <Text
           selectable
           accessibilityLiveRegion="polite"
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          {session.error ?? '本机没有可恢复的会话。'}
+          {session.error ?? t('lobbyNoRecoverableSession')}
         </Text>
         <PrimaryButton
-          label="返回首页"
+          label={t('commonReturnHome')}
           onPress={() => {
             router.replace('/');
           }}
@@ -150,43 +161,35 @@ export function LobbyScreen() {
   };
 
   const confirmKick = (playerId: string, nickname: string) => {
-    Alert.alert(
-      `移除 ${nickname}？`,
-      '移除后该玩家的大厅会话会失效，座次会压缩，并重置全员准备状态。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确认移除',
-          style: 'destructive',
-          onPress: () => {
-            void commands.kickPlayer(playerId);
-          },
+    Alert.alert(t('lobbyRemoveTitle', { nickname }), t('lobbyRemoveBody'), [
+      { text: t('commonCancel'), style: 'cancel' },
+      {
+        text: t('lobbyConfirmRemove'),
+        style: 'destructive',
+        onPress: () => {
+          void commands.kickPlayer(playerId);
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const confirmStart = () => {
-    Alert.alert(
-      '开始游戏并分配身份？',
-      '开始后不能再修改座次或配置，也不能移除或替补玩家。请确认所有人已准备好私密查看身份。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确认开始',
-          onPress: () => {
-            void commands.startGame();
-          },
+    Alert.alert(t('lobbyStartTitle'), t('lobbyStartBody'), [
+      { text: t('commonCancel'), style: 'cancel' },
+      {
+        text: t('lobbyConfirmStart'),
+        onPress: () => {
+          void commands.startGame();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const confirmLeave = () => {
-    Alert.alert('离开大厅？', '离开后本机会清除该房间会话。', [
-      { text: '取消', style: 'cancel' },
+    Alert.alert(t('lobbyLeaveTitle'), t('lobbyLeaveBody'), [
+      { text: t('commonCancel'), style: 'cancel' },
       {
-        text: '确认离开',
+        text: t('lobbyConfirmLeave'),
         style: 'destructive',
         onPress: () => {
           void commands.leaveLobby();
@@ -196,36 +199,34 @@ export function LobbyScreen() {
   };
 
   const confirmClose = () => {
-    Alert.alert(
-      '关闭房间？',
-      '所有大厅玩家都会断开，房间号会失效。此操作无法撤销。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '确认关闭房间',
-          style: 'destructive',
-          onPress: () => {
-            void commands.closeRoom();
-          },
+    Alert.alert(t('lobbyCloseTitle'), t('lobbyCloseBody'), [
+      { text: t('commonCancel'), style: 'cancel' },
+      {
+        text: t('lobbyConfirmClose'),
+        style: 'destructive',
+        onPress: () => {
+          void commands.closeRoom();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   return (
     <PageShell>
-      <Stack.Screen options={{ title: '房间大厅' }} />
+      <Stack.Screen options={{ title: t('navLobby') }} />
       <View style={{ gap: spacing.sm, alignItems: 'center' }}>
         <Text
           selectable
           accessibilityRole="header"
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          房间号
+          {t('lobbyRoomCode')}
         </Text>
         <Text
           selectable
-          accessibilityLabel={`房间号 ${roomCode.split('').join(' ')}`}
+          accessibilityLabel={t('lobbyRoomCodeAccessibility', {
+            roomCode: roomCode.split('').join(' '),
+          })}
           style={{
             color: color.text.primary,
             fontSize: 38,
@@ -243,15 +244,20 @@ export function LobbyScreen() {
             fontSize: typography.supporting,
           }}
         >
-          连接状态：{connectionLabel(session.status)}
-          {copied ? ' · 已复制房间号' : ''}
+          {t('lobbyConnectionStatus', {
+            status: t(connectionMessageKey(session.status)),
+            copiedSuffix: copied ? t('lobbyCopiedSuffix') : '',
+          })}
         </Text>
       </View>
 
       <View style={{ flexDirection: 'row', gap: spacing.md }}>
-        <ActionButton label="复制房间号" onPress={() => void copyRoomCode()} />
         <ActionButton
-          label="显示二维码"
+          label={t('lobbyCopyRoomCode')}
+          onPress={() => void copyRoomCode()}
+        />
+        <ActionButton
+          label={t('lobbyShowQr')}
           onPress={() => {
             setShowQr(true);
           }}
@@ -273,10 +279,10 @@ export function LobbyScreen() {
             selectable
             style={{ color: color.text.inverse, fontSize: typography.body }}
           >
-            正在等待最新大厅投影。离线期间不会开放任何房间操作。
+            {t('lobbyWaitingProjection')}
           </Text>
           <PrimaryButton
-            label="重新同步"
+            label={t('commonResync')}
             onPress={() => void session.refreshView()}
           />
         </View>
@@ -292,12 +298,22 @@ export function LobbyScreen() {
                 fontWeight: '800',
               }}
             >
-              玩家
+              {t('lobbyPlayers')}
             </Text>
             {lobby.players.map((player) => (
               <View
                 key={player.playerId}
-                accessibilityLabel={`座次 ${String(player.seat + 1)}，${player.nickname}${player.isHost ? '，房主' : ''}，${player.connected ? '在线' : '离线'}，${player.ready ? '已准备' : '未准备'}`}
+                accessibilityLabel={t('lobbyPlayerAccessibility', {
+                  seat: player.seat + 1,
+                  nickname: player.nickname,
+                  hostSuffix: player.isHost ? t('lobbyHostSuffix') : '',
+                  connection: player.connected
+                    ? t('commonOnline')
+                    : t('commonOffline'),
+                  readiness: player.ready
+                    ? t('commonReady')
+                    : t('commonNotReady'),
+                })}
                 style={{
                   minHeight: touchTarget.minimum,
                   flexDirection: 'row',
@@ -329,7 +345,7 @@ export function LobbyScreen() {
                       fontWeight: '700',
                     }}
                   >
-                    {player.nickname} {player.isHost ? '· 房主' : ''}
+                    {player.nickname} {player.isHost ? t('lobbyHostBadge') : ''}
                   </Text>
                   <Text
                     selectable
@@ -338,15 +354,17 @@ export function LobbyScreen() {
                       fontSize: typography.supporting,
                     }}
                   >
-                    {player.connected ? '在线' : '离线'} ·{' '}
-                    {player.ready ? '已准备' : '未准备'}
+                    {player.connected ? t('commonOnline') : t('commonOffline')}{' '}
+                    · {player.ready ? t('commonReady') : t('commonNotReady')}
                   </Text>
                 </View>
                 {lobby.eligibleKickPlayers.some(
                   (candidate) => candidate.playerId === player.playerId,
                 ) ? (
                   <ActionButton
-                    label={`移除 ${player.nickname}`}
+                    label={t('lobbyRemovePlayer', {
+                      nickname: player.nickname,
+                    })}
                     destructive
                     busy={commands.pendingCommandType === 'KickLobbyPlayer'}
                     disabled={!interactive}
@@ -377,14 +395,16 @@ export function LobbyScreen() {
                 fontWeight: '800',
               }}
             >
-              公开配置
+              {t('lobbyPublicSetup')}
             </Text>
             <Text
               selectable
               style={{ color: color.text.secondary, fontSize: typography.body }}
             >
-              目标 {roomView.public.config.playerCount} 人 · 当前角色{' '}
-              {roomView.public.config.roleIds.length} 个
+              {t('lobbyPublicSetupSummary', {
+                players: roomView.public.config.playerCount,
+                roles: roomView.public.config.roleIds.length,
+              })}
             </Text>
             <Text
               selectable
@@ -393,7 +413,17 @@ export function LobbyScreen() {
                 fontSize: typography.supporting,
               }}
             >
-              {roomView.public.config.roleIds.join(' · ')}
+              {roomView.public.config.roleIds
+                .map((roleId) =>
+                  t(
+                    mappedMessageKey(
+                      ROLE_NAME_KEYS,
+                      roleId,
+                      'commonUnknownRole',
+                    ),
+                  ),
+                )
+                .join(' · ')}
             </Text>
           </View>
 
@@ -419,7 +449,7 @@ export function LobbyScreen() {
                 {session.error}
               </Text>
               <ActionButton
-                label="重新同步大厅"
+                label={t('lobbyResync')}
                 disabled={busy}
                 onPress={() => void session.refreshView()}
               />
@@ -430,12 +460,12 @@ export function LobbyScreen() {
             {lobby.isHost ? (
               <>
                 <PrimaryButton
-                  label="开始游戏"
+                  label={t('lobbyStartGame')}
                   busy={commands.pendingCommandType === 'StartGame'}
                   disabled={
                     !interactive || !lobby.allowedActions.has('StartGame')
                   }
-                  accessibilityHint="服务端仅在人数、连接、准备和配置条件全部满足时开放"
+                  accessibilityHint={t('lobbyStartHint')}
                   onPress={confirmStart}
                 />
                 {lobby.allowedActions.has('StartGame') ? null : (
@@ -446,7 +476,7 @@ export function LobbyScreen() {
                       fontSize: typography.supporting,
                     }}
                   >
-                    等待服务端确认人数、在线状态、全员准备和配置均满足开局条件。
+                    {t('lobbyStartUnavailable')}
                   </Text>
                 )}
               </>
@@ -454,18 +484,20 @@ export function LobbyScreen() {
             {lobby.allowedActions.has('SetReady') &&
             lobby.self !== undefined ? (
               <PrimaryButton
-                label={lobby.self.ready ? '取消准备' : '我已准备'}
+                label={
+                  lobby.self.ready ? t('lobbyCancelReady') : t('lobbyReady')
+                }
                 busy={commands.pendingCommandType === 'SetReady'}
                 disabled={
                   !interactive && commands.pendingCommandType !== 'SetReady'
                 }
-                accessibilityHint="只提交本人的准备状态"
+                accessibilityHint={t('lobbyReadyHint')}
                 onPress={() => void commands.setReady(!lobby.self?.ready)}
               />
             ) : null}
             {lobby.allowedActions.has('ConfigureRoom') ? (
               <ActionButton
-                label="编辑房间配置"
+                label={t('lobbyEditConfig')}
                 disabled={!interactive}
                 onPress={() => {
                   setShowConfig(true);
@@ -474,7 +506,7 @@ export function LobbyScreen() {
             ) : null}
             {lobby.allowedActions.has('ReorderSeats') ? (
               <ActionButton
-                label="调整座次"
+                label={t('lobbyAdjustSeats')}
                 disabled={!interactive}
                 onPress={() => {
                   setShowSeats(true);
@@ -483,7 +515,7 @@ export function LobbyScreen() {
             ) : null}
             {lobby.allowedActions.has('LeaveLobby') ? (
               <ActionButton
-                label="离开大厅"
+                label={t('lobbyLeave')}
                 destructive
                 busy={commands.pendingCommandType === 'LeaveLobby'}
                 disabled={!interactive}
@@ -492,11 +524,11 @@ export function LobbyScreen() {
             ) : null}
             {lobby.allowedActions.has('CloseRoom') ? (
               <ActionButton
-                label="关闭房间"
+                label={t('lobbyClose')}
                 destructive
                 busy={commands.pendingCommandType === 'CloseRoom'}
                 disabled={!interactive}
-                accessibilityHint="关闭房间会使所有大厅会话失效"
+                accessibilityHint={t('lobbyCloseHint')}
                 onPress={confirmClose}
               />
             ) : null}
@@ -508,7 +540,7 @@ export function LobbyScreen() {
               accessibilityLiveRegion="polite"
               style={{ color: color.text.secondary, fontSize: typography.body }}
             >
-              房间已离开大厅阶段，正在等待身份揭示页面接管。
+              {t('lobbyPhaseChanged')}
             </Text>
           )}
 
@@ -568,10 +600,10 @@ export function LobbyScreen() {
             selectable
             style={{ color: '#5D6270', fontSize: typography.body }}
           >
-            二维码只包含公开加入链接。请适当调高屏幕亮度。
+            {t('lobbyQrPrivacy')}
           </Text>
           <PrimaryButton
-            label="关闭二维码"
+            label={t('lobbyCloseQr')}
             onPress={() => {
               setShowQr(false);
             }}

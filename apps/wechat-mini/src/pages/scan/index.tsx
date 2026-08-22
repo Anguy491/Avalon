@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { parseJoinLink } from '@avalon/client-core';
 
 import { PageShell } from '@/components/page-shell';
+import { WECHAT_JOIN_HOST } from '../../runtime/public-config';
 
 export default function ScanPage() {
   const [error, setError] = useState<string>();
@@ -15,7 +16,7 @@ export default function ScanPage() {
         onlyFromCamera: true,
         scanType: ['qrCode'],
       });
-      const host = process.env.TARO_APP_JOIN_HOST ?? 'join.example.invalid';
+      const host = WECHAT_JOIN_HOST;
       const roomCode = parseJoinLink(result.result, [host]);
       if (roomCode === undefined) {
         setError('这不是本应用生成的房间二维码。');

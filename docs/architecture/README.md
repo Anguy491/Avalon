@@ -114,7 +114,9 @@ Socket.IO 自带的临时连接恢复只能作为优化，不能替代上述应�
 | [ADR-008](./ADR-008-m2-session-idempotency-and-delivery.md) | token 原子轮换、加密幂等响应与逐会话 Outbox 投递 | 已接受 |
 | [ADR-009](./ADR-009-protocol-v2-recommended-config.md) | 协议 v2、推荐配置枚举与 v1 升级拒绝 | 已接受 |
 | [ADR-010](./ADR-010-digitalocean-preview-deployment.md) | DigitalOcean 单 Droplet + Cloudflare Tunnel 内部 Preview | 已接受（仅内部 Preview） |
-| [ADR-011](./ADR-011-wechat-mini-program-client.md) | 独立 Taro 微信小程序 UI + 无平台共享客户端核心 | 已接受（开发与内部测试） |
+| [ADR-011](./ADR-011-wechat-mini-program-client.md) | 独立 Taro 微信小程序 UI + 无平台共享客户端核心 | 已接受 |
+| [ADR-012](./ADR-012-wechat-login-session-binding.md) | `wx.login + SessionToken` 微信会话双因子绑定 | 已接受 |
+| [ADR-013](./ADR-013-expo-system-localization.md) | Expo 系统语言本地化，微信小程序保持中文 | 已接受 |
 
 ## 7. 部署拓扑与演进
 

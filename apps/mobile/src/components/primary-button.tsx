@@ -2,6 +2,7 @@ import { Pressable, Text } from 'react-native';
 
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
+import { useI18n } from '@/localization/localization-provider';
 
 interface PrimaryButtonProps {
   readonly label: string;
@@ -21,11 +22,14 @@ export function PrimaryButton({
   testID,
 }: PrimaryButtonProps) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const unavailable = disabled || busy;
   return (
     <Pressable
       accessibilityHint={accessibilityHint}
-      accessibilityLabel={busy ? `${label}，正在处理` : label}
+      accessibilityLabel={
+        busy ? t('commonBusyAccessibility', { label }) : label
+      }
       accessibilityRole="button"
       accessibilityState={{ disabled: unavailable, busy }}
       disabled={unavailable}
@@ -53,7 +57,7 @@ export function PrimaryButton({
           fontWeight: '800',
         }}
       >
-        {busy ? '正在处理…' : label}
+        {busy ? t('commonProcessing') : label}
       </Text>
     </Pressable>
   );
