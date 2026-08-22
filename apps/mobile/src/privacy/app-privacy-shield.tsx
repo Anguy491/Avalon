@@ -1,9 +1,12 @@
 import { useEffect, useState, type PropsWithChildren } from 'react';
 import { AppState, Text, View } from 'react-native';
 
+import { useI18n } from '@/localization/localization-provider';
+
 import { isPrivateSnapshotState } from './privacy-state';
 
 export function AppPrivacyShield({ children }: PropsWithChildren) {
+  const { t } = useI18n();
   const [shielded, setShielded] = useState(
     isPrivateSnapshotState(AppState.currentState),
   );
@@ -36,7 +39,9 @@ export function AppPrivacyShield({ children }: PropsWithChildren) {
           <Text style={{ color: '#F4F1E8', fontSize: 18, fontWeight: '800' }}>
             Avalon
           </Text>
-          <Text style={{ color: '#B9BEC9', fontSize: 14 }}>返回应用以继续</Text>
+          <Text style={{ color: '#B9BEC9', fontSize: 14 }}>
+            {t('privacyReturnToContinue')}
+          </Text>
         </View>
       ) : null}
     </View>

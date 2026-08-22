@@ -1,6 +1,9 @@
 import { Canvas, View } from '@tarojs/components';
-import Taro, { useReady } from '@tarojs/taro';
+import Taro from '@tarojs/taro';
 import qrcode from 'qrcode-generator';
+import { useEffect } from 'react';
+
+import { WECHAT_JOIN_HOST } from '../runtime/public-config';
 
 interface RoomQrProps {
   readonly roomCode: string;
@@ -9,8 +12,8 @@ interface RoomQrProps {
 const CANVAS_ID = 'room-join-qr';
 
 export function RoomQr({ roomCode }: RoomQrProps) {
-  const host = process.env.TARO_APP_JOIN_HOST ?? 'join.example.invalid';
-  useReady(() => {
+  const host = WECHAT_JOIN_HOST;
+  useEffect(() => {
     const qr = qrcode(0, 'M');
     qr.addData(`https://${host}/join/${roomCode}`);
     qr.make();
@@ -34,7 +37,7 @@ export function RoomQr({ roomCode }: RoomQrProps) {
       }
     }
     void context.draw();
-  });
+  }, [host, roomCode]);
   return (
     <View style="display:flex;justify-content:center;margin:24px 0;">
       <Canvas

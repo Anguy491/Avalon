@@ -1,11 +1,16 @@
 import { Button, Text, Textarea, View } from '@tarojs/components';
 import Taro from '@tarojs/taro';
-import { useEffect, useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 
 import { rolePresentation } from '@avalon/client-core';
 
 import { PageShell } from '@/components/page-shell';
 import { PlayerList } from '@/components/player-list';
+import {
+  EMPTY_PRIVATE_ACTION,
+  privateActionReducer,
+} from '@/game/private-action-state';
+import { voicePackEntryFor } from '@/audio/voice-pack.generated';
 import { useSession } from '@/session/session-provider';
 
 const PHASE_LABELS: Readonly<Record<string, string>> = {
@@ -20,18 +25,6 @@ const PHASE_LABELS: Readonly<Record<string, string>> = {
   GAME_OVER: '对局结束',
 } as const;
 
-const CUE_SUBTITLES: Readonly<Record<string, string>> = {
-  'game.role.reveal': '请各位玩家查看并确认自己的身份。',
-  'game.team.proposal': '请队长提出本次任务队伍。',
-  'game.team.vote': '请所有玩家秘密提交同意或否决。',
-  'game.team.approved': '队伍已通过，准备执行任务。',
-  'game.team.rejected': '队伍未通过，队长顺位轮换。',
-  'game.quest.submission': '请任务队员秘密提交任务行动。',
-  'game.quest.success': '本次任务成功。',
-  'game.quest.failure': '本次任务失败。',
-  'game.assassination': '三次任务成功，请刺客选择梅林。',
-};
-
 async function confirmSecret(content: string): Promise<boolean> {
   return (
     await Taro.showModal({
@@ -43,16 +36,42 @@ async function confirmSecret(content: string): Promise<boolean> {
   ).confirm;
 }
 
+function remainingLabel(expiresAt: string | null, nowMs: number): string {
+  if (expiresAt === null) return '未设置';
+  const remaining = Math.max(0, Date.parse(expiresAt) - nowMs);
+  const minutes = Math.floor(remaining / 60_000);
+  const seconds = Math.floor((remaining % 60_000) / 1_000);
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
 export default function GamePage() {
   const { roomView, submitCommand, pendingCommandType, privacyHidden } =
     useSession();
   const [selectedTeam, setSelectedTeam] = useState<Set<string>>(new Set());
   const [pauseReason, setPauseReason] = useState('');
   const [guideOpen, setGuideOpen] = useState(false);
+  const [privateState, dispatchPrivate] = useReducer(
+    privateActionReducer,
+    EMPTY_PRIVATE_ACTION,
+  );
+  const privateAction = privateState.action;
+  const privateChoice = privateState.choice;
+  const [nowMs, setNowMs] = useState(Date.now());
   useEffect(() => {
     setSelectedTeam(new Set());
     setGuideOpen(false);
-  }, [privacyHidden, roomView?.public.stateVersion]);
+    dispatchPrivate({ type: 'RESET' });
+  }, [privacyHidden, roomView?.public.phase, roomView?.public.stateVersion]);
+  useEffect(() => {
+    if (roomView?.public.phase !== 'PAUSED') return;
+    setNowMs(Date.now());
+    const timer = setInterval(() => {
+      setNowMs(Date.now());
+    }, 1_000);
+    return () => {
+      clearInterval(timer);
+    };
+  }, [roomView?.public.phase]);
   if (roomView === undefined) return <PageShell title="正在恢复对局" />;
   const players = [...roomView.public.players].sort((a, b) => a.seat - b.seat);
   const names = new Map(
@@ -90,6 +109,11 @@ export default function GamePage() {
       choice === 'CONTINUE_PAUSE' || choice === 'TERMINATE',
   );
   const cue = roomView.public.currentAudioCue;
+  const cueEntry =
+    cue === null || cue === undefined
+      ? undefined
+      : voicePackEntryFor(cue.audioCueKey);
+  const offlinePlayers = players.filter((player) => !player.connected);
   const toggleTeam = (playerId: string) => {
     if (!actions.has('SubmitTeam')) return;
     setSelectedTeam((current) => {
@@ -109,7 +133,7 @@ export default function GamePage() {
         <View className="card">
           <Text className="section-title">主持字幕</Text>
           <View>
-            {CUE_SUBTITLES[cue.audioCueKey] ?? '请根据当前阶段继续游戏。'}
+            {cueEntry?.subtitle ?? '语音资源不可用，请根据当前阶段继续。'}
           </View>
         </View>
       )}
@@ -206,47 +230,31 @@ export default function GamePage() {
         </View>
       ) : null}
 
-      {teamVotes.map((vote) => (
+      {teamVotes.length === 0 ? null : (
         <Button
-          key={vote}
-          className={`button${vote === 'REJECT' ? ' button-danger' : ''}`}
+          className="button"
           disabled={busy}
-          onClick={() =>
-            void confirmSecret(
-              `确认提交“${vote === 'APPROVE' ? '同意' : '否决'}”？提交后不能修改。`,
-            ).then((ok) => {
-              if (ok)
-                void submitCommand({
-                  type: 'SubmitTeamVote',
-                  payload: { vote },
-                });
-            })
-          }
+          ariaLabel="进入私密组队投票"
+          onClick={() => {
+            dispatchPrivate({ type: 'OPEN', action: 'TEAM_VOTE' });
+          }}
         >
-          {vote === 'APPROVE' ? '同意队伍' : '否决队伍'}
+          进入私密组队投票
         </Button>
-      ))}
+      )}
 
-      {questChoices.map((choice) => (
+      {questChoices.length === 0 ? null : (
         <Button
-          key={choice}
-          className={`button${choice === 'FAIL' ? ' button-danger' : ''}`}
+          className="button"
           disabled={busy}
-          onClick={() =>
-            void confirmSecret(
-              `确认提交“任务${choice === 'SUCCESS' ? '成功' : '失败'}”？提交后不会再次显示你的选择。`,
-            ).then((ok) => {
-              if (ok)
-                void submitCommand({
-                  type: 'SubmitQuestChoice',
-                  payload: { choice },
-                });
-            })
-          }
+          ariaLabel="进入私密任务行动"
+          onClick={() => {
+            dispatchPrivate({ type: 'OPEN', action: 'QUEST' });
+          }}
         >
-          任务{choice === 'SUCCESS' ? '成功' : '失败'}
+          进入私密任务行动
         </Button>
-      ))}
+      )}
       {roomView.private.hasSubmitted ? (
         <View className="card">你的秘密行动已提交，等待其他玩家。</View>
       ) : null}
@@ -292,82 +300,9 @@ export default function GamePage() {
           </Button>
         </View>
       ) : null}
-      {roomView.public.phase === 'PAUSED' ? (
-        <View className="card">
-          <Text className="section-title">对局已暂停</Text>
-          <View>原因：{roomView.public.pauseReasons.join('、')}</View>
-          {roomView.public.manualPauseReason == null ? null : (
-            <View>房主说明：{roomView.public.manualPauseReason}</View>
-          )}
-          {roomView.public.recoveryExpiresAt == null ? null : (
-            <View className="progress">
-              最晚恢复：{roomView.public.recoveryExpiresAt}
-            </View>
-          )}
-          {roomView.public.pauseTerminationVote == null ? null : (
-            <View className="progress">
-              终止投票：{roomView.public.pauseTerminationVote.submittedCount}/
-              {roomView.public.pauseTerminationVote.eligibleCount}
-            </View>
-          )}
-        </View>
-      ) : null}
-      {actions.has('ResumeGame') ? (
-        <Button
-          className="button"
-          disabled={busy}
-          onClick={() =>
-            void submitCommand({ type: 'ResumeGame', payload: {} })
-          }
-        >
-          恢复对局
-        </Button>
-      ) : null}
-      {actions.has('StartPauseTerminationVote') ? (
-        <Button
-          className="button button-danger"
-          disabled={busy}
-          onClick={() =>
-            void Taro.showModal({
-              title: '发起终止投票',
-              content: '在线玩家将在 30 秒内决定继续等待或中止本局。',
-              confirmText: '发起投票',
-            }).then((result) => {
-              if (result.confirm)
-                void submitCommand({
-                  type: 'StartPauseTerminationVote',
-                  payload: {},
-                });
-            })
-          }
-        >
-          发起终止投票
-        </Button>
-      ) : null}
-      {terminationChoices.map((choice) => (
-        <Button
-          key={choice}
-          className={`button${choice === 'TERMINATE' ? ' button-danger' : ''}`}
-          disabled={busy}
-          onClick={() =>
-            void confirmSecret(
-              choice === 'TERMINATE'
-                ? '确认投票中止本局？'
-                : '确认投票继续等待？',
-            ).then((ok) => {
-              if (ok)
-                void submitCommand({
-                  type: 'SubmitPauseTerminationVote',
-                  payload: { choice },
-                });
-            })
-          }
-        >
-          {choice === 'TERMINATE' ? '中止本局' : '继续等待'}
-        </Button>
-      ))}
-
-      {role === undefined ? null : (
+      {role === undefined ||
+      roomView.public.phase === 'PAUSED' ||
+      privacyHidden ? null : (
         <View className="card">
           <Button
             className="button button-secondary"
@@ -377,16 +312,6 @@ export default function GamePage() {
           >
             {guideOpen ? '关闭本人角色攻略' : '查看本人角色攻略'}
           </Button>
-          {guideOpen ? (
-            <View>
-              <Text className="section-title">{role.label}</Text>
-              {role.guide.map((tip) => (
-                <View className="subtitle" key={tip}>
-                  • {tip}
-                </View>
-              ))}
-            </View>
-          ) : null}
         </View>
       )}
       {actions.has('ReplayAudioCue') && cue != null ? (
@@ -411,10 +336,26 @@ export default function GamePage() {
           <View className="muted">暂无已结算记录。</View>
         ) : null}
         {roomView.public.proposalHistory.map((record, index) => (
-          <View className="subtitle" key={['proposal', index].join('-')}>
-            任务 {record.questIndex} 第 {record.proposalAttempt} 次组队：
-            {record.approved ? '通过' : '否决'}（{record.approveCount} 同意 /{' '}
-            {record.rejectCount} 否决）
+          <View className="history-record" key={['proposal', index].join('-')}>
+            <View className="subtitle">
+              任务 {record.questIndex} 第 {record.proposalAttempt} 次组队：
+              {record.approved ? '通过' : '否决'}（{record.approveCount} 同意 /{' '}
+              {record.rejectCount} 否决）
+            </View>
+            <View className="progress">
+              队长：{names.get(record.leaderPlayerId) ?? '同桌玩家'}；队伍：
+              {record.teamPlayerIds
+                .map((playerId) => names.get(playerId) ?? '同桌玩家')
+                .join('、')}
+            </View>
+            <View className="progress">
+              {record.votes
+                .map(
+                  (entry) =>
+                    `${names.get(entry.playerId) ?? '同桌玩家'}：${entry.vote === 'APPROVE' ? '同意' : '否决'}`,
+                )
+                .join('；')}
+            </View>
           </View>
         ))}
         {roomView.public.questHistory.map((record) => (
@@ -428,6 +369,225 @@ export default function GamePage() {
           </View>
         ))}
       </View>
+
+      {guideOpen && role !== undefined ? (
+        <View className="private-action-overlay">
+          <Text className="title">{role.label} · 私密攻略</Text>
+          <View className="subtitle">
+            只依据你的本人身份生成，请勿展示给他人。
+          </View>
+          {role.guide.map((tip) => (
+            <View className="card" key={tip}>
+              {tip}
+            </View>
+          ))}
+          <Button
+            className="button"
+            onClick={() => {
+              setGuideOpen(false);
+            }}
+          >
+            关闭并遮挡
+          </Button>
+        </View>
+      ) : null}
+
+      {roomView.public.phase === 'PAUSED' ? (
+        <View className="pause-overlay">
+          <Text className="title">对局已暂停</Text>
+          <View className="subtitle">
+            原因：{roomView.public.pauseReasons.join('、') || '等待恢复'}
+          </View>
+          {roomView.public.manualPauseReason == null ? null : (
+            <View className="card">
+              房主说明：{roomView.public.manualPauseReason}
+            </View>
+          )}
+          <View className="card">
+            <Text className="section-title">离线玩家</Text>
+            <View>
+              {offlinePlayers.length === 0
+                ? '暂无离线玩家'
+                : offlinePlayers.map((player) => player.nickname).join('、')}
+            </View>
+            <View className="progress">
+              恢复倒计时：
+              {remainingLabel(roomView.public.recoveryExpiresAt, nowMs)}
+            </View>
+          </View>
+          <View className="card">
+            <Text className="section-title">终止投票</Text>
+            <View>
+              资格：
+              {roomView.private.pauseTerminationVoteStatus === 'NOT_ELIGIBLE'
+                ? '无资格'
+                : roomView.private.pauseTerminationVoteStatus === 'SUBMITTED'
+                  ? '已提交'
+                  : roomView.private.pauseTerminationVoteStatus === 'PENDING'
+                    ? '待提交'
+                    : '尚未开始'}
+            </View>
+            {roomView.public.pauseTerminationVote == null ? null : (
+              <>
+                <View className="progress">
+                  进度：{roomView.public.pauseTerminationVote.submittedCount}/
+                  {roomView.public.pauseTerminationVote.eligibleCount}
+                </View>
+                <View className="progress">
+                  截止倒计时：
+                  {remainingLabel(
+                    roomView.public.pauseTerminationVote.expiresAt,
+                    nowMs,
+                  )}
+                </View>
+              </>
+            )}
+          </View>
+          {actions.has('ResumeGame') ? (
+            <Button
+              className="button"
+              disabled={busy}
+              onClick={() =>
+                void submitCommand({ type: 'ResumeGame', payload: {} })
+              }
+            >
+              房主恢复对局
+            </Button>
+          ) : null}
+          {actions.has('StartPauseTerminationVote') ? (
+            <Button
+              className="button button-danger"
+              disabled={busy}
+              onClick={() =>
+                void Taro.showModal({
+                  title: '发起终止投票',
+                  content: '在线玩家将在 30 秒内决定继续等待或中止本局。',
+                  confirmText: '发起投票',
+                }).then((result) => {
+                  if (result.confirm)
+                    void submitCommand({
+                      type: 'StartPauseTerminationVote',
+                      payload: {},
+                    });
+                })
+              }
+            >
+              发起终止投票
+            </Button>
+          ) : null}
+          {terminationChoices.length === 0 ? null : (
+            <Button
+              className="button"
+              disabled={busy}
+              onClick={() => {
+                dispatchPrivate({
+                  type: 'OPEN',
+                  action: 'PAUSE_TERMINATION',
+                });
+              }}
+            >
+              进入私密终止投票
+            </Button>
+          )}
+        </View>
+      ) : null}
+
+      {privateAction === undefined ? null : (
+        <View className="private-action-overlay">
+          <Text className="title">
+            {privateAction === 'TEAM_VOTE'
+              ? '私密组队投票'
+              : privateAction === 'QUEST'
+                ? '私密任务行动'
+                : '私密终止投票'}
+          </Text>
+          <View className="subtitle">
+            遮挡屏幕后选择；提交后不会保留你的选择。
+          </View>
+          {(privateAction === 'TEAM_VOTE'
+            ? teamVotes
+            : privateAction === 'QUEST'
+              ? questChoices
+              : terminationChoices
+          ).map((choice) => (
+            <Button
+              key={choice}
+              className={`button button-secondary${privateChoice === choice ? ' choice-selected' : ''}`}
+              ariaLabel={`${privateChoice === choice ? '已选择，' : ''}${
+                choice === 'APPROVE'
+                  ? '同意队伍'
+                  : choice === 'REJECT'
+                    ? '否决队伍'
+                    : choice === 'SUCCESS'
+                      ? '任务成功'
+                      : choice === 'FAIL'
+                        ? '任务失败'
+                        : choice === 'TERMINATE'
+                          ? '中止本局'
+                          : '继续等待'
+              }`}
+              onClick={() => {
+                dispatchPrivate({ type: 'SELECT', choice });
+              }}
+            >
+              {choice === 'APPROVE'
+                ? '同意队伍'
+                : choice === 'REJECT'
+                  ? '否决队伍'
+                  : choice === 'SUCCESS'
+                    ? '任务成功'
+                    : choice === 'FAIL'
+                      ? '任务失败'
+                      : choice === 'TERMINATE'
+                        ? '中止本局'
+                        : '继续等待'}
+            </Button>
+          ))}
+          <Button
+            className="button"
+            disabled={privateChoice === undefined || busy}
+            onClick={() => {
+              const selected = privateChoice;
+              if (selected === undefined) return;
+              void confirmSecret('确认提交当前选择？提交后不能修改。').then(
+                (confirmed) => {
+                  if (!confirmed) return;
+                  const action = privateAction;
+                  dispatchPrivate({ type: 'RESET' });
+                  if (action === 'TEAM_VOTE') {
+                    void submitCommand({
+                      type: 'SubmitTeamVote',
+                      payload: { vote: selected as 'APPROVE' | 'REJECT' },
+                    }).catch(() => undefined);
+                  } else if (action === 'QUEST') {
+                    void submitCommand({
+                      type: 'SubmitQuestChoice',
+                      payload: { choice: selected as 'SUCCESS' | 'FAIL' },
+                    }).catch(() => undefined);
+                  } else {
+                    void submitCommand({
+                      type: 'SubmitPauseTerminationVote',
+                      payload: {
+                        choice: selected as 'CONTINUE_PAUSE' | 'TERMINATE',
+                      },
+                    }).catch(() => undefined);
+                  }
+                },
+              );
+            }}
+          >
+            二次确认并提交
+          </Button>
+          <Button
+            className="button button-secondary"
+            onClick={() => {
+              dispatchPrivate({ type: 'RESET' });
+            }}
+          >
+            取消并清空
+          </Button>
+        </View>
+      )}
     </PageShell>
   );
 }

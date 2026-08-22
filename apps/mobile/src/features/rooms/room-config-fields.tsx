@@ -1,5 +1,8 @@
 import { Pressable, Text, View } from 'react-native';
 
+import { mappedMessageKey, ROLE_NAME_KEYS } from '@/localization/game-messages';
+import { useI18n } from '@/localization/localization-provider';
+import type { MessageKey } from '@/localization/messages';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -11,20 +14,20 @@ import type {
 } from './lobby-state';
 
 const ROLE_OPTIONS = [
-  ['MERLIN', '梅林'],
-  ['LOYAL_SERVANT', '忠臣'],
-  ['PERCIVAL', '派西维尔'],
-  ['ASSASSIN', '刺客'],
-  ['MINION', '爪牙'],
-  ['MORGANA', '莫甘娜'],
-  ['MORDRED', '莫德雷德'],
-  ['OBERON', '奥伯伦'],
-] as const satisfies readonly (readonly [RoleId, string])[];
+  'MERLIN',
+  'LOYAL_SERVANT',
+  'PERCIVAL',
+  'ASSASSIN',
+  'MINION',
+  'MORGANA',
+  'MORDRED',
+  'OBERON',
+] as const satisfies readonly RoleId[];
 
-const MODES: readonly (readonly [ConfigMode, string, string])[] = [
-  ['CLASSIC', '基础配置', '梅林、刺客与基础忠臣/爪牙'],
-  ['RECOMMENDED', '推荐配置', '按人数加入派西维尔与推荐特殊角色'],
-  ['CUSTOM', '自定义', '逐个编辑公开角色数量，由服务端校验合法性'],
+const MODES: readonly (readonly [ConfigMode, MessageKey, MessageKey])[] = [
+  ['CLASSIC', 'configModeClassic', 'configModeClassicDescription'],
+  ['RECOMMENDED', 'configModeRecommended', 'configModeRecommendedDescription'],
+  ['CUSTOM', 'configModeCustom', 'configModeCustomDescription'],
 ];
 
 function StepButton({
@@ -76,6 +79,7 @@ export function RoomConfigFields({
   readonly dispatch: React.Dispatch<LobbyConfigAction>;
 }) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   return (
     <>
       <View style={{ gap: spacing.sm }}>
@@ -87,10 +91,12 @@ export function RoomConfigFields({
             fontWeight: '700',
           }}
         >
-          目标人数
+          {t('configTargetPlayers')}
         </Text>
         <View
-          accessibilityLabel={`目标人数 ${String(draft.playerCount)} 人`}
+          accessibilityLabel={t('configTargetPlayersAccessibility', {
+            count: draft.playerCount,
+          })}
           style={{
             flexDirection: 'row',
             alignItems: 'center',
@@ -98,7 +104,7 @@ export function RoomConfigFields({
           }}
         >
           <StepButton
-            label="减少人数"
+            label={t('configDecreasePlayers')}
             disabled={busy || draft.playerCount <= 5}
             onPress={() => {
               dispatch({
@@ -118,10 +124,10 @@ export function RoomConfigFields({
               fontVariant: ['tabular-nums'],
             }}
           >
-            {draft.playerCount} 人
+            {t('configPlayerCount', { count: draft.playerCount })}
           </Text>
           <StepButton
-            label="增加人数"
+            label={t('configIncreasePlayers')}
             disabled={busy || draft.playerCount >= 10}
             onPress={() => {
               dispatch({
@@ -142,14 +148,18 @@ export function RoomConfigFields({
             fontWeight: '700',
           }}
         >
-          游戏配置
+          {t('configGameSetup')}
         </Text>
-        {MODES.map(([mode, label, description]) => {
+        {MODES.map(([mode, labelKey, descriptionKey]) => {
           const selected = draft.mode === mode;
+          const label = t(labelKey);
+          const description = t(descriptionKey);
           return (
             <Pressable
               key={mode}
-              accessibilityLabel={selected ? `已选择 · ${label}` : label}
+              accessibilityLabel={
+                selected ? t('configSelectedLabel', { label }) : label
+              }
               accessibilityHint={description}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected, disabled: busy }}
@@ -178,8 +188,7 @@ export function RoomConfigFields({
                   fontWeight: '800',
                 }}
               >
-                {selected ? '已选择 · ' : ''}
-                {label}
+                {selected ? t('configSelectedLabel', { label }) : label}
               </Text>
               <Text
                 selectable
@@ -202,17 +211,25 @@ export function RoomConfigFields({
             accessibilityLiveRegion="polite"
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            已选 {draft.customRoleIds.length} 个角色；目标人数为{' '}
-            {draft.playerCount} 人。服务器会执行完整规则校验。
+            {t('configCustomSummary', {
+              selected: draft.customRoleIds.length,
+              count: draft.playerCount,
+            })}
           </Text>
-          {ROLE_OPTIONS.map(([roleId, label]) => {
+          {ROLE_OPTIONS.map((roleId) => {
             const count = draft.customRoleIds.filter(
               (candidate) => candidate === roleId,
             ).length;
+            const label = t(
+              mappedMessageKey(ROLE_NAME_KEYS, roleId, 'commonUnknownRole'),
+            );
             return (
               <View
                 key={roleId}
-                accessibilityLabel={`${label}，${String(count)} 个`}
+                accessibilityLabel={t('configRoleCountAccessibility', {
+                  role: label,
+                  count,
+                })}
                 style={{
                   minHeight: touchTarget.minimum,
                   flexDirection: 'row',
@@ -236,7 +253,7 @@ export function RoomConfigFields({
                   {label}
                 </Text>
                 <StepButton
-                  label={`减少${label}`}
+                  label={t('configDecreaseRole', { role: label })}
                   disabled={busy || count === 0}
                   onPress={() => {
                     dispatch({ type: 'adjust-role-count', roleId, delta: -1 });
@@ -255,7 +272,7 @@ export function RoomConfigFields({
                   {count}
                 </Text>
                 <StepButton
-                  label={`增加${label}`}
+                  label={t('configIncreaseRole', { role: label })}
                   disabled={
                     busy || draft.customRoleIds.length >= draft.playerCount
                   }

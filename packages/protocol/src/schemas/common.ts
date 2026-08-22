@@ -21,6 +21,11 @@ export const SessionTokenSchema = Type.String({
   maxLength: 43,
   pattern: '^[A-Za-z0-9_-]{43}$',
 });
+export const WechatIdentityTokenSchema = Type.String({
+  minLength: 43,
+  maxLength: 43,
+  pattern: '^[A-Za-z0-9_-]{43}$',
+});
 export const RulesVersionSchema = Type.Literal('CLASSIC_AVALON_V1');
 export const RoleIdSchema = literalUnion([
   'MERLIN',
@@ -121,6 +126,9 @@ export const ErrorCodeSchema = literalUnion([
   'RATE_LIMITED',
   'VALIDATION_ERROR',
   'PAYLOAD_TOO_LARGE',
+  'WECHAT_AUTH_INVALID',
+  'WECHAT_AUTH_UNAVAILABLE',
+  'WECHAT_IDENTITY_CONFLICT',
   'UNAUTHORIZED',
   'INTERNAL_ERROR',
 ] as const);
@@ -130,6 +138,7 @@ const definitions = {
   RoomCode: RoomCodeSchema,
   Nickname: NicknameSchema,
   SessionToken: SessionTokenSchema,
+  WechatIdentityToken: WechatIdentityTokenSchema,
   RulesVersion: RulesVersionSchema,
   RoleId: RoleIdSchema,
   Alignment: AlignmentSchema,

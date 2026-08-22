@@ -13,7 +13,6 @@ export interface QuestTrackItem {
 export interface GameTableState {
   readonly phase: RoomView['public']['phase'];
   readonly phaseStage: RoomView['public']['phaseStage'];
-  readonly phaseTitle: string;
   readonly selfPlayerId: string;
   readonly isHost: boolean;
   readonly leader?: PlayerSummary;
@@ -40,31 +39,23 @@ export interface GameTableState {
   readonly allowedTeamVotes: readonly ('APPROVE' | 'REJECT')[];
   readonly allowedQuestChoices: readonly ('SUCCESS' | 'FAIL')[];
   readonly isOnQuestTeam: boolean;
-  readonly continueLabel?: string;
-  readonly outcomeLabel?: string;
+  readonly continueAction?: GameContinueAction;
+  readonly outcomeReason?: NonNullable<
+    RoomView['public']['gameOutcome']
+  >['reason'];
 }
 
-const PHASE_LABELS: Readonly<Record<RoomView['public']['phase'], string>> = {
-  LOBBY: '房间大厅',
-  ROLE_REVEAL: '身份确认',
-  TEAM_PROPOSAL: '队长组队',
-  TEAM_VOTE: '全员投票',
-  QUEST_SUBMISSION: '任务行动',
-  QUEST_RESOLUTION: '任务结果',
-  ASSASSINATION: '刺杀讨论',
-  GAME_OVER: '对局结束',
-  PAUSED: '对局暂停',
-};
-
-const OUTCOME_LABELS: Partial<
-  Record<NonNullable<RoomView['public']['gameOutcome']>['reason'], string>
-> = {
-  FIVE_REJECTED_TEAMS: '同一任务连续五次组队被否决，邪恶方获胜。',
-  THREE_QUEST_FAILURES: '三项任务失败，邪恶方获胜。',
-  MERLIN_ASSASSINATED: '梅林被刺杀，邪恶方获胜。',
-  MERLIN_SURVIVED: '梅林幸存，善良方获胜。',
-  ABORTED: '对局已中止，不判定阵营胜负。',
-};
+export type GameContinueAction =
+  | 'OPEN_TEAM_PROPOSAL'
+  | 'START_TEAM_VOTE'
+  | 'VIEW_RESULT'
+  | 'CONTINUE_TO_QUEST'
+  | 'START_NEXT_PROPOSAL'
+  | 'OPEN_QUEST'
+  | 'CONTINUE_TO_ASSASSINATION'
+  | 'START_NEXT_QUEST'
+  | 'OPEN_ASSASSINATION'
+  | 'CONTINUE';
 
 function action(
   roomView: RoomView,
@@ -75,31 +66,31 @@ function action(
   );
 }
 
-function continueLabel(
+function continueAction(
   roomView: RoomView,
   latestProposal: ProposalRecord | undefined,
-): string | undefined {
+): GameContinueAction | undefined {
   if (action(roomView, 'ContinuePhase') === undefined) return undefined;
   switch (roomView.public.phase) {
     case 'TEAM_PROPOSAL':
-      return '开放队长组队';
+      return 'OPEN_TEAM_PROPOSAL';
     case 'TEAM_VOTE':
-      if (roomView.public.phaseStage === 'HOST_HELD') return '开始全员投票';
-      if (roomView.public.gameOutcome !== null) return '查看终局摘要';
+      if (roomView.public.phaseStage === 'HOST_HELD') return 'START_TEAM_VOTE';
+      if (roomView.public.gameOutcome !== null) return 'VIEW_RESULT';
       return latestProposal?.approved === true
-        ? '继续到任务行动'
-        : '开始下一次组队';
+        ? 'CONTINUE_TO_QUEST'
+        : 'START_NEXT_PROPOSAL';
     case 'QUEST_SUBMISSION':
-      return '开放任务行动';
+      return 'OPEN_QUEST';
     case 'QUEST_RESOLUTION':
-      if (roomView.public.gameOutcome !== null) return '查看终局摘要';
+      if (roomView.public.gameOutcome !== null) return 'VIEW_RESULT';
       return roomView.public.successCount === 3
-        ? '继续到刺杀讨论'
-        : '开始下一项任务';
+        ? 'CONTINUE_TO_ASSASSINATION'
+        : 'START_NEXT_QUEST';
     case 'ASSASSINATION':
-      return '开放刺杀选择';
+      return 'OPEN_ASSASSINATION';
     default:
-      return '继续';
+      return 'CONTINUE';
   }
 }
 
@@ -154,12 +145,11 @@ export function deriveGameTableState(roomView: RoomView): GameTableState {
     (choice): choice is 'SUCCESS' | 'FAIL' =>
       choice === 'SUCCESS' || choice === 'FAIL',
   );
-  const nextContinueLabel = continueLabel(roomView, latestProposal);
+  const nextContinueAction = continueAction(roomView, latestProposal);
 
   return {
     phase: roomView.public.phase,
     phaseStage: roomView.public.phaseStage,
-    phaseTitle: PHASE_LABELS[roomView.public.phase] ?? '对局',
     selfPlayerId: roomView.private.playerId,
     isHost: self?.isHost === true,
     ...(leader === undefined ? {} : { leader }),
@@ -199,11 +189,11 @@ export function deriveGameTableState(roomView: RoomView): GameTableState {
     isOnQuestTeam: roomView.public.proposedTeamPlayerIds.includes(
       roomView.private.playerId,
     ),
-    ...(nextContinueLabel === undefined
+    ...(nextContinueAction === undefined
       ? {}
-      : { continueLabel: nextContinueLabel }),
+      : { continueAction: nextContinueAction }),
     ...(outcome === null || outcome === undefined
       ? {}
-      : { outcomeLabel: OUTCOME_LABELS[outcome.reason] ?? '对局已结束。' }),
+      : { outcomeReason: outcome.reason }),
   };
 }

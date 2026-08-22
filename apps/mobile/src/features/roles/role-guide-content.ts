@@ -1,88 +1,77 @@
 import type { RoleId } from './role-reveal-state';
+import type { MessageKey } from '@/localization/messages';
 
 export interface RoleGuide {
-  readonly title: string;
-  readonly summary: string;
-  readonly tips: readonly string[];
+  readonly title: MessageKey;
+  readonly summary: MessageKey;
+  readonly tips: readonly MessageKey[];
 }
 
 export const ROLE_GUIDES: Readonly<Record<RoleId, RoleGuide>> = {
   MERLIN: {
-    title: '梅林攻略',
-    summary: '你能看到除莫德雷德以外的邪恶玩家，同时必须避免被刺客识破。',
+    title: 'guideMerlinTitle',
+    summary: 'guideMerlinSummary',
     tips: [
-      '尽量让好人进入任务队伍，推动三次任务成功，同时不要暴露自己的身份。',
-      '从公开逻辑和发言切入，不要过早断言某人一定是坏人；必要时可以保留或混入少量不确定判断。',
-      '派西维尔会把你视为候选人之一。可以先明确好人方向，再逐步给出只有派西维尔容易理解的暗示。',
-      '也可以声称自己是派西维尔来保护真实身份，但要结合现场发言谨慎使用。',
+      'guideMerlinTip1',
+      'guideMerlinTip2',
+      'guideMerlinTip3',
+      'guideMerlinTip4',
     ],
   },
   PERCIVAL: {
-    title: '派西维尔攻略',
-    summary: '你能看到梅林候选人；莫甘娜在场时，两位候选人无法区分。',
+    title: 'guidePercivalTitle',
+    summary: 'guidePercivalSummary',
     tips: [
-      '首要目标是判断谁更可能是梅林，不要为了找出莫甘娜而直接暴露梅林。',
-      '可以公开声称自己是派西维尔并组织车队，但要评估这是否会帮助刺客缩小目标。',
-      '也可以让梅林在发言上扮演派西维尔，自己在暗中配合。',
-      '根据梅林的发言风格调整自己的表现，让刺客更难区分你与梅林。',
+      'guidePercivalTip1',
+      'guidePercivalTip2',
+      'guidePercivalTip3',
+      'guidePercivalTip4',
     ],
   },
   LOYAL_SERVANT: {
-    title: '忠臣攻略',
-    summary: '你没有额外的开局信息，需要依靠发言、组队与投票判断阵营。',
+    title: 'guideLoyalTitle',
+    summary: 'guideLoyalSummary',
     tips: [
-      '通过发言说明自己的好人视角，并给出判断其他玩家偏好的公开理由。',
-      '信息不足时尽量表达概率和组合判断，不要无依据地把单一玩家定死。',
-      '结合多数人的保人与质疑观察关系，但不要把共识直接等同于真实阵营。',
-      '结合公开组队票和任务结果复盘：反对明显合理队伍或持续保护可疑队伍都值得关注。',
-      '确认可信的组织者后积极协作，让善方利用人数优势形成稳定车队。',
+      'guideLoyalTip1',
+      'guideLoyalTip2',
+      'guideLoyalTip3',
+      'guideLoyalTip4',
+      'guideLoyalTip5',
     ],
   },
   MORDRED: {
-    title: '莫德雷德攻略',
-    summary: '你属于邪恶阵营，并且不会出现在梅林的开局视野中。',
-    tips: [
-      '可以争夺派西维尔或组织者视角，利用梅林看不到你的优势建立可信度。',
-      '也可以隐藏身份，积极争取上车并在早期选择任务成功，关键轮次再制造失败。',
-      '发言保持积极、连贯并从好人视角推理，避免仅依赖角色能力。',
-    ],
+    title: 'guideMordredTitle',
+    summary: 'guideMordredSummary',
+    tips: ['guideMordredTip1', 'guideMordredTip2', 'guideMordredTip3'],
   },
   MORGANA: {
-    title: '莫甘娜攻略',
-    summary: '你会被梅林看到，并在派西维尔眼中伪装成梅林候选人。',
-    tips: [
-      '尽量以梅林视角发言，让派西维尔难以判断真正的梅林。',
-      '可以与邪恶同伴公开互相质疑或互相抬高，制造关系上的反逻辑。',
-      '保持输出有弹性，从派西维尔的关注与回应中寻找真正的梅林。',
-    ],
+    title: 'guideMorganaTitle',
+    summary: 'guideMorganaSummary',
+    tips: ['guideMorganaTip1', 'guideMorganaTip2', 'guideMorganaTip3'],
   },
   OBERON: {
-    title: '奥伯伦攻略',
-    summary: '你属于邪恶阵营，但你与其他邪恶玩家不会互相获得同伴信息。',
+    title: 'guideOberonTitle',
+    summary: 'guideOberonSummary',
     tips: [
-      '可以声称自己是派西维尔，让邪恶同伴有机会从发言中识别你。',
-      '无法确认同伴时，重点通过组队、投票和任务结果判断谁可能与你同阵营。',
-      '首次进入任务队伍时要考虑重复失败票的风险，不要假设同伴已经认出你。',
-      '在需要主动暴露阵营信号时，可结合失败任务和后续发言让同伴逐步锁定你。',
+      'guideOberonTip1',
+      'guideOberonTip2',
+      'guideOberonTip3',
+      'guideOberonTip4',
     ],
   },
   ASSASSIN: {
-    title: '刺客攻略',
-    summary: '善方完成三次任务后，你需要选择梅林；正确命中即可让邪恶方获胜。',
-    tips: [
-      '持续寻找梅林，记录谁能稳定给出正确方向又在刻意隐藏信息来源。',
-      '可以主动与邪恶同伴共同执行任务，通过自己的暴露为同伴建立好人身份。',
-      '重点观察派西维尔最关注的候选人，其中可能同时包含莫甘娜与梅林。',
-    ],
+    title: 'guideAssassinTitle',
+    summary: 'guideAssassinSummary',
+    tips: ['guideAssassinTip1', 'guideAssassinTip2', 'guideAssassinTip3'],
   },
   MINION: {
-    title: '爪牙攻略',
-    summary: '你属于邪恶阵营，并会看到规则允许你知道的邪恶同伴。',
+    title: 'guideMinionTitle',
+    summary: 'guideMinionSummary',
     tips: [
-      '利用同伴互认协调发言与组队，但不要通过过度保护直接暴露彼此关系。',
-      '同一任务中尽量避免多名已互认邪恶玩家同时提交失败，减少重复失败票带来的信息暴露。',
-      '可以在非关键任务选择成功来建立可信度，把失败机会留给更关键的任务。',
-      '结合公开投票与任务结果判断奥伯伦是否在场，但不要假设所有邪恶玩家都已互认。',
+      'guideMinionTip1',
+      'guideMinionTip2',
+      'guideMinionTip3',
+      'guideMinionTip4',
     ],
   },
 };

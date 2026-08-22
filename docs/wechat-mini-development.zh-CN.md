@@ -1,14 +1,14 @@
 # Avalon 微信小程序开发指南
 
-> 状态：开发与内部测试基线
+> 状态：公开发布候选开发基线
 >
-> 架构决定：[ADR-011](./architecture/ADR-011-wechat-mini-program-client.md)
+> 架构决定：[ADR-011](./architecture/ADR-011-wechat-mini-program-client.md) · [ADR-012](./architecture/ADR-012-wechat-login-session-binding.md)
 
 ## 1. 已实现范围
 
 `apps/wechat-mini` 覆盖建房、房间号/二维码加入、大厅管理与准备、身份揭示、组队、组队投票、任务行动、暂停/恢复、终止投票、刺杀、结果、固定主持音频和断线恢复。所有按钮由服务端 `availableActions` 决定，所有比分、角色知识、结算和胜负只使用服务端个性化投影。
 
-暂不包含真实小程序 AppID、`wx.login`、微信用户资料、公众号、支付、分享卡片、上传审核和发布。二维码使用受控 HTTPS 加入链接；在真实域名配置前可用房间号加入完成开发。
+发布 AppID 已固定为 `wx0240d55d0f3e4811`，并实现 `wx.login + SessionToken` 双因子会话绑定。项目不调用微信用户资料接口，也不包含公众号、支付、分享卡片、上传审核或发布操作。二维码只使用受控 HTTPS 加入链接。
 
 ## 2. 目录与边界
 
@@ -39,7 +39,7 @@ TARO_APP_JOIN_HOST=preview.example.invalid
 TARO_APP_VERSION=0.1.0
 ```
 
-然后用微信开发者工具导入 `apps/wechat-mini`；`project.config.json` 的 `miniprogramRoot` 已指向 `dist/`。CLI 自动化必须使用当前登录开发者有权限的测试或正式 AppID；`touristappid` 只能用于不依赖 CLI 的有限手工开发。开发阶段关闭 URL 校验。联调服务需允许 HTTPS 与 WSS；真机不能使用电脑的 `127.0.0.1`，应填局域网可达的 TLS 地址或 Preview 域名。
+然后用微信开发者工具导入 `apps/wechat-mini`；`project.config.json` 的 `miniprogramRoot` 已指向 `dist/`，合法域名检查与上传压缩保持开启。仅本机调试可在被 Git 忽略的 `project.private.config.json` 中关闭域名检查。CLI 自动化必须由对固定 AppID 有权限的已登录开发者执行。联调服务需允许 HTTPS 与 WSS；真机不能使用电脑的 `127.0.0.1`。
 
 环境变量：
 
@@ -49,16 +49,17 @@ TARO_APP_VERSION=0.1.0
 | `TARO_APP_JOIN_HOST` | 二维码加入链接允许的唯一 host |
 | `TARO_APP_VERSION` | 上报到能力声明和无秘密音频错误遥测的版本 |
 
-这些变量由 Taro 配置在构建时序列化为字符串常量；微信运行时不得直接读取 Node.js `process.env`。未设置时分别使用 `http://127.0.0.1:3000`、`join.example.invalid` 和 `0.1.0`。`postbuild:weapp` 会扫描构建产物，阻止未替换的 `TARO_APP_*` 引用进入开发者工具。
+这些变量由 Taro 配置在构建时序列化为字符串常量；微信运行时不得直接读取 Node.js `process.env`。普通开发构建有本地默认值；发布构建拒绝缺失变量、非 HTTPS API、localhost、IP、`.invalid`、带路径的 API 或非法 join host。`postbuild:weapp` 会扫描构建产物，阻止未替换的 `TARO_APP_*` 引用进入开发者工具。
 
 ## 4. 平台实现
 
 - HTTP：`Taro.request`，所有响应进入 `@avalon/protocol/mobile` 运行时校验；
 - 实时：Socket.IO 只启用基于 `Taro.connectSocket`/`SocketTask` 的自定义 WebSocket transport；
-- 会话：微信沙箱存储只保存恢复记录和随机 installationId，恢复成功覆盖旧 token；不保存 `RoomView`；
+- 会话：微信沙箱存储只保存 SessionToken 恢复记录和随机 installationId，恢复成功覆盖旧 token；`wx.login` 换取的 5 分钟微信身份令牌仅在内存保存；不保存 `RoomView`；
+- 身份：创建、加入、恢复、读取投影与 Socket.IO 握手同时提交微信身份；身份过期时以同一幂等键刷新并最多重试一次，不支持无 SessionToken 找回；
 - 生命周期：进入后台即停止音频、断开实时连接并遮挡内容；回前台先轮换 token、重新取得投影，再由玩家显式解除遮挡；
 - 私密动作：不可逆动作二次确认，ACK 超时重试沿用同一 `commandId`，离线时不排队；
-- 音频：构建将 `apps/mobile/assets/audio/zh-CN-v1` 复制到包内，只有 `delivery=LIVE` 且 `shouldPlayAudio=true` 时播放；
+- 音频：Expo 与微信路径、字幕、版本和 SHA-256 均由同一 manifest 生成；只有 `delivery=LIVE` 且 `shouldPlayAudio=true` 时播放。后台/系统中断停止且不自动重播，资源失败只显示字幕；
 - 二维码：只接受 `https://{TARO_APP_JOIN_HOST}/join/{roomCode}`，不自动打开任意链接；
 - 包体：大厅和对局使用分包，脚本分别检查 2 MiB 分包门槛及 20 MiB 总门槛。
 
@@ -69,7 +70,13 @@ pnpm --filter @avalon/client-core test
 pnpm --filter @avalon/wechat-mini test
 pnpm --filter @avalon/wechat-mini typecheck
 pnpm build:weapp
+TARO_APP_API_URL=https://api.example.com \
+TARO_APP_JOIN_HOST=join.example.com \
+TARO_APP_VERSION=1.0.0 \
+pnpm build:weapp:release
 pnpm test:size:weapp
+pnpm audio:verify
+pnpm audit:prod:critical
 pnpm test:contract
 ```
 
@@ -79,7 +86,7 @@ pnpm test:contract
 WECHAT_DEVTOOLS_CLI=/path/to/cli pnpm test:e2e:weapp
 ```
 
-该 E2E 是首页构建/渲染冒烟，不代替真机验收。真实 AppID 与合法 request/socket 域名就绪后，至少用 5 台设备或 1 台 UI 设备加头部测试客户端走通一局，并留存正常状态、后台遮罩、扫码拒绝、断网恢复和音频中断证据。
+该 E2E 是首页构建/渲染冒烟，不代替真机验收。固定 AppID 的开发者权限与合法 request/socket 域名就绪后，至少用 5 台设备或 1 台 UI 设备加头部测试客户端走通一局，并留存正常状态、后台遮罩、扫码拒绝、断网恢复和音频中断证据。
 
 连接已批准的内部 Preview 后，可运行单模拟器完整流程；命令要求显式 HTTPS 地址，创建一名微信房主和四名头部 Bot，检查首页、创建、加入、扫码、大厅、身份遮挡、对局、刺杀和结果页，并把无私密身份的截图写入被 Git 忽略的 `apps/wechat-mini/test-results/preview/`：
 
@@ -106,8 +113,9 @@ pnpm test:e2e:weapp:preview
 
 ## 6. 发布前人工门槛
 
-1. 注册并配置真实小程序 AppID、request 合法域名、socket 合法域名和业务域名；
-2. 按 ADR-011 完成 SessionToken 本地存储专项评审，并决定 `wx.login` 绑定方案；
-3. 核对隐私保护指引只声明主动扫码所需摄像头，不申请麦克风、位置、通讯录或用户资料；
-4. 在微信当前稳定版及至少一台低端 Android、一台 iPhone 上完成包体、字体、前后台、网络切换和音频回归；
-5. 经用户明确授权后才可上传代码、提交审核或公开发布。
+1. 在微信公众平台为固定 AppID 配置 request/socket/业务合法域名，生产 `WECHAT_APP_ID` 必须一致；
+2. 把 `WECHAT_APP_SECRET` 与微信身份 pepper 写入生产秘密存储；公开候选只允许服务端身份模式 `required`，并确认 legacy 活跃会话为零；
+3. 按 [微信小程序隐私说明](./wechat-mini-privacy.zh-CN.md) 核对隐私保护指引，只声明微信登录和主动扫码所需用途，不申请麦克风、位置、通讯录或用户资料；
+4. `build:weapp:release`、critical 审计、音频/包体门禁、完整微信 E2E 与隔离负载检查全部通过；
+5. 在微信当前稳定版及至少一台低端 Android、一台 iPhone 上完成错账号、身份过期、后台预览、网络切换、扫码拒绝、最大字体、读屏和音频中断回归；
+6. 经用户明确授权后才可上传代码、提交审核或公开发布。

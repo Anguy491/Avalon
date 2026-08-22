@@ -6,4 +6,6 @@ export interface SessionContext {
   readonly tokenDigest: string;
   readonly credentialGeneration: number;
   readonly expiresAt: Date;
+  readonly clientPlatform: 'IOS' | 'ANDROID' | 'WECHAT_MINIPROGRAM' | null;
+  readonly wechatSubjectDigest?: string;
 }

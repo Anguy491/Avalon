@@ -49,11 +49,11 @@ for (const file of files) {
 }
 
 const requiredTraceRanges = {
-  RULE: 22,
-  SM: 21,
-  FR: 47,
+  RULE: 23,
+  SM: 23,
+  FR: 51,
   NFR: 24,
-  AC: 15,
+  AC: 20,
   UX: 16,
   TM: 10,
 };

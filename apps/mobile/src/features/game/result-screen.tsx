@@ -5,6 +5,14 @@ import { Text, View, type ColorValue } from 'react-native';
 
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import {
+  ALIGNMENT_KEYS,
+  mappedMessageKey,
+  OUTCOME_REASON_KEYS,
+  ROLE_NAME_KEYS,
+  WINNER_KEYS,
+} from '@/localization/game-messages';
+import { useI18n } from '@/localization/localization-provider';
 import { useSession } from '@/session/session-provider';
 import { spacing, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -35,6 +43,7 @@ function ResultCard({
 
 export function ResultScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const roomView = session.roomView;
   const result = useMemo(
@@ -54,13 +63,13 @@ export function ResultScreen() {
   if (roomView === undefined || result === undefined) {
     return (
       <PageShell>
-        <Stack.Screen options={{ title: '最终结果' }} />
+        <Stack.Screen options={{ title: t('navResult') }} />
         <Text
           accessibilityRole="header"
           selectable
           style={{ color: color.text.primary, fontSize: typography.title }}
         >
-          正在载入最终结果
+          {t('resultLoading')}
         </Text>
       </PageShell>
     );
@@ -74,13 +83,13 @@ export function ResultScreen() {
         : color.surface.blocking;
   const playerName = (playerId: string) =>
     result.players.find((player) => player.playerId === playerId)?.nickname ??
-    '未知玩家';
+    t('commonUnknownPlayer');
 
   return (
     <PageShell>
       <Stack.Screen
         options={{
-          title: '最终结果',
+          title: t('navResult'),
           headerBackVisible: false,
           gestureEnabled: false,
         }}
@@ -93,21 +102,29 @@ export function ResultScreen() {
           selectable
           style={{ color: '#FFFFFF', fontSize: 34, fontWeight: '900' }}
         >
-          {result.winnerLabel}
+          {t(mappedMessageKey(WINNER_KEYS, result.winner, 'outcomeAborted'))}
         </Text>
         <Text
           selectable
           style={{ color: '#FFFFFF', fontSize: typography.body }}
         >
-          {result.reasonLabel}
+          {t(
+            mappedMessageKey(
+              OUTCOME_REASON_KEYS,
+              result.reason,
+              'outcomeEnded',
+            ),
+          )}
         </Text>
         {result.assassinationTarget === undefined ? null : (
           <Text
             selectable
             style={{ color: '#FFFFFF', fontSize: typography.body }}
           >
-            刺杀目标：{result.assassinationTarget.seat + 1}号位 ·{' '}
-            {result.assassinationTarget.nickname}
+            {t('resultAssassinationTarget', {
+              seat: result.assassinationTarget.seat + 1,
+              nickname: result.assassinationTarget.nickname,
+            })}
           </Text>
         )}
       </ResultCard>
@@ -122,7 +139,7 @@ export function ResultScreen() {
             fontWeight: '900',
           }}
         >
-          最终比分
+          {t('resultFinalScore')}
         </Text>
         <Text
           selectable
@@ -133,7 +150,10 @@ export function ResultScreen() {
             fontVariant: ['tabular-nums'],
           }}
         >
-          成功 {result.successCount} · 失败 {result.failureCount}
+          {t('resultScoreSummary', {
+            successes: result.successCount,
+            failures: result.failureCount,
+          })}
         </Text>
       </ResultCard>
 
@@ -147,12 +167,32 @@ export function ResultScreen() {
             fontWeight: '900',
           }}
         >
-          全部角色
+          {t('resultAllRoles')}
         </Text>
         {result.revealedPlayers.map((player) => (
           <View
             accessible
-            accessibilityLabel={`${String(player.seat + 1)}号位，${player.nickname}，${player.roleLabel}，${player.alignmentLabel}${player.wasAssassinationTarget ? '，刺杀目标' : ''}`}
+            accessibilityLabel={t('resultPlayerAccessibility', {
+              seat: player.seat + 1,
+              nickname: player.nickname,
+              role: t(
+                mappedMessageKey(
+                  ROLE_NAME_KEYS,
+                  player.roleId,
+                  'commonUnknownRole',
+                ),
+              ),
+              alignment: t(
+                mappedMessageKey(
+                  ALIGNMENT_KEYS,
+                  player.alignment,
+                  'commonUnknownAlignment',
+                ),
+              ),
+              targetSuffix: player.wasAssassinationTarget
+                ? t('resultTargetSuffix')
+                : '',
+            })}
             key={player.playerId}
             style={{
               gap: spacing.xs,
@@ -170,8 +210,13 @@ export function ResultScreen() {
                 fontWeight: '900',
               }}
             >
-              {player.seat + 1}号位 · {player.nickname}
-              {player.wasAssassinationTarget ? ' · 刺杀目标' : ''}
+              {t('resultPlayerTitle', {
+                seat: player.seat + 1,
+                nickname: player.nickname,
+                targetSuffix: player.wasAssassinationTarget
+                  ? ` · ${t('assassinationTarget')}`
+                  : '',
+              })}
             </Text>
             <Text
               selectable
@@ -184,7 +229,22 @@ export function ResultScreen() {
                 fontWeight: '800',
               }}
             >
-              {player.roleLabel} · {player.alignmentLabel}
+              {t('resultRoleAlignment', {
+                role: t(
+                  mappedMessageKey(
+                    ROLE_NAME_KEYS,
+                    player.roleId,
+                    'commonUnknownRole',
+                  ),
+                ),
+                alignment: t(
+                  mappedMessageKey(
+                    ALIGNMENT_KEYS,
+                    player.alignment,
+                    'commonUnknownAlignment',
+                  ),
+                ),
+              })}
             </Text>
           </View>
         ))}
@@ -200,7 +260,7 @@ export function ResultScreen() {
             fontWeight: '900',
           }}
         >
-          公开对局历史
+          {t('resultPublicHistory')}
         </Text>
         {result.proposalHistory.map((proposal) => (
           <View
@@ -215,8 +275,13 @@ export function ResultScreen() {
                 fontWeight: '900',
               }}
             >
-              任务 {proposal.questIndex} · 第 {proposal.proposalAttempt} 次组队
-              · {proposal.approved ? '通过' : '否决'}
+              {t('historyProposalTitle', {
+                quest: proposal.questIndex,
+                attempt: proposal.proposalAttempt,
+                result: proposal.approved
+                  ? t('commonApproved')
+                  : t('commonReject'),
+              })}
             </Text>
             <Text
               selectable
@@ -225,8 +290,11 @@ export function ResultScreen() {
                 fontSize: typography.supporting,
               }}
             >
-              队长 {playerName(proposal.leaderPlayerId)}；同意{' '}
-              {proposal.approveCount}，否决 {proposal.rejectCount}
+              {t('historyLeaderVotes', {
+                leader: playerName(proposal.leaderPlayerId),
+                approves: proposal.approveCount,
+                rejects: proposal.rejectCount,
+              })}
             </Text>
             <Text
               selectable
@@ -235,7 +303,11 @@ export function ResultScreen() {
                 fontSize: typography.supporting,
               }}
             >
-              队伍：{proposal.teamPlayerIds.map(playerName).join('、')}
+              {t('historyTeam', {
+                players: proposal.teamPlayerIds
+                  .map(playerName)
+                  .join(t('commonListSeparator')),
+              })}
             </Text>
             {proposal.votes.map((vote) => (
               <Text
@@ -246,8 +318,13 @@ export function ResultScreen() {
                   fontSize: typography.supporting,
                 }}
               >
-                {playerName(vote.playerId)}：
-                {vote.vote === 'APPROVE' ? '同意' : '否决'}
+                {t('historyVote', {
+                  player: playerName(vote.playerId),
+                  vote:
+                    vote.vote === 'APPROVE'
+                      ? t('commonApprove')
+                      : t('commonReject'),
+                })}
               </Text>
             ))}
           </View>
@@ -265,8 +342,13 @@ export function ResultScreen() {
                 fontWeight: '900',
               }}
             >
-              任务 {quest.questIndex} ·{' '}
-              {quest.result === 'SUCCESS' ? '成功' : '失败'}
+              {t('historyQuestTitle', {
+                quest: quest.questIndex,
+                result:
+                  quest.result === 'SUCCESS'
+                    ? t('commonSuccess')
+                    : t('commonFailure'),
+              })}
             </Text>
             <Text
               selectable
@@ -275,7 +357,11 @@ export function ResultScreen() {
                 fontSize: typography.supporting,
               }}
             >
-              队伍：{quest.teamPlayerIds.map(playerName).join('、')}
+              {t('historyTeam', {
+                players: quest.teamPlayerIds
+                  .map(playerName)
+                  .join(t('commonListSeparator')),
+              })}
             </Text>
             <Text
               selectable
@@ -284,8 +370,11 @@ export function ResultScreen() {
                 fontSize: typography.supporting,
               }}
             >
-              匿名行动：成功 {quest.successChoices}，失败 {quest.failChoices}
-              ；失败阈值 {quest.requiredFails}
+              {t('historyAnonymousActions', {
+                successes: quest.successChoices,
+                failures: quest.failChoices,
+                requiredFails: quest.requiredFails,
+              })}
             </Text>
           </View>
         ))}
@@ -295,10 +384,10 @@ export function ResultScreen() {
         selectable
         style={{ color: color.text.secondary, fontSize: typography.supporting }}
       >
-        结果只保留在当前应用进程内。返回首页后将清除终局投影和本机会话。
+        {t('resultPrivacy')}
       </Text>
       <PrimaryButton
-        label="返回首页并清理本机会话"
+        label={t('resultReturnHome')}
         onPress={() => {
           void session.forgetSession().then(() => {
             router.replace('/');

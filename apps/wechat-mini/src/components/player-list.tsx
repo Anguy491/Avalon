@@ -1,4 +1,4 @@
-import { Text, View } from '@tarojs/components';
+import { Button, Text, View } from '@tarojs/components';
 
 import type { RoomView } from '@avalon/protocol/mobile';
 
@@ -19,23 +19,38 @@ export function PlayerList({
     <View className="card">
       {[...players]
         .sort((left, right) => left.seat - right.seat)
-        .map((player) => (
-          <View
-            key={player.playerId}
-            className={`player${selectedIds?.has(player.playerId) === true ? ' choice-selected' : ''}`}
-            onClick={() => onSelect?.(player.playerId)}
-          >
-            <Text>{player.seat + 1} 号</Text>
-            <Text>{player.nickname}</Text>
-            {player.playerId === selfPlayerId ? (
-              <Text className="badge">你</Text>
-            ) : null}
-            {player.isHost ? <Text className="badge">房主</Text> : null}
-            <View className="spacer" />
-            <Text>{player.connected ? '在线' : '离线'}</Text>
-            <Text>{player.ready ? '已准备' : '未准备'}</Text>
-          </View>
-        ))}
+        .map((player) => {
+          const selected = selectedIds?.has(player.playerId) === true;
+          const content = (
+            <>
+              <Text>{player.seat + 1} 号</Text>
+              <Text>{player.nickname}</Text>
+              {player.playerId === selfPlayerId ? (
+                <Text className="badge">你</Text>
+              ) : null}
+              {player.isHost ? <Text className="badge">房主</Text> : null}
+              <View className="spacer" />
+              <Text>{player.connected ? '在线' : '离线'}</Text>
+              <Text>{player.ready ? '已准备' : '未准备'}</Text>
+            </>
+          );
+          return onSelect === undefined ? (
+            <View key={player.playerId} className="player">
+              {content}
+            </View>
+          ) : (
+            <Button
+              key={player.playerId}
+              className={`player player-button${selected ? ' choice-selected' : ''}`}
+              ariaLabel={`${selected ? '已选择，' : ''}${String(player.seat + 1)} 号，${player.nickname}，${player.connected ? '在线' : '离线'}，${player.ready ? '已准备' : '未准备'}`}
+              onClick={() => {
+                onSelect(player.playerId);
+              }}
+            >
+              {content}
+            </Button>
+          );
+        })}
     </View>
   );
 }

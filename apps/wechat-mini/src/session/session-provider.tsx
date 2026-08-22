@@ -48,10 +48,12 @@ import {
 
 import {
   ApiError,
+  clearWechatIdentity,
   clientCapabilities,
   createRoom as createRoomRequest,
   isInvalidSession,
   joinRoom as joinRoomRequest,
+  getWechatIdentityToken,
   readCurrentRoomView,
   resumeSession,
   userFacingError,
@@ -59,6 +61,7 @@ import {
 import { WeChatWebSocketTransport } from '@/realtime/wechat-websocket-transport';
 import { secureUuid } from '@/runtime/uuid';
 
+import { WECHAT_APP_VERSION } from '../runtime/public-config';
 import { wechatSessionStore } from './storage';
 
 export type SessionStatus =
@@ -176,6 +179,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   const clearRuntimeSession = useCallback(() => {
     stopSocket();
+    clearWechatIdentity();
     tokenRef.current = undefined;
     recordRef.current = undefined;
     commandAttemptsRef.current = new RoomCommandAttempts();
@@ -204,11 +208,26 @@ export function SessionProvider({ children }: PropsWithChildren) {
   const connectSocket = useCallback(
     (record: StoredSession) => {
       stopSocket();
+      let identityReconnectAttempted = false;
       const next = io(record.realtimeUrl, {
-        auth: {
-          protocolVersion: 2,
-          sessionToken: record.sessionToken,
-          lastStateVersion: roomViewRef.current?.public.stateVersion ?? 0,
+        auth: (provideAuth) => {
+          void getWechatIdentityToken()
+            .then((wechatIdentityToken) => {
+              provideAuth({
+                protocolVersion: 2,
+                sessionToken: record.sessionToken,
+                wechatIdentityToken,
+                lastStateVersion: roomViewRef.current?.public.stateVersion ?? 0,
+              });
+            })
+            .catch((caught: unknown) => {
+              setError(userFacingError(caught));
+              provideAuth({
+                protocolVersion: 2,
+                sessionToken: record.sessionToken,
+                lastStateVersion: roomViewRef.current?.public.stateVersion ?? 0,
+              });
+            });
         },
         forceNew: true,
         reconnection: true,
@@ -220,6 +239,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
       });
       socketRef.current = next;
       next.on('connect', () => {
+        identityReconnectAttempted = false;
         setStatus('RECOVERING');
         const ping = () => {
           if (!next.connected) return;
@@ -248,7 +268,16 @@ export function SessionProvider({ children }: PropsWithChildren) {
       next.on('disconnect', () => {
         setStatus('OFFLINE');
       });
-      next.on('connect_error', () => {
+      next.on('connect_error', (caught: Error) => {
+        if (
+          caught.message === 'WECHAT_AUTH_INVALID' &&
+          !identityReconnectAttempted
+        ) {
+          identityReconnectAttempted = true;
+          clearWechatIdentity();
+          next.connect();
+          return;
+        }
         setStatus('OFFLINE');
       });
       next.on('session.ready', (payload: unknown) => {
@@ -355,6 +384,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   useDidHide(() => {
     setPrivacyHidden(true);
+    clearWechatIdentity();
     stopSocket();
   });
 
@@ -556,7 +586,7 @@ export function SessionProvider({ children }: PropsWithChildren) {
         protocolVersion: 2,
         category,
         platform: 'wechat_miniprogram',
-        appVersion: process.env.TARO_APP_VERSION ?? '0.1.0',
+        appVersion: WECHAT_APP_VERSION,
         voicePackVersion: 'zh-CN-v1',
       });
     },

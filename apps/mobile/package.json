@@ -16,11 +16,13 @@
     "expo-crypto": "~56.0.4",
     "expo-dev-client": "~56.0.24",
     "expo-linking": "~56.0.16",
+    "expo-localization": "~56.0.6",
     "expo-router": "~56.2.18",
     "expo-secure-store": "~56.0.4",
     "expo-splash-screen": "~56.0.14",
     "expo-status-bar": "~56.0.4",
     "expo-system-ui": "~56.0.5",
+    "i18n-js": "^4.5.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-hook-form": "^7.85.0",
@@ -52,6 +54,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:e2e": "node scripts/run-maestro.mjs e2e/m2-a-safe-states.yaml e2e/m2-b-create-room.yaml e2e/m2-d-custom-room.yaml && node scripts/run-m5-e2e.mjs",
+    "test:e2e:localization": "node scripts/run-maestro.mjs e2e/m2-a-safe-states.en.yaml",
     "typecheck": "tsc --noEmit"
   },
   "private": true

@@ -26,6 +26,11 @@ import { createRuntimePorts, type RuntimePorts } from './runtime-ports.js';
 import { RedisSessionPresence } from './session-presence.js';
 import { RedisSessionRevocationBus } from './session-revocation.js';
 import { TrustedProxyPolicy } from './trusted-client-ip.js';
+import {
+  WechatIdentityService,
+  createWechatLoginPort,
+  type WechatLoginPort,
+} from './wechat-auth.js';
 
 const healthSchema = Type.Object(
   { status: Type.Union([Type.Literal('ok'), Type.Literal('ready')]) },
@@ -45,6 +50,7 @@ export interface AvalonServer {
 export interface CreateServerOptions {
   readonly ports?: RuntimePorts;
   readonly startBackgroundWorkers?: boolean;
+  readonly wechatLoginPort?: WechatLoginPort;
 }
 
 export async function createServer(
@@ -191,6 +197,12 @@ export async function createServer(
       ports,
       revocationBus,
     );
+    const wechatIdentity = new WechatIdentityService(
+      dependencies.redis,
+      config,
+      ports,
+      options.wechatLoginPort ?? createWechatLoginPort(config),
+    );
     const commandService = new CommandService(dependencies.sql, config, ports);
     registerRoomRoutes(
       app,
@@ -199,6 +211,7 @@ export async function createServer(
       dependencies.redis,
       ports,
       metrics,
+      wechatIdentity,
     );
     const presence = new RedisSessionPresence(dependencies.redis);
     connectionService = new ConnectionService(
@@ -251,6 +264,7 @@ export async function createServer(
       admission,
       metrics,
       trustedProxies,
+      wechatIdentity,
     );
     if (options.startBackgroundWorkers !== false) {
       outboxWorker.start();

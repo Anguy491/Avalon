@@ -1,6 +1,6 @@
-# Avalon HTTP 与实时协议契约 v1
+# Avalon HTTP 与实时协议契约 v2
 
-> 状态：P0 bootstrap 基线
+> 状态：协议 v2 发布候选基线
 >
 > 协议版本：`2`
 >
@@ -12,7 +12,7 @@
 
 本文把状态机的概念模型转换为移动端可调用的传输契约，定义 HTTP 路径、Socket.IO 事件、认证、幂等、重连、错误和兼容性。JSON 的规范字段以 `docs/contracts/*.schema.json` 为准；游戏阶段、权限和裁决以前述状态机为准。
 
-服务根地址用 `{apiBaseUrl}` 表示，示例生产协议必须为 HTTPS/WSS。实际域名和部署供应商尚未决定。
+服务根地址用 `{apiBaseUrl}` 表示，生产协议必须为 HTTPS/WSS。实际域名和部署供应商由发布环境配置决定。
 
 ## 2. 通用约定
 
@@ -31,6 +31,7 @@
 | 标头 | 使用范围 | 规则 |
 | --- | --- | --- |
 | `Authorization: Bearer <SessionToken>` | 恢复、读取投影 | 必需；值不得出现在日志 |
+| `X-WeChat-Identity: <wechatIdentityToken>` | 微信建房、加入、恢复、读取投影 | 微信会话必需；5 分钟临时凭证，仅内存保存，值不得出现在日志 |
 | `Idempotency-Key: <UUID>` | 创建、加入、恢复 | 必需；同键同请求返回首次响应，同键异请求报冲突 |
 | `X-Protocol-Version: 2` | 全部 `/v2` 请求 | 必需；v1 路径或不兼容版本返回 `UPGRADE_REQUIRED` |
 | `X-Request-Id: <UUID>` | 可选 | 客户端诊断关联，不作为幂等键 |
@@ -45,7 +46,7 @@
 - 服务端仅保存不可逆摘要，并绑定 `roomId/playerId/tokenFamily`；
 - 恢复成功原子轮换 token；旧 token 随即失效；并发恢复只有一个成功；
 - 大厅会话失效可重新加入；发牌后不得冒领或创建替代会话；
-- 原生客户端把 token 保存到 Keychain/Keystore 支持的 SecureStore；微信小程序开发/内部测试版使用应用沙箱存储且不得持久化 `RoomView`。所有平台均不得复制、显示或记录 token，恢复成功后必须覆盖旧 token；小程序公开发布需满足 `NFR-010` 的专项门槛。
+- 原生客户端把 token 保存到 Keychain/Keystore 支持的 SecureStore；微信小程序使用应用沙箱保存 SessionToken，但不得持久化 `RoomView` 或微信身份令牌。微信会话还必须满足 [ADR-012](./architecture/ADR-012-wechat-login-session-binding.md) 的微信身份绑定；所有平台均不得复制、显示或记录 token，恢复成功后必须覆盖旧 token。
 
 ## 3. HTTP 接口
 
@@ -53,21 +54,58 @@
 
 | 方法与路径 | 状态机 | 身份 | 成功 | 说明 |
 | --- | --- | --- | --- | --- |
-| `POST /v2/rooms` | `SM-001` | 无 | `201` | 创建房间，房主成为座次 0 |
-| `POST /v2/rooms/{roomCode}/players` | `SM-002` | 无 | `201` | 加入大厅 |
-| `POST /v2/sessions/resume` | `SM-003` | Bearer | `200` | 轮换令牌并返回最新个性化投影 |
-| `GET /v2/rooms/current/view` | 快照读取 | Bearer | `200` | 实时缺口/回前台时读取最新投影，不轮换令牌 |
+| `POST /v2/auth/wechat` | 微信认证 | 无 | `200` | 一次性 login code 换取 5 分钟内存身份凭证 |
+| `POST /v2/room-config/validate` | `RULE-001`–`RULE-004` | 无 | `200` | 直接调用游戏引擎校验 0–10 个草稿角色 |
+| `POST /v2/rooms` | `SM-001` | 微信：微信身份；原生：无 | `201` | 创建房间，房主成为座次 0 |
+| `POST /v2/rooms/{roomCode}/players` | `SM-002` | 微信：微信身份；原生：无 | `201` | 加入大厅 |
+| `POST /v2/sessions/resume` | `SM-003` | Bearer；微信另需微信身份 | `200` | 轮换令牌并返回最新个性化投影 |
+| `GET /v2/rooms/current/view` | 快照读取 | Bearer；微信另需微信身份 | `200` | 实时缺口/回前台时读取最新投影，不轮换令牌 |
 | `GET /v2/health/live` | 运维 | 无 | `200` | 仅进程存活，不返回依赖或房间数据 |
 | `GET /v2/health/ready` | 运维 | 无 | `200/503` | 数据库、实时依赖就绪，不返回秘密配置 |
 
 房间号路径必须在应用层统一转为大写。格式错误与不存在均返回 `INVALID_ROOM_CODE`，避免高频枚举获得额外区分；限流后返回 `RATE_LIMITED`。
 
-### 3.2 创建房间
+### 3.2 微信身份交换与房间配置校验
+
+微信小程序先调用 `wx.login`，再把一次性 code 交给服务端：
+
+```http
+POST /v2/auth/wechat
+X-Protocol-Version: 2
+Content-Type: application/json
+
+{ "loginCode": "one-time-wechat-code" }
+```
+
+```json
+{
+  "protocolVersion": 2,
+  "wechatIdentityToken": "opaque-256-bit-token",
+  "expiresAt": "2026-08-20T12:05:00Z"
+}
+```
+
+服务端调用微信 `code2Session`，并立即把 OpenID 转为 HMAC 摘要；不得保存或返回原始 OpenID、UnionID 或 `session_key`。身份令牌只以摘要映射保存在 Redis，TTL 固定为 5 分钟。此接口按客户端 IP 限制为 10 次/分钟，服务全局限制为 600 次/分钟；无效 code 返回 `WECHAT_AUTH_INVALID`，微信上游超时或不可用返回 `WECHAT_AUTH_UNAVAILABLE`。
+
+自定义角色编辑器使用服务端规则校验：
+
+```http
+POST /v2/room-config/validate
+X-Protocol-Version: 2
+Content-Type: application/json
+
+{ "playerCount": 7, "roleIds": ["MERLIN", "ASSASSIN"] }
+```
+
+响应为 `{ "protocolVersion": 2, "valid": false, "errors": [{ "code": "ROLE_COUNT_MISMATCH" }] }`。`roleIds` 允许 0–10 项草稿；错误码由游戏引擎产生，客户端只负责映射文案，不复制阵营、唯一性或依赖规则。
+
+### 3.3 创建房间
 
 ```http
 POST /v2/rooms
 Idempotency-Key: 0198-...-a341
 X-Protocol-Version: 2
+X-WeChat-Identity: <wechat-identity-token> # 仅微信客户端
 Content-Type: application/json
 ```
 
@@ -109,12 +147,13 @@ Content-Type: application/json
 
 示例中的 `roomView` 为缩写；实际响应必须完整通过 `room-view.schema.json`。
 
-### 3.3 加入房间
+### 3.4 加入房间
 
 ```http
 POST /v2/rooms/7K3M9Q/players
 Idempotency-Key: 0198-...-1bb7
 X-Protocol-Version: 2
+X-WeChat-Identity: <wechat-identity-token> # 仅微信客户端
 ```
 
 ```json
@@ -136,23 +175,27 @@ X-Protocol-Version: 2
 
 `ClientCapabilities.platform` 接受 `IOS`、`ANDROID` 和 `WECHAT_MINIPROGRAM`。平台值只用于兼容性和无秘密遥测，不授予房主、角色或动作权限。
 
-### 3.4 恢复会话
+同一微信主体摘要在同一房间只能绑定一个座位，第二次创建/加入返回 `WECHAT_IDENTITY_CONFLICT`；同一主体可加入不同房间。微信身份本身不能恢复座位，仍须持有有效 SessionToken。
+
+### 3.5 恢复会话
 
 ```http
 POST /v2/sessions/resume
 Authorization: Bearer <old-token>
 Idempotency-Key: 0198-...-701b
 X-Protocol-Version: 2
+X-WeChat-Identity: <wechat-identity-token> # 微信会话必需
 ```
 
 请求只包含 `ClientCapabilities`。成功返回新 token 的 `SessionBootstrap`。同一幂等键重试可以取得首次响应；服务端必须保护该缓存响应，使其只可由同 token family 的恢复请求读取。
 
-### 3.5 读取当前投影
+### 3.6 读取当前投影
 
 ```http
 GET /v2/rooms/current/view
 Authorization: Bearer <current-token>
 X-Protocol-Version: 2
+X-WeChat-Identity: <wechat-identity-token> # 微信会话必需
 ```
 
 返回 `200`：
@@ -179,11 +222,12 @@ X-Protocol-Version: 2
 {
   "protocolVersion": 2,
   "sessionToken": "current-random-token",
+  "wechatIdentityToken": "wechat-memory-token-if-applicable",
   "lastStateVersion": 42
 }
 ```
 
-连接中间件每次校验 token、房间生命周期、协议版本和速率限制；不得设置 `skipMiddlewares=true`。单个会话允许多个瞬时连接，但只有最新租约被视为在线，所有连接都只能得到同一玩家投影。
+连接中间件每次校验 token、房间生命周期、协议版本和速率限制；微信会话还必须匹配 `wechatIdentityToken`。不得设置 `skipMiddlewares=true`。单个会话允许多个瞬时连接，但只有最新租约被视为在线，所有连接都只能得到同一玩家投影。
 
 成功后的第一个服务端事件是：
 
@@ -276,16 +320,16 @@ ack 表示事务已提交或明确拒绝；`room.view` 可能先于或后于 ack
 | HTTP | 典型 `ErrorCode` |
 | ---: | --- |
 | `400` | `VALIDATION_ERROR`、`INVALID_CONFIG`、`INVALID_NICKNAME` |
-| `401` | `UNAUTHORIZED`、`SESSION_INVALID` |
+| `401` | `UNAUTHORIZED`、`SESSION_INVALID`、`WECHAT_AUTH_INVALID` |
 | `403` | `NOT_HOST`、`NOT_LEADER`、`NOT_ASSASSIN`、`GOOD_CANNOT_FAIL` |
 | `404` | `INVALID_ROOM_CODE` |
-| `409` | `ROOM_FULL`、`ROOM_NOT_JOINABLE`、`STALE_VERSION`、`ALREADY_SUBMITTED`、`DUPLICATE_COMMAND_CONFLICT` |
+| `409` | `ROOM_FULL`、`ROOM_NOT_JOINABLE`、`WECHAT_IDENTITY_CONFLICT`、`STALE_VERSION`、`ALREADY_SUBMITTED`、`DUPLICATE_COMMAND_CONFLICT` |
 | `410` | `ROOM_EXPIRED` |
 | `413` | `PAYLOAD_TOO_LARGE` |
 | `426` | `UPGRADE_REQUIRED` |
 | `429` | `RATE_LIMITED` |
 | `500` | `INTERNAL_ERROR` |
-| `503` | 就绪失败或维护；`INTERNAL_ERROR` + `retryable=true` |
+| `503` | 就绪失败或维护；`WECHAT_AUTH_UNAVAILABLE` 或 `INTERNAL_ERROR` + `retryable=true` |
 
 相同领域错误通过 Socket.IO 时只使用 `CommandRejected`，不模拟 HTTP 状态。`diagnosticId` 可供用户复制，但不能编码 roomId/playerId/角色。
 
@@ -302,12 +346,12 @@ ack 表示事务已提交或明确拒绝；`room.view` 可能先于或后于 ack
 ```mermaid
 flowchart LR
     C["客户端 protocolVersion"] --> N{"服务器支持?"}
-    N -->|"是"| S["建立 v1 会话"]
+    N -->|"是"| S["建立 v2 会话"]
     N -->|"低于最低版本"| U["UPGRADE_REQUIRED"]
     N -->|"高于服务器"| R["安全拒绝并提示稍后重试"]
 ```
 
-- v1 中可新增客户端会忽略也不会影响安全的可选字段，但当前 bootstrap Schema 默认严格拒绝未知字段；因此实际新增字段前必须先发布能识别该字段的客户端，或升级协议版本；
+- v2 中可新增客户端会忽略也不会影响安全的可选字段，但当前 bootstrap Schema 默认严格拒绝未知字段；因此实际新增字段前必须先发布能识别该字段的客户端，或升级协议版本；
 - 枚举新增也可能破坏旧客户端，按破坏性变更处理；
 - 字段删除、重命名、改变含义、收紧合法值或新增必填字段必须升级主版本；
 - `rulesVersion` 不随协议小改动变化；规则变体需单独规则版本和角色/状态审查；
@@ -318,6 +362,8 @@ flowchart LR
 | 协议职责 | 状态机/需求 | Schema/验证 |
 | --- | --- | --- |
 | 创建/加入/恢复 | `SM-001`–`SM-003`、`FR-001`–`FR-006` | `http.schema.json` |
+| 微信身份绑定 | `NFR-010`、`AC-019`、`TM-002` | `WechatLoginRequest`、`WechatIdentityBootstrap`、`RealtimeAuth` |
+| 自定义配置草稿校验 | `RULE-001`–`RULE-004`、`FR-011` | `RoomConfigValidationRequest/Response` |
 | 大厅和对局命令 | `SM-004`–`SM-019`、`SM-022`–`SM-023`、`FR-007`–`FR-049` | `command.schema.json` |
 | 幂等/并发 | 状态机 4.2、`FR-046`、`NFR-007` | 命令信封 + DB 集成测试 |
 | 公开与私密投影 | 状态机第 6 节、`FR-017`–`FR-039`、`NFR-014` | `room-view.schema.json` + 角色矩阵测试 |
@@ -332,10 +378,11 @@ M0 的 `pnpm test:contract` 至少验证：
 
 1. 全部规范性完整示例通过 Schema（明确标记为缩写的投影示例除外），未知字段和不合法枚举失败；
 2. 每个命令类型有一组成功结构和边界失败结构；
-3. SessionToken 只出现在 bootstrap/实时 auth Schema；
+3. SessionToken 只出现在 bootstrap/实时 auth Schema；微信身份令牌只出现在微信认证响应、请求头和实时 auth，不进入 `RoomView`；
 4. `RoomView` 不存在任务行动映射、他人私密角色或未公开票字段；
 5. 8 个角色 × 关键阶段的投影通过字段允许列表；
 6. 同命令重试、改载荷复用 ID、并发版本、ack 丢失均符合状态机；
 7. `RESYNC` 的 `shouldPlayAudio` 恒为 false；
-8. Schema 导出和文档引用无漂移。
-9. 终局确认只接受 token 本人的目标版本，全确认/60 秒超时后不存在任何历史读取路径。
+8. Schema 导出和文档引用无漂移；
+9. 终局确认只接受 token 本人的目标版本，全确认/60 秒超时后不存在任何历史读取路径；
+10. `AC-019` 覆盖身份过期刷新、错账号拒绝、一账号同房单座位、跨房允许与原生兼容。

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n, type Translate } from '@/localization/localization-provider';
 import { spacing, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -13,16 +14,23 @@ import {
   shouldRefreshPauseEligibility,
 } from './pause-termination-state';
 
-function remainingLabel(expiresAt: string | null, now: number): string {
-  if (expiresAt === null) return '等待服务器确认恢复期限';
+function remainingLabel(
+  expiresAt: string | null,
+  now: number,
+  t: Translate,
+): string {
+  if (expiresAt === null) return t('pauseAwaitingRecoveryDeadline');
   const remaining = Math.max(0, Date.parse(expiresAt) - now);
   const minutes = Math.floor(remaining / 60_000);
   const seconds = Math.floor((remaining % 60_000) / 1_000);
-  return `恢复窗口剩余 ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return t('pauseRecoveryRemaining', {
+    time: `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`,
+  });
 }
 
 export function SessionStatusLayer() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const [now, setNow] = useState(Date.now());
   const eligibilityRefreshInFlight = useRef(false);
@@ -88,36 +96,34 @@ export function SessionStatusLayer() {
   const ballot = session.roomView?.public.pauseTerminationVote;
 
   const startTerminationVote = () => {
-    Alert.alert(
-      '发起终止对局投票？',
-      '仅当前在线玩家进入本轮名单。投票持续 30 秒，只有严格超过半数选择继续暂停，对局才会保留。',
-      [
-        { text: '取消', style: 'cancel' },
-        {
-          text: '发起投票',
-          style: 'destructive',
-          onPress: () => {
-            void session
-              .submitCommand({
-                type: 'StartPauseTerminationVote',
-                payload: {},
-              })
-              .catch(() => undefined);
-          },
+    Alert.alert(t('pauseStartVoteTitle'), t('pauseStartVoteBody'), [
+      { text: t('commonCancel'), style: 'cancel' },
+      {
+        text: t('pauseStartVoteConfirm'),
+        style: 'destructive',
+        onPress: () => {
+          void session
+            .submitCommand({
+              type: 'StartPauseTerminationVote',
+              payload: {},
+            })
+            .catch(() => undefined);
         },
-      ],
-    );
+      },
+    ]);
   };
 
   const submitTerminationChoice = (choice: 'TERMINATE' | 'CONTINUE_PAUSE') => {
     const terminating = choice === 'TERMINATE';
     Alert.alert(
-      terminating ? '确认终止对局？' : '确认继续暂停？',
-      '投票提交后不能修改。个人选择不会在投票过程中公开。',
+      terminating
+        ? t('pauseTerminateConfirmTitle')
+        : t('pauseContinueConfirmTitle'),
+      t('pauseChoiceConfirmBody'),
       [
-        { text: '返回', style: 'cancel' },
+        { text: t('commonBack'), style: 'cancel' },
         {
-          text: terminating ? '投票终止' : '投票继续暂停',
+          text: terminating ? t('pauseVoteTerminate') : t('pauseVoteContinue'),
           style: terminating ? 'destructive' : 'default',
           onPress: () => {
             void session
@@ -156,8 +162,8 @@ export function SessionStatusLayer() {
             style={{ color: color.text.inverse, fontWeight: '700' }}
           >
             {session.networkReachable
-              ? '正在与服务器重新同步，操作已暂时停用。'
-              : '网络已断开，当前仅显示最后一次公开状态。'}
+              ? t('statusResyncing')
+              : t('statusOffline')}
           </Text>
         </View>
       ) : null}
@@ -198,27 +204,33 @@ export function SessionStatusLayer() {
                 fontWeight: '900',
               }}
             >
-              游戏已暂停
+              {t('pausePaused')}
             </Text>
             {session.roomView?.public.manualPauseReason !== null ? (
               <Text selectable style={{ color: color.text.inverse }}>
-                手动原因：{session.roomView?.public.manualPauseReason}
+                {t('pauseManualReason', {
+                  reason: session.roomView?.public.manualPauseReason ?? '',
+                })}
               </Text>
             ) : null}
             {offlinePlayers.length > 0 ? (
               <Text selectable style={{ color: color.text.inverse }}>
-                离线玩家：
-                {offlinePlayers.map((player) => player.nickname).join('、')}
+                {t('pauseOfflinePlayers', {
+                  players: offlinePlayers
+                    .map((player) => player.nickname)
+                    .join(t('commonListSeparator')),
+                })}
               </Text>
             ) : null}
             <Text selectable style={{ color: color.text.inverse }}>
               {remainingLabel(
                 session.roomView?.public.recoveryExpiresAt ?? null,
                 now,
+                t,
               )}
             </Text>
             <Text selectable style={{ color: color.text.inverse }}>
-              房主权限不会因断线而转移。倒计时仅供显示，最终以服务器裁决为准。
+              {t('pauseAuthorityNote')}
             </Text>
             {ballot == null &&
             pauseTermination !== undefined &&
@@ -231,24 +243,29 @@ export function SessionStatusLayer() {
                   fontVariant: ['tabular-nums'],
                 }}
               >
-                终止投票将在 {countdownLabel(pauseTermination.availableInMs)}{' '}
-                后开放
+                {t('pauseVoteAvailableIn', {
+                  time: countdownLabel(pauseTermination.availableInMs),
+                })}
               </Text>
             ) : null}
             {ballot == null && pauseTermination?.canStart === true ? (
               <PrimaryButton
-                accessibilityHint="发起后仅当前在线玩家可在三十秒内投票"
+                accessibilityHint={t('pauseStartVoteHint')}
                 busy={
                   session.pendingCommandType === 'StartPauseTerminationVote'
                 }
-                label="发起终止对局投票"
+                label={t('pauseStartVote')}
                 onPress={startTerminationVote}
               />
             ) : null}
             {ballot != null && pauseTermination !== undefined ? (
               <View
                 accessible
-                accessibilityLabel={`终止投票进度 ${String(pauseTermination.submittedCount)} / ${String(pauseTermination.eligibleCount)}，剩余 ${countdownLabel(pauseTermination.ballotRemainingMs)}`}
+                accessibilityLabel={t('pauseVoteProgressAccessibility', {
+                  submitted: pauseTermination.submittedCount,
+                  eligible: pauseTermination.eligibleCount,
+                  time: countdownLabel(pauseTermination.ballotRemainingMs),
+                })}
                 style={{ gap: spacing.sm }}
               >
                 <Text
@@ -260,7 +277,7 @@ export function SessionStatusLayer() {
                     fontWeight: '800',
                   }}
                 >
-                  终止对局投票
+                  {t('pauseVoteTitle')}
                 </Text>
                 <Text
                   accessibilityLiveRegion="polite"
@@ -270,12 +287,14 @@ export function SessionStatusLayer() {
                     fontVariant: ['tabular-nums'],
                   }}
                 >
-                  已提交 {pauseTermination.submittedCount} /{' '}
-                  {pauseTermination.eligibleCount} · 剩余{' '}
-                  {countdownLabel(pauseTermination.ballotRemainingMs)}
+                  {t('pauseVoteProgress', {
+                    submitted: pauseTermination.submittedCount,
+                    eligible: pauseTermination.eligibleCount,
+                    time: countdownLabel(pauseTermination.ballotRemainingMs),
+                  })}
                 </Text>
                 <Text selectable style={{ color: color.text.inverse }}>
-                  只有严格超过半数选择继续暂停，才会保留对局；否则对局中止并返回首页。
+                  {t('pauseVoteRule')}
                 </Text>
               </View>
             ) : null}
@@ -285,7 +304,7 @@ export function SessionStatusLayer() {
                   busy={
                     session.pendingCommandType === 'SubmitPauseTerminationVote'
                   }
-                  label="投票终止对局"
+                  label={t('pauseVoteTerminateGame')}
                   onPress={() => {
                     submitTerminationChoice('TERMINATE');
                   }}
@@ -294,7 +313,7 @@ export function SessionStatusLayer() {
                   busy={
                     session.pendingCommandType === 'SubmitPauseTerminationVote'
                   }
-                  label="投票继续暂停"
+                  label={t('pauseVoteContinuePause')}
                   onPress={() => {
                     submitTerminationChoice('CONTINUE_PAUSE');
                   }}
@@ -307,20 +326,20 @@ export function SessionStatusLayer() {
                 selectable
                 style={{ color: color.text.inverse, fontWeight: '800' }}
               >
-                你的投票已提交，等待本轮结算。
+                {t('pauseVoteSubmitted')}
               </Text>
             ) : null}
             {ballot != null &&
             pauseTermination?.voterStatus === 'NOT_ELIGIBLE' ? (
               <Text selectable style={{ color: color.text.inverse }}>
-                你不在本轮发起时的在线玩家名单中，只能查看投票进度。
+                {t('pauseVoteNotEligible')}
               </Text>
             ) : null}
             {canResume ? (
               <PrimaryButton
-                accessibilityHint="清除手动暂停；若仍有玩家离线，连接暂停会继续保留"
+                accessibilityHint={t('pauseResumeHint')}
                 busy={session.pendingCommandType === 'ResumeGame'}
-                label="清除手动暂停"
+                label={t('pauseResume')}
                 onPress={() => {
                   void session
                     .submitCommand({

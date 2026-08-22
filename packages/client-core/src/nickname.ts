@@ -33,9 +33,22 @@ export function countNicknameGraphemes(value: string): number {
   return countNicknameGraphemesFallback(value);
 }
 
-export function nicknameError(value: string): string | undefined {
-  if (BIDI_OR_CONTROL.test(value)) return '昵称不能包含控制字符。';
+export type NicknameValidationErrorCode =
+  | 'CONTROL_CHARACTER'
+  | 'INVALID_LENGTH';
+
+export function nicknameErrorCode(
+  value: string,
+): NicknameValidationErrorCode | undefined {
+  if (BIDI_OR_CONTROL.test(value)) return 'CONTROL_CHARACTER';
   const normalized = normalizeNickname(value);
   const length = countNicknameGraphemes(normalized);
-  return length >= 1 && length <= 16 ? undefined : '昵称需为 1–16 个可见字符。';
+  return length >= 1 && length <= 16 ? undefined : 'INVALID_LENGTH';
+}
+
+export function nicknameError(value: string): string | undefined {
+  const errorCode = nicknameErrorCode(value);
+  if (errorCode === 'CONTROL_CHARACTER') return '昵称不能包含控制字符。';
+  if (errorCode === 'INVALID_LENGTH') return '昵称需为 1–16 个可见字符。';
+  return undefined;
 }

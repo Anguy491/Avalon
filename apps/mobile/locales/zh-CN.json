@@ -1,0 +1,5 @@
+{
+  "ios": {
+    "NSCameraUsageDescription": "用于扫描公开房间二维码；不会采集照片、视频或音频。"
+  }
+}

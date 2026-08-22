@@ -4,7 +4,6 @@ import type { RoomView } from '@avalon/protocol/mobile';
 
 import {
   INITIAL_PRIVACY_GATE,
-  ROLE_PRESENTATION,
   deriveRoleRevealUiState,
   isRoleRevealed,
   privacyGateReducer,
@@ -60,8 +59,7 @@ describe('deriveRoleRevealUiState', () => {
     const state = deriveRoleRevealUiState(roleView());
     expect(state).toMatchObject({
       roleId: 'PERCIVAL',
-      roleLabel: '派西维尔',
-      alignmentLabel: '善良阵营',
+      alignment: 'GOOD',
       canContinue: false,
       canAcknowledge: true,
       hasSubmitted: false,
@@ -72,29 +70,14 @@ describe('deriveRoleRevealUiState', () => {
       {
         playerId: 'player-one',
         playerName: 'Gawain',
-        label: '梅林候选人',
+        knowledgeLabel: 'MERLIN_CANDIDATE',
       },
       {
         playerId: 'player-two',
         playerName: 'Kay',
-        label: '梅林候选人',
+        knowledgeLabel: 'MERLIN_CANDIDATE',
       },
     ]);
-  });
-
-  it('has presentation copy for every protocol role without calculating knowledge', () => {
-    expect(Object.keys(ROLE_PRESENTATION).sort()).toEqual(
-      [
-        'MERLIN',
-        'LOYAL_SERVANT',
-        'PERCIVAL',
-        'ASSASSIN',
-        'MINION',
-        'MORGANA',
-        'MORDRED',
-        'OBERON',
-      ].sort(),
-    );
   });
 });
 

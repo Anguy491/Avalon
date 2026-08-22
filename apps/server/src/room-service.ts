@@ -28,6 +28,7 @@ import {
 } from '@avalon/protocol';
 
 import type { ServerConfig } from './config.js';
+import type { ClientIdentity } from './client-identity.js';
 import type { RuntimePorts } from './runtime-ports.js';
 import {
   addSeconds,
@@ -81,6 +82,8 @@ interface SessionRow {
   readonly expires_at: Date;
   readonly room_code: string;
   readonly aggregate: unknown;
+  readonly client_platform: 'IOS' | 'ANDROID' | 'WECHAT_MINIPROGRAM' | null;
+  readonly wechat_subject_digest: string | null;
 }
 
 export interface SessionRotationPublisher {
@@ -137,6 +140,38 @@ function withPersistedRecovery(
 
 function chooseVoicePack(client: ClientCapabilities): string | undefined {
   return client.voicePackVersions.includes('zh-CN-v1') ? 'zh-CN-v1' : undefined;
+}
+
+function requireClientIdentity(
+  client: ClientCapabilities,
+  identity?: ClientIdentity,
+): ClientIdentity {
+  const resolved = identity ?? { clientPlatform: client.platform };
+  if (resolved.clientPlatform !== client.platform) {
+    throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+  }
+  if (
+    client.platform === 'WECHAT_MINIPROGRAM' &&
+    resolved.wechatSubjectDigest === undefined
+  ) {
+    throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+  }
+  if (
+    client.platform !== 'WECHAT_MINIPROGRAM' &&
+    resolved.wechatSubjectDigest !== undefined
+  ) {
+    throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+  }
+  return resolved;
+}
+
+function identityBoundRequest(
+  value: unknown,
+  identity: ClientIdentity,
+): unknown {
+  return identity.wechatSubjectDigest === undefined
+    ? value
+    : { value, wechatSubjectDigest: identity.wechatSubjectDigest };
 }
 
 export function toEngineConfig(
@@ -577,9 +612,11 @@ export class RoomService {
   async createRoom(
     commandId: string,
     request: CreateRoomRequest,
+    presentedIdentity?: ClientIdentity,
   ): Promise<ServiceResponse<SessionBootstrap>> {
     const scope = 'POST /v2/rooms';
-    const requestHash = sha256Digest(request);
+    const identity = requireClientIdentity(request.client, presentedIdentity);
+    const requestHash = sha256Digest(identityBoundRequest(request, identity));
     const normalized = normalizeNickname(request.nickname);
     if (!normalized.ok) {
       throw new ServiceError('INVALID_NICKNAME', 400, false);
@@ -652,10 +689,11 @@ export class RoomService {
       await sql`
         insert into ${sql(SCHEMA)}.sessions
           (session_id, token_family, room_id, player_id, token_digest,
-           expires_at, created_at)
+           expires_at, created_at, client_platform, wechat_subject_digest)
         values
           (${sessionId}, ${tokenFamily}, ${roomId}, ${playerId}, ${digest},
-           ${expiresAt}, ${now})
+           ${expiresAt}, ${now}, ${identity.clientPlatform},
+           ${identity.wechatSubjectDigest ?? null})
       `;
       await this.addOutbox(sql, roomId, state.stateVersion, now);
 
@@ -688,6 +726,7 @@ export class RoomService {
     commandId: string,
     rawRoomCode: string,
     request: JoinRoomRequest,
+    presentedIdentity?: ClientIdentity,
   ): Promise<ServiceResponse<SessionBootstrap>> {
     const roomCode = rawRoomCode.toUpperCase();
     if (!ROOM_CODE_PATTERN.test(roomCode)) {
@@ -697,7 +736,10 @@ export class RoomService {
     if (!normalized.ok) {
       throw new ServiceError('INVALID_NICKNAME', 400, false);
     }
-    const requestHash = sha256Digest({ roomCode, request });
+    const identity = requireClientIdentity(request.client, presentedIdentity);
+    const requestHash = sha256Digest(
+      identityBoundRequest({ roomCode, request }, identity),
+    );
     const scope = 'POST /v2/rooms/:roomCode/players';
 
     return this.sql.begin(async (sql) => {
@@ -731,6 +773,18 @@ export class RoomService {
       `;
       if (conflicts[0]?.exists === true) {
         throw new ServiceError('NICKNAME_CONFLICT', 409, false);
+      }
+      if (identity.wechatSubjectDigest !== undefined) {
+        const [identityConflict] = await sql<{ readonly exists: boolean }[]>`
+          select exists(
+            select 1 from ${sql(SCHEMA)}.sessions
+             where room_id = ${room.room_id}
+               and wechat_subject_digest = ${identity.wechatSubjectDigest}
+          ) as exists
+        `;
+        if (identityConflict?.exists === true) {
+          throw new ServiceError('WECHAT_IDENTITY_CONFLICT', 409, false);
+        }
       }
 
       const now = this.ports.clock.now();
@@ -773,10 +827,11 @@ export class RoomService {
       await sql`
         insert into ${sql(SCHEMA)}.sessions
           (session_id, token_family, room_id, player_id, token_digest,
-           expires_at, created_at)
+           expires_at, created_at, client_platform, wechat_subject_digest)
         values
           (${sessionId}, ${tokenFamily}, ${room.room_id}, ${playerId},
-           ${digest}, ${expiresAt}, ${now})
+           ${digest}, ${expiresAt}, ${now}, ${identity.clientPlatform},
+           ${identity.wechatSubjectDigest ?? null})
       `;
       await this.addOutbox(sql, room.room_id, nextState.stateVersion, now);
 
@@ -809,9 +864,13 @@ export class RoomService {
     commandId: string,
     oldToken: string,
     request: ResumeSessionRequest,
+    presentedIdentity?: ClientIdentity,
   ): Promise<ServiceResponse<SessionBootstrap>> {
+    const identity = requireClientIdentity(request.client, presentedIdentity);
     const oldDigest = tokenDigest(oldToken, this.config.sessionTokenPepper);
-    const requestHash = sha256Digest({ tokenDigest: oldDigest, request });
+    const requestHash = sha256Digest(
+      identityBoundRequest({ tokenDigest: oldDigest, request }, identity),
+    );
     const scope = 'POST /v2/sessions/resume';
 
     let rotation:
@@ -831,6 +890,7 @@ export class RoomService {
       const [session] = await sql<SessionRow[]>`
         select s.session_id, s.token_family, s.room_id, s.player_id,
                s.token_digest, s.credential_generation, s.expires_at,
+               s.client_platform, s.wechat_subject_digest,
                r.room_code, r.aggregate
           from ${sql(SCHEMA)}.sessions s
           join ${sql(SCHEMA)}.rooms r on r.room_id = s.room_id
@@ -841,6 +901,19 @@ export class RoomService {
       `;
       if (session === undefined) {
         throw new ServiceError('SESSION_INVALID', 401, false);
+      }
+      if (session.client_platform === null) {
+        if (this.config.wechatAuthEnforcement === 'required') {
+          throw new ServiceError('SESSION_INVALID', 401, false);
+        }
+      } else if (session.client_platform !== identity.clientPlatform) {
+        throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+      }
+      if (
+        session.client_platform === 'WECHAT_MINIPROGRAM' &&
+        session.wechat_subject_digest !== identity.wechatSubjectDigest
+      ) {
+        throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
       }
       const [lockedRoom] = await sql<RoomRow[]>`
         select room_id, room_code, state_version, phase, aggregate
@@ -864,7 +937,9 @@ export class RoomService {
         update ${sql(SCHEMA)}.sessions
            set token_digest = ${newDigest}, expires_at = ${expiresAt},
                rotated_at = ${now},
-               credential_generation = ${credentialGeneration}
+               credential_generation = ${credentialGeneration},
+               client_platform = ${identity.clientPlatform},
+               wechat_subject_digest = ${identity.wechatSubjectDigest ?? null}
          where session_id = ${session.session_id}
       `;
       rotation = { sessionId: session.session_id, credentialGeneration };
@@ -905,11 +980,15 @@ export class RoomService {
     return response;
   }
 
-  async authenticate(token: string): Promise<SessionContext> {
+  async authenticate(
+    token: string,
+    wechatSubjectDigest?: string,
+  ): Promise<SessionContext> {
     const digest = tokenDigest(token, this.config.sessionTokenPepper);
     const [session] = await this.sql<SessionRow[]>`
       select s.session_id, s.token_family, s.room_id, s.player_id,
              s.token_digest, s.credential_generation, s.expires_at,
+             s.client_platform, s.wechat_subject_digest,
              r.room_code, r.aggregate
         from ${this.sql(SCHEMA)}.sessions s
         join ${this.sql(SCHEMA)}.rooms r on r.room_id = s.room_id
@@ -920,6 +999,19 @@ export class RoomService {
     if (session === undefined) {
       throw new ServiceError('SESSION_INVALID', 401, false);
     }
+    if (
+      session.client_platform === null &&
+      this.config.wechatAuthEnforcement === 'required'
+    ) {
+      throw new ServiceError('SESSION_INVALID', 401, false);
+    }
+    if (
+      session.client_platform === 'WECHAT_MINIPROGRAM' &&
+      (wechatSubjectDigest === undefined ||
+        session.wechat_subject_digest !== wechatSubjectDigest)
+    ) {
+      throw new ServiceError('WECHAT_AUTH_INVALID', 401, false);
+    }
     return {
       sessionId: session.session_id,
       tokenFamily: session.token_family,
@@ -928,6 +1020,10 @@ export class RoomService {
       tokenDigest: session.token_digest,
       credentialGeneration: session.credential_generation,
       expiresAt: session.expires_at,
+      clientPlatform: session.client_platform,
+      ...(session.wechat_subject_digest === null
+        ? {}
+        : { wechatSubjectDigest: session.wechat_subject_digest }),
     };
   }
 
@@ -964,8 +1060,11 @@ export class RoomService {
     return current.expires_at;
   }
 
-  async readCurrentView(token: string): Promise<ReadRoomViewResponse> {
-    const context = await this.authenticate(token);
+  async readCurrentView(
+    token: string,
+    wechatSubjectDigest?: string,
+  ): Promise<ReadRoomViewResponse> {
+    const context = await this.authenticate(token, wechatSubjectDigest);
     const [room] = await this.sql<RoomRow[]>`
       select room_id, room_code, state_version, phase, aggregate,
              terminal_published_at, recovery_started_at, recovery_expires_at

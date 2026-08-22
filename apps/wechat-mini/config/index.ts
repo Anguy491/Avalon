@@ -2,6 +2,17 @@ import { defineConfig, type UserConfigExport } from '@tarojs/cli';
 import path from 'node:path';
 
 export default defineConfig((merge) => {
+  const release = process.env.TARO_APP_BUILD_PROFILE === 'release';
+  if (
+    release &&
+    (process.env.TARO_APP_API_URL === undefined ||
+      process.env.TARO_APP_JOIN_HOST === undefined ||
+      process.env.TARO_APP_VERSION === undefined)
+  ) {
+    throw new Error(
+      'Release profile requires API URL, join host, and version.',
+    );
+  }
   const base: UserConfigExport = {
     projectName: 'avalon-wechat-mini',
     date: '2026-08-19',
@@ -20,6 +31,9 @@ export default defineConfig((merge) => {
       ),
       'process.env.TARO_APP_VERSION': JSON.stringify(
         process.env.TARO_APP_VERSION ?? '0.1.0',
+      ),
+      'process.env.TARO_APP_BUILD_PROFILE': JSON.stringify(
+        process.env.TARO_APP_BUILD_PROFILE ?? 'development',
       ),
     },
     alias: {

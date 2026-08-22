@@ -5,18 +5,90 @@ export const VOICE_PACK_VERSION = 'zh-CN-v1' as const;
 export const VOICE_PACK_READY: boolean = true;
 
 export const VOICE_PACK_ENTRIES = {
-  'game.role.reveal': { subtitle: '请各位玩家查看并确认自己的身份。' },
-  'game.team.proposal': { subtitle: '请队长提出本次任务队伍。' },
-  'game.team.vote': { subtitle: '请所有玩家秘密提交同意或否决。' },
-  'game.team.approved': { subtitle: '队伍已通过，准备执行任务。' },
-  'game.team.rejected': { subtitle: '队伍未通过，队长顺位轮换。' },
-  'game.quest.submission': { subtitle: '请任务队员秘密提交任务行动。' },
-  'game.quest.success': { subtitle: '本次任务成功。' },
-  'game.quest.failure': { subtitle: '本次任务失败。' },
-  'game.assassination': { subtitle: '三次任务成功，请刺客选择梅林。' },
-  'game.good.wins': { subtitle: '善方获得最终胜利。' },
-  'game.evil.wins': { subtitle: '邪恶方获得最终胜利。' },
-  'game.aborted': { subtitle: '恢复时间已结束，本局已中止。' },
+  'game.role.reveal': {
+    subtitle: '请各位玩家查看并确认自己的身份。',
+    subtitleSha256:
+      '33d6d6375f2412f5d8940851587dbd53f15ed1f0e01a9d4fd8786137d256ca11',
+    sha256: '7e266db750270f1f581e4122c037ee91cfca69bb2ac2c74a22c7c52fb5055eb1',
+    file: 'game-role-reveal.mp3',
+  },
+  'game.team.proposal': {
+    subtitle: '请队长提出本次任务队伍。',
+    subtitleSha256:
+      '709817ac393d8f322374509f90305df6bfcf0dd8cbac850e836a1f5ae80027e0',
+    sha256: '37c604adf84ffcc9cd53b961d8590448ade69ba383b77031f8541b15b9b10514',
+    file: 'game-team-proposal.mp3',
+  },
+  'game.team.vote': {
+    subtitle: '请所有玩家秘密提交同意或否决。',
+    subtitleSha256:
+      'ff2027ad5555657183af2b98b47795ca3f61a5bae8dc82da79e4c3e088760c6f',
+    sha256: 'bfe96ba99a0a1b07ab62f4f62a0b2e3c551692bf2f0eba68765ef3254714c87d',
+    file: 'game-team-vote.mp3',
+  },
+  'game.team.approved': {
+    subtitle: '队伍已通过，准备执行任务。',
+    subtitleSha256:
+      '1a130cd276da9c88cdff72e5721cf35105903fc6941c355728dec38442db3e52',
+    sha256: '3f7eef7d19c734f11d087933adba01661700531e3ba2782de2abfab3ad1e6295',
+    file: 'game-team-approved.mp3',
+  },
+  'game.team.rejected': {
+    subtitle: '队伍未通过，队长顺位轮换。',
+    subtitleSha256:
+      '198b146724f4194354972b00b726c1fe5f4dead5e671ffc999236ba37fd06919',
+    sha256: '93548a42f027044bbaad5c5221be7706bcf7870e1233a61642d3622a4e90bbde',
+    file: 'game-team-rejected.mp3',
+  },
+  'game.quest.submission': {
+    subtitle: '请任务队员秘密提交任务行动。',
+    subtitleSha256:
+      '90a8e1d40701ca08f11c6b3a33bdbf2f2126abe5ec6d729d2a0507d9ed17b841',
+    sha256: '2a1778279e6387fb735d2f0bcd66f3bf00e1e042497b14825b3bf5385118c5ca',
+    file: 'game-quest-submission.mp3',
+  },
+  'game.quest.success': {
+    subtitle: '本次任务成功。',
+    subtitleSha256:
+      '749532eb28fdf36bfaf7e8eb1d296ccd47d7fb89c5db3c45bdeb0d5fe96cd1df',
+    sha256: '85a0fecbc1d66617228d0f94fa0fbbb90a81717bdd27f34a29b5410bfd91010d',
+    file: 'game-quest-success.mp3',
+  },
+  'game.quest.failure': {
+    subtitle: '本次任务失败。',
+    subtitleSha256:
+      '406aa2ef9108409971211f1f850fea48552ef48bfb9b1b16b9ff537c082c18ff',
+    sha256: 'c9e09f541609cdaab1cfdf4bf282c85ad8923c485b65ea609bac0e9f2b1c6812',
+    file: 'game-quest-failure.mp3',
+  },
+  'game.assassination': {
+    subtitle: '三次任务成功，请刺客选择梅林。',
+    subtitleSha256:
+      '3b697b18ecba7b73adbe3a1b235e0b190bc34d694562adccdb9c86b3e90da632',
+    sha256: '767ebd4712299ba8a4f75c3b251184a4ef0ce4e1e8b8917119b6815e041a41bd',
+    file: 'game-assassination.mp3',
+  },
+  'game.good.wins': {
+    subtitle: '善方获得最终胜利。',
+    subtitleSha256:
+      '039cbbd47e6bd7e0709b6eaa90c27c33fa03c4d369fb9cc0c085f233fe8e33a6',
+    sha256: '058cea2abef34bebd3921f955e9453d1fdcc049f3192d236ad828b9eda3f6806',
+    file: 'game-good-wins.mp3',
+  },
+  'game.evil.wins': {
+    subtitle: '邪恶方获得最终胜利。',
+    subtitleSha256:
+      '9bb47c2c27cd78568086ef7ad6d2aedd83816e990c480ffce23b1fd5cfbaf08e',
+    sha256: 'b4db7146f7f6321be5da01a6599c5e0b9dc71b7768d2326c0dbce047f858c9a8',
+    file: 'game-evil-wins.mp3',
+  },
+  'game.aborted': {
+    subtitle: '恢复时间已结束，本局已中止。',
+    subtitleSha256:
+      '8f36ffba7da0f51d0cacf6e6d525d09f0ab0ee5f9024ba5bbbc776aee737eccc',
+    sha256: '135be7a7147f8fd53205691686b6ecea5d7fce1ec623111017a02eb3cec726b1',
+    file: 'game-aborted.mp3',
+  },
 } as const;
 
 export type VoicePackKey = keyof typeof VOICE_PACK_ENTRIES;

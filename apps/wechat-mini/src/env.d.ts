@@ -4,5 +4,6 @@ declare namespace NodeJS {
     readonly TARO_APP_API_URL?: string;
     readonly TARO_APP_JOIN_HOST?: string;
     readonly TARO_APP_VERSION?: string;
+    readonly TARO_APP_BUILD_PROFILE?: 'development' | 'release';
   }
 }

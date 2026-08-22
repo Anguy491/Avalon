@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, Text, TextInput, View } from 'react-native';
 
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -9,6 +10,7 @@ import { useSession } from './session-provider';
 
 export function HostPauseControl() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const [visible, setVisible] = useState(false);
   const [reason, setReason] = useState('');
@@ -28,8 +30,8 @@ export function HostPauseControl() {
   return (
     <>
       <Pressable
-        accessibilityHint="由房主暂停当前对局，暂停原因会公开给所有玩家"
-        accessibilityLabel="暂停对局"
+        accessibilityHint={t('pauseActionHint')}
+        accessibilityLabel={t('pauseGame')}
         accessibilityRole="button"
         onPress={() => {
           setVisible(true);
@@ -51,7 +53,7 @@ export function HostPauseControl() {
           selectable
           style={{ color: color.text.inverse, fontWeight: '800' }}
         >
-          暂停
+          {t('pauseAction')}
         </Text>
       </Pressable>
       <Modal
@@ -88,17 +90,17 @@ export function HostPauseControl() {
                 fontWeight: '900',
               }}
             >
-              暂停对局
+              {t('pauseGame')}
             </Text>
             <Text selectable style={{ color: color.text.secondary }}>
-              原因可不填；填写后会公开给房间内所有玩家。
+              {t('pauseReasonDescription')}
             </Text>
             <TextInput
-              accessibilityLabel="公开暂停原因"
+              accessibilityLabel={t('pauseReasonAccessibility')}
               maxLength={80}
               multiline
               onChangeText={setReason}
-              placeholder="例如：短暂休息"
+              placeholder={t('pauseReasonPlaceholder')}
               placeholderTextColor={color.text.secondary}
               style={{
                 minHeight: 96,
@@ -114,7 +116,7 @@ export function HostPauseControl() {
             />
             <PrimaryButton
               busy={session.pendingCommandType === 'PauseGame'}
-              label="确认暂停"
+              label={t('pauseConfirm')}
               onPress={() => {
                 const normalized = reason.normalize('NFC').trim();
                 void session
@@ -130,7 +132,7 @@ export function HostPauseControl() {
               }}
             />
             <PrimaryButton
-              label="取消"
+              label={t('commonCancel')}
               onPress={() => {
                 setVisible(false);
                 setReason('');

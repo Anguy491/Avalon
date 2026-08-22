@@ -5,6 +5,7 @@ import { AppState, Pressable, Text, View } from 'react-native';
 
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -16,6 +17,7 @@ import { useGameCommands } from './use-game-commands';
 
 export function AssassinationScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const commands = useGameCommands();
   const roomView = session.roomView;
@@ -65,13 +67,13 @@ export function AssassinationScreen() {
   if (roomView === undefined || state === undefined) {
     return (
       <PageShell>
-        <Stack.Screen options={{ title: '刺杀' }} />
+        <Stack.Screen options={{ title: t('navAssassination') }} />
         <Text
           accessibilityRole="header"
           selectable
           style={{ color: color.text.primary, fontSize: typography.title }}
         >
-          正在同步刺杀阶段
+          {t('assassinationSyncing')}
         </Text>
       </PageShell>
     );
@@ -94,7 +96,7 @@ export function AssassinationScreen() {
     <PageShell>
       <Stack.Screen
         options={{
-          title: '刺杀',
+          title: t('navAssassination'),
           headerBackVisible: false,
           gestureEnabled: false,
         }}
@@ -110,13 +112,13 @@ export function AssassinationScreen() {
             fontWeight: '900',
           }}
         >
-          三项任务成功
+          {t('assassinationThreeSuccesses')}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          现在进行线下讨论。最终裁决前，任何玩家的角色都不会公开。
+          {t('assassinationDiscussion')}
         </Text>
       </View>
 
@@ -140,17 +142,17 @@ export function AssassinationScreen() {
             selectable
             style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
           >
-            等待刺杀讨论完成
+            {t('assassinationWaitingDiscussion')}
           </Text>
           <Text
             selectable
             style={{ color: '#D5D9E2', fontSize: typography.body }}
           >
-            讨论完成后由房主开放刺杀选择。开放操作不会提前揭示角色。
+            {t('assassinationWaitingDiscussionBody')}
           </Text>
           {state.canContinue ? (
             <PrimaryButton
-              label="开放刺杀选择"
+              label={t('assassinationOpenSelection')}
               busy={commands.pendingCommandType === 'ContinuePhase'}
               disabled={!interactive}
               onPress={() => void commands.continuePhase()}
@@ -172,19 +174,22 @@ export function AssassinationScreen() {
             selectable
             style={{ color: '#FFFFFF', fontSize: 20, fontWeight: '900' }}
           >
-            私密选择刺杀目标
+            {t('assassinationPrivateSelection')}
           </Text>
           <Text
             selectable
             style={{ color: '#D5D9E2', fontSize: typography.body }}
           >
-            候选由服务器授权，包含除你之外的所有玩家，不按阵营分组或过滤。
+            {t('assassinationPrivateSelectionBody')}
           </Text>
           {state.targets.map((player) => {
             const isSelected = player.playerId === targetPlayerId;
             return (
               <Pressable
-                accessibilityLabel={`${String(player.seat + 1)}号位，${player.nickname}`}
+                accessibilityLabel={t('commonSeatAccessibility', {
+                  seat: player.seat + 1,
+                  nickname: player.nickname,
+                })}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: isSelected }}
                 disabled={!interactive}
@@ -214,13 +219,17 @@ export function AssassinationScreen() {
                     fontWeight: '800',
                   }}
                 >
-                  {player.seat + 1}号位 · {player.nickname}
+                  {t('resultPlayerTitle', {
+                    seat: player.seat + 1,
+                    nickname: player.nickname,
+                    targetSuffix: '',
+                  })}
                 </Text>
               </Pressable>
             );
           })}
           <PrimaryButton
-            label="确认刺杀目标"
+            label={t('assassinationConfirmTarget')}
             disabled={!interactive || selected === undefined}
             onPress={() => {
               setConfirming(true);
@@ -246,22 +255,24 @@ export function AssassinationScreen() {
               fontWeight: '900',
             }}
           >
-            等待刺客提交
+            {t('assassinationWaiting')}
           </Text>
           <Text
             selectable
             style={{ color: color.text.secondary, fontSize: typography.body }}
           >
-            只有刺客会收到选择控件。请继续线下讨论并等待最终裁决。
+            {t('assassinationWaitingBody')}
           </Text>
         </View>
       )}
 
       <ConfirmationModal
         visible={confirming && selected !== undefined}
-        title="确认最终刺杀目标？"
-        description={`刺杀 ${selected?.nickname ?? ''}，提交后立即结束游戏。`}
-        confirmLabel="确认刺杀"
+        title={t('assassinationConfirmFinalTitle')}
+        description={t('assassinationConfirmFinalBody', {
+          nickname: selected?.nickname ?? '',
+        })}
+        confirmLabel={t('assassinationConfirmFinal')}
         busy={commands.pendingCommandType === 'SelectMerlinTarget'}
         onCancel={() => {
           if (!busy) setConfirming(false);

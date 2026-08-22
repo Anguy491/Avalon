@@ -4,6 +4,9 @@ packages:
 
 injectWorkspacePackages: true
 
+overrides:
+  '@tarojs/components@4.2.1>swiper': 12.1.2
+
 allowBuilds:
   '@parcel/watcher': true
   '@sentry/cli': true

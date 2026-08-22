@@ -8,8 +8,8 @@
     "es6": false,
     "enhance": true,
     "postcss": false,
-    "minified": false,
+    "minified": true,
     "ignoreUploadUnusedFiles": true,
-    "urlCheck": false
+    "urlCheck": true
   }
 }

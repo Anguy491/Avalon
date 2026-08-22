@@ -6,7 +6,8 @@ import { Text, View } from 'react-native';
 import { FormField } from '@/components/form-field';
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
-import { nicknameError, normalizeNickname } from '@/rooms/nickname';
+import { useI18n } from '@/localization/localization-provider';
+import { nicknameErrorCode, normalizeNickname } from '@/rooms/nickname';
 import { usePublicDraft } from '@/session/public-draft-provider';
 import { useSession } from '@/session/session-provider';
 import { spacing, typography } from '@/theme/tokens';
@@ -26,6 +27,7 @@ interface CreateValues {
 
 export function CreateRoomScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const publicDraft = usePublicDraft();
   const [configDraft, dispatchConfig] = useReducer(
@@ -65,13 +67,13 @@ export function CreateRoomScreen() {
             fontWeight: '800',
           }}
         >
-          创建房间
+          {t('createTitle')}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          选择目标人数与公开游戏配置。创建后你会占据第一个座次。
+          {t('createSubtitle')}
         </Text>
       </View>
 
@@ -84,10 +86,19 @@ export function CreateRoomScreen() {
       <Controller
         control={control}
         name="nickname"
-        rules={{ validate: (value) => nicknameError(value) ?? true }}
+        rules={{
+          validate: (value) => {
+            const code = nicknameErrorCode(value);
+            if (code === 'CONTROL_CHARACTER') {
+              return t('nicknameControlCharacter');
+            }
+            if (code === 'INVALID_LENGTH') return t('nicknameInvalidLength');
+            return true;
+          },
+        }}
         render={({ field: { onBlur, onChange, value } }) => (
           <FormField
-            label="你的昵称"
+            label={t('homeNickname')}
             value={value}
             onBlur={onBlur}
             onChangeText={onChange}
@@ -110,15 +121,13 @@ export function CreateRoomScreen() {
         </Text>
       )}
       <PrimaryButton
-        label="创建房间"
+        label={t('createTitle')}
         testID="create-room-submit"
         busy={isSubmitting}
         disabled={!configReady}
         onPress={() => void submit()}
         accessibilityHint={
-          configReady
-            ? '提交人数、游戏配置和昵称'
-            : '自定义角色数量必须与目标人数一致'
+          configReady ? t('createSubmitHint') : t('createInvalidConfigHint')
         }
       />
     </PageShell>

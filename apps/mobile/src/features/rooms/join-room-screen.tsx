@@ -5,7 +5,8 @@ import { Text, View } from 'react-native';
 import { FormField } from '@/components/form-field';
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
-import { nicknameError, normalizeNickname } from '@/rooms/nickname';
+import { useI18n } from '@/localization/localization-provider';
+import { nicknameErrorCode, normalizeNickname } from '@/rooms/nickname';
 import { normalizeRoomCode, ROOM_CODE_PATTERN } from '@/rooms/room-code';
 import { usePublicDraft } from '@/session/public-draft-provider';
 import { useSession } from '@/session/session-provider';
@@ -23,6 +24,7 @@ export function JoinRoomScreen({
   initialRoomCode?: string;
 }) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const draft = usePublicDraft();
   const {
@@ -54,7 +56,7 @@ export function JoinRoomScreen({
     if (!ROOM_CODE_PATTERN.test(normalizeRoomCode(getValues('roomCode')))) {
       setError('roomCode', {
         type: 'validate',
-        message: '请输入完整的六位房间号。',
+        message: t('joinRoomCodeError'),
       });
       return;
     }
@@ -73,13 +75,13 @@ export function JoinRoomScreen({
             fontWeight: '800',
           }}
         >
-          加入房间
+          {t('joinTitle')}
         </Text>
         <Text
           selectable
           style={{ color: color.text.secondary, fontSize: typography.body }}
         >
-          输入同桌房主展示的六位公开房间号。
+          {t('joinSubtitle')}
         </Text>
       </View>
 
@@ -89,11 +91,11 @@ export function JoinRoomScreen({
         rules={{
           validate: (value) =>
             ROOM_CODE_PATTERN.test(normalizeRoomCode(value)) ||
-            '请输入完整的六位房间号。',
+            t('joinRoomCodeError'),
         }}
         render={({ field: { onBlur, onChange, value } }) => (
           <FormField
-            label="房间号"
+            label={t('joinRoomCode')}
             testID="join-room-code"
             value={value}
             onBlur={onBlur}
@@ -118,10 +120,19 @@ export function JoinRoomScreen({
       <Controller
         control={control}
         name="nickname"
-        rules={{ validate: (value) => nicknameError(value) ?? true }}
+        rules={{
+          validate: (value) => {
+            const code = nicknameErrorCode(value);
+            if (code === 'CONTROL_CHARACTER') {
+              return t('nicknameControlCharacter');
+            }
+            if (code === 'INVALID_LENGTH') return t('nicknameInvalidLength');
+            return true;
+          },
+        }}
         render={({ field: { onBlur, onChange, value } }) => (
           <FormField
-            label="你的昵称"
+            label={t('homeNickname')}
             testID="join-nickname"
             value={value}
             onBlur={onBlur}
@@ -145,11 +156,11 @@ export function JoinRoomScreen({
         </Text>
       )}
       <PrimaryButton
-        label="加入房间"
+        label={t('joinTitle')}
         testID="join-room-submit"
         busy={isSubmitting}
         onPress={submitWithImmediateRoomCodeCheck}
-        accessibilityHint="提交房间号和昵称"
+        accessibilityHint={t('joinSubmitHint')}
       />
     </PageShell>
   );

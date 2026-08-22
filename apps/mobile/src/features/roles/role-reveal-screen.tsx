@@ -13,6 +13,14 @@ import {
 
 import { PageShell } from '@/components/page-shell';
 import { PrimaryButton } from '@/components/primary-button';
+import {
+  ALIGNMENT_KEYS,
+  KNOWLEDGE_LABEL_KEYS,
+  mappedMessageKey,
+  ROLE_ABILITY_KEYS,
+  ROLE_NAME_KEYS,
+} from '@/localization/game-messages';
+import { useI18n } from '@/localization/localization-provider';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -29,6 +37,7 @@ import { useRoleCommands } from './use-role-commands';
 
 export function RoleRevealScreen() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const commands = useRoleCommands();
   const [privacy, dispatchPrivacy] = useReducer(
@@ -91,20 +100,16 @@ export function RoleRevealScreen() {
   }, [revealed]);
 
   const confirmAcknowledge = () => {
-    Alert.alert(
-      '确认已记住身份？',
-      '提交后会立即隐藏私密内容，且本轮不能重复确认。',
-      [
-        { text: '继续查看', style: 'cancel' },
-        {
-          text: '确认已记住',
-          onPress: () => {
-            dispatchPrivacy({ type: 'conceal' });
-            void commands.acknowledgeRole();
-          },
+    Alert.alert(t('roleConfirmAlertTitle'), t('roleConfirmAlertBody'), [
+      { text: t('roleKeepViewing'), style: 'cancel' },
+      {
+        text: t('roleConfirmRemembered'),
+        onPress: () => {
+          dispatchPrivacy({ type: 'conceal' });
+          void commands.acknowledgeRole();
         },
-      ],
-    );
+      },
+    ]);
   };
 
   if (roomView === undefined || roleState === undefined) {
@@ -112,7 +117,7 @@ export function RoleRevealScreen() {
       <PageShell contentStyle={{ backgroundColor: color.surface.private }}>
         <Stack.Screen
           options={{
-            title: '私密身份',
+            title: t('rolePrivateTitle'),
             headerStyle: { backgroundColor: color.surface.private },
             headerTintColor: color.text.inverse,
           }}
@@ -121,13 +126,13 @@ export function RoleRevealScreen() {
           accessibilityRole="header"
           style={{ color: color.text.inverse, fontSize: typography.title }}
         >
-          正在安全恢复身份投影
+          {t('roleRecoveringTitle')}
         </Text>
         <Text style={{ color: '#D5D9E2', fontSize: typography.body }}>
-          恢复完成前不会显示任何缓存角色，也不会开放确认操作。
+          {t('roleRecoveringBody')}
         </Text>
         <PrimaryButton
-          label="重新同步"
+          label={t('commonResync')}
           onPress={() => void session.refreshView()}
         />
       </PageShell>
@@ -136,15 +141,15 @@ export function RoleRevealScreen() {
 
   const secretAvailable =
     roleState.roleId !== undefined &&
-    roleState.roleLabel !== undefined &&
-    roleState.alignmentLabel !== undefined;
+    roleState.alignment !== null &&
+    roleState.alignment !== undefined;
   const showSecret = revealed && secretAvailable && !roleState.hasSubmitted;
 
   return (
     <PageShell contentStyle={{ backgroundColor: color.surface.private }}>
       <Stack.Screen
         options={{
-          title: '私密身份',
+          title: t('rolePrivateTitle'),
           headerBackVisible: false,
           gestureEnabled: false,
           headerStyle: { backgroundColor: color.surface.private },
@@ -154,7 +159,10 @@ export function RoleRevealScreen() {
 
       <View
         accessible
-        accessibilityLabel={`身份确认进度 ${String(roleState.submittedCount)} / ${String(roleState.requiredCount)}`}
+        accessibilityLabel={t('roleProgressAccessibility', {
+          submitted: roleState.submittedCount,
+          required: roleState.requiredCount,
+        })}
         style={{
           gap: spacing.xs,
           padding: spacing.md,
@@ -170,7 +178,7 @@ export function RoleRevealScreen() {
             fontWeight: '800',
           }}
         >
-          身份确认进度
+          {t('roleProgressTitle')}
         </Text>
         <Text
           accessibilityLiveRegion="polite"
@@ -183,7 +191,7 @@ export function RoleRevealScreen() {
           {roleState.submittedCount} / {roleState.requiredCount}
         </Text>
         <Text style={{ color: '#D5D9E2', fontSize: typography.supporting }}>
-          只显示确认总数，不显示尚未确认的玩家。
+          {t('roleProgressPrivacy')}
         </Text>
       </View>
 
@@ -206,10 +214,10 @@ export function RoleRevealScreen() {
               fontWeight: '800',
             }}
           >
-            身份已确认
+            {t('roleConfirmedTitle')}
           </Text>
           <Text style={{ color: '#D5D9E2', fontSize: typography.body }}>
-            私密内容已隐藏。请把手机保持在中性等待画面，等待其他玩家完成确认。
+            {t('roleConfirmedBody')}
           </Text>
         </View>
       ) : (
@@ -243,7 +251,13 @@ export function RoleRevealScreen() {
                       fontWeight: '900',
                     }}
                   >
-                    {roleState.roleLabel}
+                    {t(
+                      mappedMessageKey(
+                        ROLE_NAME_KEYS,
+                        roleState.roleId,
+                        'commonUnknownRole',
+                      ),
+                    )}
                   </Text>
                   <Text
                     style={{
@@ -255,10 +269,22 @@ export function RoleRevealScreen() {
                       fontWeight: '800',
                     }}
                   >
-                    {roleState.alignmentLabel}
+                    {t(
+                      mappedMessageKey(
+                        ALIGNMENT_KEYS,
+                        roleState.alignment,
+                        'commonUnknownAlignment',
+                      ),
+                    )}
                   </Text>
                   <Text style={{ color: '#E8EBF2', fontSize: typography.body }}>
-                    {roleState.ability}
+                    {t(
+                      mappedMessageKey(
+                        ROLE_ABILITY_KEYS,
+                        roleState.roleId,
+                        'roleMissing',
+                      ),
+                    )}
                   </Text>
                 </View>
 
@@ -271,19 +297,19 @@ export function RoleRevealScreen() {
                       fontWeight: '800',
                     }}
                   >
-                    你知道的信息
+                    {t('roleKnowledgeTitle')}
                   </Text>
                   {roleState.knowledgeItems.length === 0 ? (
                     <Text
                       style={{ color: '#D5D9E2', fontSize: typography.body }}
                     >
-                      你没有额外的开局玩家信息。
+                      {t('roleNoKnowledge')}
                     </Text>
                   ) : (
                     roleState.knowledgeItems.map((item) => (
                       <View
-                        key={`${item.playerId}:${item.label}`}
-                        accessibilityLabel={`${item.label}，${item.playerName}`}
+                        key={`${item.playerId}:${item.knowledgeLabel}`}
+                        accessibilityLabel={`${t(KNOWLEDGE_LABEL_KEYS[item.knowledgeLabel])}, ${item.playerName || t('commonTablePlayer')}`}
                         style={{
                           minHeight: touchTarget.minimum,
                           gap: spacing.xs,
@@ -300,7 +326,7 @@ export function RoleRevealScreen() {
                             fontWeight: '800',
                           }}
                         >
-                          {item.playerName}
+                          {item.playerName || t('commonTablePlayer')}
                         </Text>
                         <Text
                           style={{
@@ -308,7 +334,7 @@ export function RoleRevealScreen() {
                             fontSize: typography.supporting,
                           }}
                         >
-                          {item.label}
+                          {t(KNOWLEDGE_LABEL_KEYS[item.knowledgeLabel])}
                         </Text>
                       </View>
                     ))
@@ -325,15 +351,15 @@ export function RoleRevealScreen() {
                     fontWeight: '800',
                   }}
                 >
-                  私密信息
+                  {t('rolePrivateInformation')}
                 </Text>
                 <Text style={{ color: '#D5D9E2', fontSize: typography.body }}>
-                  请遮挡屏幕并确认旁人无法看到。应用进入后台后会立即恢复此遮罩。
+                  {t('rolePrivacyInstructions')}
                 </Text>
                 {secretAvailable ? (
                   <View
-                    accessibilityLabel="按住查看身份"
-                    accessibilityHint="持续按住六百毫秒后显示，松开立即隐藏"
+                    accessibilityLabel={t('roleHoldAccessibility')}
+                    accessibilityHint={t('roleHoldHint')}
                     style={{
                       minHeight: 64,
                       alignItems: 'center',
@@ -353,7 +379,7 @@ export function RoleRevealScreen() {
                         fontWeight: '800',
                       }}
                     >
-                      按住 600 毫秒查看身份
+                      {t('roleHoldLabel')}
                     </Text>
                   </View>
                 ) : (
@@ -361,7 +387,7 @@ export function RoleRevealScreen() {
                     accessibilityLiveRegion="assertive"
                     style={{ color: '#FFB2B8', fontSize: typography.body }}
                   >
-                    当前投影缺少本人身份，请重新同步后再查看。
+                    {t('roleMissing')}
                   </Text>
                 )}
               </>
@@ -376,8 +402,8 @@ export function RoleRevealScreen() {
           ) : null}
           {secretAvailable && privacy.mode !== 'HOLD' ? (
             <PrimaryButton
-              label={showSecret ? '隐藏身份' : '使用点按揭示'}
-              accessibilityHint="为屏幕阅读器和无法持续按住的用户提供等价操作"
+              label={showSecret ? t('roleHide') : t('roleTapReveal')}
+              accessibilityHint={t('roleTapRevealHint')}
               onPress={() => {
                 dispatchPrivacy({ type: 'toggle-reveal' });
               }}
@@ -390,20 +416,20 @@ export function RoleRevealScreen() {
       !roleState.hasSubmitted &&
       roleState.canAcknowledge ? (
         <PrimaryButton
-          label="我已记住身份"
+          label={t('roleRemember')}
           busy={commands.pendingCommandType === 'AckRole'}
           disabled={!interactive}
-          accessibilityHint="确认后立即隐藏身份且不能重复提交"
+          accessibilityHint={t('roleRememberHint')}
           onPress={confirmAcknowledge}
         />
       ) : null}
 
       {roleState.canContinue ? (
         <PrimaryButton
-          label="开始全员身份确认"
+          label={t('roleStartConfirmation')}
           busy={commands.pendingCommandType === 'ContinuePhase'}
           disabled={!interactive}
-          accessibilityHint="房主开放所有玩家的身份确认按钮"
+          accessibilityHint={t('roleStartConfirmationHint')}
           onPress={() => void commands.continuePhase()}
         />
       ) : null}
@@ -415,7 +441,7 @@ export function RoleRevealScreen() {
           accessibilityLiveRegion="polite"
           style={{ color: '#D5D9E2', fontSize: typography.body }}
         >
-          等待房主开始身份确认。你仍可先私密查看并记住自己的身份。
+          {t('roleWaitingHost')}
         </Text>
       ) : null}
 
@@ -436,7 +462,7 @@ export function RoleRevealScreen() {
             {session.error}
           </Text>
           <PrimaryButton
-            label="重新同步"
+            label={t('commonResync')}
             disabled={busy}
             onPress={() => void session.refreshView()}
           />
@@ -444,7 +470,7 @@ export function RoleRevealScreen() {
       )}
 
       <Text style={{ color: '#9FA7B6', fontSize: typography.supporting }}>
-        身份内容不会提供复制、分享或导出入口。系统无法阻止主动拍摄屏幕，请注意同桌环境。
+        {t('rolePrivacyFooter')}
       </Text>
     </PageShell>
   );

@@ -34,6 +34,22 @@ const validateSessionBootstrap = requireSchema(
   ajv,
   `${HttpSchemaDocument.$id}#/$defs/SessionBootstrap`,
 );
+const validateWechatLogin = requireSchema(
+  ajv,
+  `${HttpSchemaDocument.$id}#/$defs/WechatLoginRequest`,
+);
+const validateWechatIdentityBootstrap = requireSchema(
+  ajv,
+  `${HttpSchemaDocument.$id}#/$defs/WechatIdentityBootstrap`,
+);
+const validateRoomConfigValidationRequest = requireSchema(
+  ajv,
+  `${HttpSchemaDocument.$id}#/$defs/RoomConfigValidationRequest`,
+);
+const validateRoomConfigValidationResponse = requireSchema(
+  ajv,
+  `${HttpSchemaDocument.$id}#/$defs/RoomConfigValidationResponse`,
+);
 const validateError = requireSchema(ajv, ErrorSchemaDocument.$id);
 const validateRoomConfig = requireSchema(ajv, RoomConfigSchemaDocument.$id);
 const validateRealtimeAuth = requireSchema(
@@ -65,6 +81,7 @@ const presetConfig = {
 } as const;
 
 const testSessionToken = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg';
+const testWechatIdentityToken = 'abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG';
 
 describe('TEST-contract / M0-005 command schemas', () => {
   it.each(commandFixtures)('accepts a valid $type command', (command) => {
@@ -569,6 +586,72 @@ describe('TEST-contract / HTTP and configuration schemas', () => {
       }),
     ).toBe(true);
   });
+
+  it('accepts bounded WeChat login and draft role validation payloads', () => {
+    expect(validateWechatLogin({ loginCode: 'single-use-code' })).toBe(true);
+    expect(
+      validateWechatIdentityBootstrap({
+        protocolVersion: 2,
+        wechatIdentityToken: testWechatIdentityToken,
+        expiresAt: '2026-08-20T12:05:00.000Z',
+      }),
+      JSON.stringify(validateWechatIdentityBootstrap.errors),
+    ).toBe(true);
+    expect(
+      validateRoomConfigValidationRequest({ playerCount: 5, roleIds: [] }),
+    ).toBe(true);
+    expect(
+      validateRoomConfigValidationRequest({
+        playerCount: 10,
+        roleIds: [
+          'MERLIN',
+          'PERCIVAL',
+          'LOYAL_SERVANT',
+          'LOYAL_SERVANT',
+          'LOYAL_SERVANT',
+          'LOYAL_SERVANT',
+          'ASSASSIN',
+          'MORGANA',
+          'MORDRED',
+          'OBERON',
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      validateRoomConfigValidationResponse({
+        protocolVersion: 2,
+        valid: false,
+        errors: [
+          { code: 'ROLE_COUNT_MISMATCH' },
+          { code: 'MERLIN_REQUIRED_ONCE', roleId: 'MERLIN' },
+        ],
+      }),
+      JSON.stringify(validateRoomConfigValidationResponse.errors),
+    ).toBe(true);
+  });
+
+  it('rejects unknown auth fields and role validation boundaries', () => {
+    expect(
+      validateWechatLogin({ loginCode: 'code', sessionKey: 'forbidden' }),
+    ).toBe(false);
+    expect(validateWechatLogin({ loginCode: '' })).toBe(false);
+    expect(
+      validateRoomConfigValidationRequest({ playerCount: 4, roleIds: [] }),
+    ).toBe(false);
+    expect(
+      validateRoomConfigValidationRequest({
+        playerCount: 5,
+        roleIds: Array.from({ length: 11 }, () => 'LOYAL_SERVANT'),
+      }),
+    ).toBe(false);
+    expect(
+      validateRoomConfigValidationResponse({
+        protocolVersion: 2,
+        valid: false,
+        errors: [{ code: 'CLIENT_SIDE_RULE' }],
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('TEST-contract / stable error and realtime messages', () => {
@@ -588,6 +671,7 @@ describe('TEST-contract / stable error and realtime messages', () => {
       validateRealtimeAuth({
         protocolVersion: 2,
         sessionToken: testSessionToken,
+        wechatIdentityToken: testWechatIdentityToken,
         lastStateVersion: 3,
       }),
       JSON.stringify(validateRealtimeAuth.errors),
@@ -665,6 +749,31 @@ describe('TEST-contract / token schema placement', () => {
     expect(occurrences).toEqual([
       'http.$defs.SessionBootstrap.properties.sessionToken',
       'transport.$defs.RealtimeAuth.properties.sessionToken',
+    ]);
+  });
+
+  it('places wechatIdentityToken only in its bootstrap and realtime auth', () => {
+    const occurrences: string[] = [];
+    const walk = (value: unknown, path: string): void => {
+      if (Array.isArray(value)) {
+        value.forEach((item, index) => {
+          walk(item, `${path}[${String(index)}]`);
+        });
+        return;
+      }
+      if (typeof value !== 'object' || value === null) return;
+      for (const [key, nested] of Object.entries(value)) {
+        const nextPath = `${path}.${key}`;
+        if (key === 'wechatIdentityToken') occurrences.push(nextPath);
+        walk(nested, nextPath);
+      }
+    };
+
+    walk(HttpSchemaDocument, 'http');
+    walk(TransportSchemaDocument, 'transport');
+    expect(occurrences).toEqual([
+      'http.$defs.WechatIdentityBootstrap.properties.wechatIdentityToken',
+      'transport.$defs.RealtimeAuth.properties.wechatIdentityToken',
     ]);
   });
 });

@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 
 import { PrimaryButton } from '@/components/primary-button';
+import { useI18n } from '@/localization/localization-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
 
@@ -25,6 +26,7 @@ export function RoleGuideControl({
   readonly resetKey: string;
 }) {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
   const guide = roleGuideFor(roleId);
 
@@ -46,8 +48,8 @@ export function RoleGuideControl({
   return (
     <>
       <Pressable
-        accessibilityHint="打开仅与本人当前角色对应的私密玩法建议"
-        accessibilityLabel="查看角色攻略"
+        accessibilityHint={t('guideButtonHint')}
+        accessibilityLabel={t('guideButtonAccessibility')}
         accessibilityRole="button"
         onPress={() => {
           setVisible(true);
@@ -74,7 +76,7 @@ export function RoleGuideControl({
             fontWeight: '800',
           }}
         >
-          角色攻略
+          {t('guideButton')}
         </Text>
       </Pressable>
 
@@ -116,19 +118,19 @@ export function RoleGuideControl({
                   fontWeight: '900',
                 }}
               >
-                {guide.title}
+                {t(guide.title)}
               </Text>
               <Text
                 selectable
                 style={{ color: '#D5D9E2', fontSize: typography.body }}
               >
-                {guide.summary}
+                {t(guide.summary)}
               </Text>
               <Text
                 selectable
                 style={{ color: '#D5D9E2', fontSize: typography.supporting }}
               >
-                私密内容，请确认旁人无法看到屏幕。
+                {t('guidePrivacy')}
               </Text>
             </View>
 
@@ -157,14 +159,14 @@ export function RoleGuideControl({
                       fontSize: typography.body,
                     }}
                   >
-                    {tip}
+                    {t(tip)}
                   </Text>
                 </View>
               ))}
             </View>
 
             <PrimaryButton
-              label="关闭角色攻略"
+              label={t('guideClose')}
               onPress={() => {
                 setVisible(false);
               }}

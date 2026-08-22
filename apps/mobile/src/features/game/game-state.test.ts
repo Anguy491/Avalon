@@ -78,9 +78,8 @@ describe('M4 game table projection adapter', () => {
   it('derives host gating and public task context without local adjudication', () => {
     const state = deriveGameTableState(roomView());
     expect(state).toMatchObject({
-      phaseTitle: '队长组队',
       canContinue: true,
-      continueLabel: '开放队长组队',
+      continueAction: 'OPEN_TEAM_PROPOSAL',
       requiredTeamSize: 2,
       requiredQuestFails: 1,
       proposalAttempt: 1,
@@ -118,7 +117,7 @@ describe('M4 game table projection adapter', () => {
       rejectCount: 2,
       approved: true,
     });
-    expect(state.continueLabel).toBe('继续到任务行动');
+    expect(state.continueAction).toBe('CONTINUE_TO_QUEST');
   });
 
   it('exposes only vote options supplied by availableActions', () => {

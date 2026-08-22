@@ -1,22 +1,22 @@
 # Avalon MVP 安全威胁模型
 
-> 状态：P0 设计阶段威胁模型
+> 状态：实现与微信公开发布候选复核
 >
-> 日期：2026-08-13
+> 日期：2026-08-20
 >
-> 适用版本：邀请制测试 MVP / `CLASSIC_AVALON_V1`
+> 适用版本：原生邀请制 MVP 与微信公开发布候选 / `CLASSIC_AVALON_V1`
 >
-> 重要限制：仓库目前只有规范、ADR 和 bootstrap Schema，没有实现代码。本文中的“已规定控制”尚未经过代码或部署验证，不等于已实施控制。
+> 重要限制：仓库内控制已由单元、契约、集成、安全、构建和本地负载证据复核；生产微信上游、合法域名、秘密存储、真实入口和真机证据尚未验证，不得把本文件视为已部署或已发布证明。
 
 ## Executive summary
 
-最高风险集中在三处：无账号 SessionToken 被盗或跨房间授权错误会让攻击者冒充玩家；个性化投影、错误或遥测过滤失误会泄漏角色与任务秘密；重复/并发命令和不可靠实时传输会破坏权威裁决。MVP 虽通过邀请分发，但 API/Socket.IO 是互联网公开、多租户边界，获得安装包或协议知识的用户应视为完全不可信。终局数据不提供历史查询，服务端必须在结果投递后主动清除，而不是沿用原先 24 小时保留假设。
+最高风险集中在三处：SessionToken/微信身份绑定被旁路或跨房间授权错误会让攻击者冒充玩家；个性化投影、错误或遥测过滤失误会泄漏角色与任务秘密；重复/并发命令和不可靠实时传输会破坏权威裁决。无论原生邀请分发还是微信公开候选，API/Socket.IO 都是互联网公开、多租户边界，获得客户端或协议知识的用户应视为完全不可信。终局数据不提供历史查询，服务端必须在结果投递后主动清除。
 
 ## Scope and assumptions
 
 ### 范围
 
-当前审查范围是设计与协议：
+当前审查范围包括设计、协议与实现：
 
 - `AGENTS.md`；
 - `docs/game-rules.zh-CN.md`；
@@ -25,12 +25,11 @@
 - `docs/architecture/`；
 - `docs/api-contract.zh-CN.md` 与 `docs/contracts/`；
 - `docs/ux-spec.zh-CN.md`、`docs/test-strategy.zh-CN.md`、`docs/roadmap.zh-CN.md`。
-
-实现后范围扩展到 `apps/mobile`、`apps/server`、`packages/game-engine`、`packages/protocol`、基础设施配置、CI/EAS 和第三方 SDK。
+- `apps/mobile`、`apps/wechat-mini`、`apps/server`、`packages/game-engine`、`packages/protocol`、数据库迁移、CI/EAS 和依赖配置。
 
 ### 已由所有者确认
 
-- MVP 通过邀请制测试分发，未来才考虑 App Store/Google Play 公开发布；
+- iOS/Android MVP 仍按邀请制测试分发；微信小程序正在准备公开发布候选，但上传、提审和发布尚未授权；
 - 后端仍是互联网公开、多租户服务，承载彼此无关的房间；
 - 首个部署区域为澳大利亚；
 - MVP 没有运营后台，人工客服不能访问房间数据；
@@ -40,13 +39,12 @@
 ### 明确不在本次范围
 
 - 远程聊天、麦克风录音、UGC、好友/匹配、支付、广告和账号恢复；
-- 商店公开发布后的大规模反滥用和未成年人合规；
+- 微信公众平台最终合规声明、未成年人要求、客服/事件响应和大规模 DDoS 采购；这些是公开发布授权前的外部门槛，不由当前代码变更自动满足；
 - 云供应商内部人员、国家级攻击者和已完全控制生产 KMS/数据库管理员的攻击；
 - 玩家在线下口头泄密、主动把自己的手机交给他人或拍摄他人屏幕；这些是产品提示与现场行为风险，不视为服务器漏洞。
 
-### 尚待 M0/M7 落定的问题
+### 尚待发布环境落定的问题
 
-- 邀请分发采用 TestFlight、Play Internal/Closed testing 还是企业/临时分发；
 - 具体云供应商、澳大利亚区域、WAF/限流与 KMS 能力；
 - 云入口/供应商日志、数据库复制/WAL 的物理残留上限；应用限流键已规定为 HMAC 摘要且 TTL 不超过 10 分钟；
 - Preview/生产签名、CI OIDC 和 secrets 管理方案。
@@ -60,7 +58,7 @@
 | 组件 | 安全职责 | 证据锚点 |
 | --- | --- | --- |
 | Expo 移动端 | 安全保存 token、只渲染本人投影、私密页遮罩、固定音频 | `docs/architecture/README.md` 第 3 节；`docs/ux-spec.zh-CN.md` 第 4/8 节 |
-| 微信小程序 | 沙箱保存短生命周期 token、只在内存渲染本人投影、前后台遮罩、固定音频 | `ADR-011`；`docs/wechat-mini-development.zh-CN.md` |
+| 微信小程序 | 沙箱保存 SessionToken、内存保存微信身份令牌、只渲染本人投影、私密全屏层与前后台遮罩、固定音频 | `ADR-011`、`ADR-012`；`docs/wechat-mini-development.zh-CN.md` |
 | Fastify/Socket.IO 入口 | TLS 后的认证、Schema、大小/速率限制、命令确认 | `docs/architecture/ADR-002-server-runtime-hosting.md`；`docs/api-contract.zh-CN.md` 第 2–4 节 |
 | 应用服务/投影器 | 操作者授权、幂等事务、逐玩家投影、错误过滤 | `docs/server-state-machine.zh-CN.md` 第 4/6/8 节；`docs/architecture/README.md` 第 3/5 节 |
 | 纯游戏引擎 | 权限后的领域验证、确定性裁决、不变量 | `AGENTS.md` 第 2/5 节；`docs/server-state-machine.zh-CN.md` |
@@ -73,6 +71,7 @@
 
 - **未认证互联网 → HTTP API**：昵称、房间号、配置、客户端能力和 Idempotency-Key 经 HTTPS；必须执行大小限制、Schema、Unicode 规范化、房间号模糊错误和组合限流。证据：`docs/api-contract.zh-CN.md` 第 2–3 节。
 - **持有 token 的移动端 → HTTP/Socket.IO**：Bearer/handshake token、命令和版本跨互联网；TLS、token 摘要/轮换、逐命令授权、`commandId`、`expectedStateVersion` 和 Schema 提供控制。证据：协议第 2.4/4 节，状态机第 4 节。
+- **微信运行时 → 微信 code2Session → HTTP API**：一次性 login code 仅由服务端换取 OpenID；原始 OpenID 和 `session_key` 不落库、不下发。微信会话以 5 分钟身份令牌与 SessionToken 双因子认证。证据：`ADR-012`、协议第 3.2 节。
 - **Gateway → 应用服务/游戏引擎**：已解析但仍不可信的操作者意图进入权限与领域边界；不能信任客户端提供的 roomId、角色或 availableActions。证据：`AGENTS.md` 第 2/5 节。
 - **应用服务 → PostgreSQL**：活跃角色、私密知识、命令/结果和 token 摘要进入持久化边界；短事务、房间行锁、Outbox、最小字段和终局清除是关键保证。证据：`ADR-003`。
 - **应用服务/Outbox → Redis → Gateway**：投影发布和连接状态跨实例；Redis 不可成为唯一真相，重复消息由版本/事件 ID 去重。证据：`ADR-003`、`ADR-004`。
@@ -147,7 +146,8 @@ flowchart LR
 | 昵称/暂停原因 | HTTP/命令输入 | 用户文本→UI/日志 | Unicode 欺骗、注入、日志污染 | 协议 2.3；`FR-001`、`SM-014` |
 | 二维码/Universal Link | 相机/OS 深链 | 外部内容→移动路由 | 任意 URL、钓鱼、非法房间号 | `docs/ux-spec.zh-CN.md` 4.2；`NFR-013` |
 | SecureStore/任务切换器 | 本地设备 | OS/其他应用→移动秘密 | token/角色本地泄漏、截图 | UX 4.5/8；`NFR-010`、`NFR-022` |
-| 微信沙箱存储/后台预览 | 微信运行时/本地设备 | 宿主与备份→小程序秘密 | token 缺少 Keychain/Keystore 等价保护，私密视图可能留在预览 | `ADR-011`；`NFR-010`、`NFR-022` |
+| 微信沙箱存储/后台预览 | 微信运行时/本地设备 | 宿主与备份→小程序秘密 | SessionToken 缺少 Keychain/Keystore 等价保护，私密视图可能留在预览 | `ADR-011`、`ADR-012`；`NFR-010`、`NFR-022` |
+| `POST /v2/auth/wechat` | 未认证 HTTPS + 微信上游 | 互联网/微信→身份服务 | code 重放、上游故障、令牌或 OpenID 泄漏、身份桶滥用 | `ADR-012`；协议 3.2；`AC-019` |
 | 日志/指标/崩溃 SDK | 运行时异常 | 运行时→第三方 | 自动上下文采集秘密 | `NFR-014`、`NFR-023` |
 | 依赖、CI 与 EAS | Git/包注册表/CI | 开发供应链→构建 | 恶意依赖、密钥和产物篡改 | Roadmap M0/M8；`ADR-005` |
 
@@ -168,8 +168,8 @@ flowchart LR
 
 | Threat ID | Threat source | Prerequisites | Threat action | Impact | Impacted assets | Existing controls (evidence) | Gaps | Recommended mitigations | Detection ideas | Likelihood | Impact severity | Priority |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `TM-001` | 合法玩家/协议攻击者 | 持有任一有效 token；服务端授权或投影缓存键错误 | 改 roomId/playerId、复用 socket/序列化结果，读取或收到其他玩家投影 | 跨玩家/跨房间角色秘密泄漏，可操纵动作 | 角色、私密知识、任务行动、聚合 | 已规定身份从 token 得出、逐连接投影、客户端不得传 actor（状态机 4.1/6；`AGENTS.md` 2/5） | 尚无实现、投影允许列表或多租户代理测试 | 应用服务 API 只接收 `SessionContext`；禁止 handler 接受 actorPlayerId；投影不共享含私密字段的缓存；每次发送断言 recipient；8 角色×阶段×两房差分测试 | 记录无载荷的 authZ mismatch、recipient assertion、跨房 roomId 计数并告警 | 中：典型对象级授权/缓存风险，但架构已明确边界 | 高：一次泄漏即可毁掉多房公平，若跨租户则范围扩大 | high |
-| `TM-002` | 本地恶意应用、日志读者、网络/CI 攻击者 | token 被写入非安全存储、URL、日志或第三方 SDK；或恢复轮换不原子 | 盗用/重放 token，先于原设备轮换并冒充玩家 | 读取本人秘密、提交不可逆动作、阻断原玩家 | SessionToken、角色、游戏完整性 | 已规定 128 位熵、SecureStore、摘要存储、TLS、恢复轮换（协议 2.4；`NFR-010/012`） | 无 token family 实现、设备清理/日志 SDK 配置和并发恢复测试 | 256-bit opaque token；服务器只存带 pepper 摘要；单事务轮换与旧 token 撤销；日志 header/body redaction；移动端禁止 AsyncStorage/URL；异常轮换二次限制 | token family 并发轮换、旧 token 重放、会话设备变化只记类别不记 token/IP 原值 | 中：猜测不现实，但 SDK/日志误收集常见 | 高：等同玩家账户且不可人工恢复 | high |
+| `TM-001` | 合法玩家/协议攻击者 | 持有任一有效 token；服务端授权或投影缓存键错误 | 改 roomId/playerId、复用 socket/序列化结果，读取或收到其他玩家投影 | 跨玩家/跨房间角色秘密泄漏，可操纵动作 | 角色、私密知识、任务行动、聚合 | 已实现身份从 SessionContext 得出、逐连接投影、命令 roomId 再授权、8 角色/两房差分与本地多房秘密扫描（状态机 4.1/6；`AGENTS.md` 2/5） | 真实多实例入口、代理头和生产缓存/遥测配置仍待部署验证 | 保持应用服务只接收 `SessionContext`；禁止 handler 接收 actorPlayerId；投影不共享含私密字段缓存；发送前断言 recipient | 记录无载荷的 authZ mismatch、recipient assertion、跨房 roomId 计数并告警 | 中：典型对象级授权/缓存风险，但自动证据已覆盖主要边界 | 高：一次泄漏即可毁掉多房公平，若跨租户则范围扩大 | high |
+| `TM-002` | 本地恶意应用、日志读者、网络/CI 攻击者 | SessionToken 被复制，或凭证进入 URL、日志、第三方 SDK；恢复轮换/微信身份校验可被旁路 | 盗用或重放 token，在错误微信账号上恢复、读取投影或提交动作 | 读取本人秘密、提交不可逆动作、阻断原玩家 | SessionToken、微信主体摘要、角色、游戏完整性 | 已实现 256 位 SessionToken 摘要/轮换；微信端以 `wx.login` 取得 5 分钟内存身份令牌，创建/加入/恢复/读取/握手同时校验，一账号同房单座位；OpenID 只保留 HMAC 摘要，日志 redaction 覆盖所有身份字段（`ADR-012`；`NFR-010`） | 微信沙箱仍可暴露 SessionToken；无法阻止已解锁原微信账号内的本地攻击；生产上游、秘密存储与真机错账号证据待发布环境验证 | 公开环境强制 `required`；AppSecret/pepper 只入秘密存储；无 Token 找回；身份过期以同一幂等键只重试一次；原子轮换与旧 Socket 撤销 | code2Session 错误类别、身份冲突和 auth mismatch 只记无秘密计数；测试数据库、Redis、响应及日志不存在 OpenID/`session_key`/AppSecret | 中：复制 token 现实，但还需绑定微信身份；宿主账号被控仍不可完全缓解 | 高：等同一个玩家会话且可影响不可逆动作 | high |
 | `TM-003` | 合法/恶意玩家 | 可建立多个连接并控制重试/顺序；事务边界或去重实现不完整 | 重放、改载荷复用 ID、并发最后提交或伪造房主/队长/刺客动作 | 重复结算、比分/胜负错误、越权主持 | 聚合、processed commands、outcome、可用性 | 已规定 `commandId`、请求摘要、版本、房间行锁、同事务自动裁决（状态机 4.2；`ADR-003`） | 尚无 DB 约束、故障点测试和系统命令竞态验证 | `processed_commands(room_id, command_id)` 唯一约束；锁后再验版本；响应/Outbox 同事务；所有系统命令使用相同执行管线；有限死锁重试 | duplicate conflict、stale spike、每版本多 outcome/outbox 不变量、锁等待告警 | 中：攻击者可轻易制造，成功依赖实现缺陷 | 高：权威裁决是核心资产 | high |
 | `TM-004` | 框架默认行为、开发者、第三方 SDK | 请求/状态/异常对象被通用记录或上传 | 通过错误路径把 token、角色、未公开票或任务行动写入日志/崩溃/分析 | 秘密形成跨房、长生命周期副本 | 游戏秘密、token、昵称、隐私承诺 | 已规定字段允许列表和禁止项（`NFR-014/023`；`AGENTS.md` 5；测试策略 5/10） | 尚未选 SDK/日志管线；框架默认序列化可能绕过 | 禁止请求体/Authorization 自动日志；结构化允许列表 logger；生产 sourcemap 与附件访问控制；CI/Preview canary secret 扫描；第三方 SDK privacy review | canary 值扫描、日志 schema 拒绝计数、SDK 出站代理测试 | 中：错误处理和 SDK 默认采集常见 | 高：可绕过所有游戏投影控制并延长保留 | high |
 | `TM-005` | 自动化外部用户/邀请泄漏者 | 后端互联网公开且无账号；能分散 IP/安装 ID | 枚举房间号、区分错误/时序、占据大厅或反复创建房间 | 骚扰受邀测试者、阻塞开始、消耗容量 | 房间加入能力、可用性、昵称 | 30-bit 房间号、通用错误、IP+安装标识限流、开局后不可加入（`NFR-013`；协议 3.1） | 30-bit 不是访问凭证；邀请分发不可阻止直接协议调用；分布式绕限流 | 邀请测试期增加可轮换的 app-level beta access token/attestation 作为外层门；创建/加入分层速率和并发房间配额；统一不存在/不可加入响应；房主大厅移除 | 房间号失败分布、创建/加入漏斗、同网段/安装族异常，不记录长期原始 IP | 中：邀请限制流量，但分享/逆向容易 | 中：主要影响单房/测试服务，不泄漏已发牌秘密 | medium |
@@ -177,7 +177,7 @@ flowchart LR
 | `TM-007` | 恶意玩家/二维码制作者 | 能提供昵称、暂停原因或 QR | Unicode 欺骗、控制字符、恶意深链、超大/畸形 Schema | 误认玩家、外部钓鱼、客户端崩溃、日志污染 | UI 完整性、可用性、可观测性 | 已规定 NFC/控制字符拒绝、受控 host/path、严格 Schema/未知字段拒绝（协议 2.3；UX 4.2；`ADR-007`） | grapheme/双向字符实现和所有渲染上下文未验证 | 使用成熟 Unicode grapheme 库；拒绝 bidi controls；React Native 文本不解释 markup；deep link allowlist；扫码不自动打开；Schema fuzz/大小限制 | validation code 分布、非法 deep link 计数、客户端 crash 版本关联 | 中：输入完全可控 | 中：通常单设备/单房影响，链到注入才扩大 | medium |
 | `TM-008` | 恶意依赖维护者、CI/EAS 凭证窃贼 | 依赖/Action 未固定或长期凭证泄漏 | 篡改构建、注入 token/角色外传代码、替换音频 | 所有受邀设备和活跃房间被接管 | 签名、构建、token、角色、服务凭证 | 已规定锁文件、EAS profiles、人工生产门槛、secret scan（`AGENTS.md` 3/8；Roadmap M0/M8） | 尚无 CI、OIDC、provenance、review/签名策略 | 固定依赖和 GitHub Actions commit SHA；最小权限 OIDC 短凭证；环境保护；依赖审查；可复现构建/产物哈希；签名密钥不进 repo/普通 CI | 依赖 diff、构建 provenance、异常 EAS 登录/签名、产物网络目的地审查 | 低：需要供应链或凭证突破 | 高：影响所有测试者并可盗取秘密 | medium |
 | `TM-009` | 配置错误、DB/日志/备份读者 | GAME_OVER 后清理失败，或副本/Outbox/备份仍保存 | 查询/恢复已结束对局、昵称、角色或任务公开历史 | 违反无历史决定，扩大未来基础设施泄漏范围 | 昵称、角色、聚合、隐私承诺 | 已实现在线会话冻结、终局投影前收据、全部 ACK 立即级联删除、60 秒兜底删除、无终局恢复/查询接口和客户端安全存储清理（`ADR-003`；`NFR-016`） | 应用层已覆盖并有并发/受控时钟测试；WAL、复制、长期备份和供应商日志的物理残余上限仍须在邀请测试前由目标基础设施验证 | 暂态表排除长期备份；部署前明确复制/WAL/供应商日志残余上限；增加删除合成 canary 与告警 | terminal-to-delete 延迟 SLI、过期行数、删除失败告警、备份内容抽检 | 中：多存储副本和失败任务容易造成残余 | 中：假名和游戏秘密，不含账号/支付，但明确违反承诺 | medium |
-| `TM-010` | 同桌旁观者、录屏/系统预览 | 玩家在私密操作时被观察；UI 行为因选择不同 | 通过屏幕、预览、动画、触觉或停留时间推断身份/选择 | 单局秘密泄漏和现场争议 | 角色、任务行动、投票 | 已规定隐私门、后台遮罩、提交后中性态、等价动画/触觉（UX 4.5/4.9/8） | 平台截图能力不同，无法阻止主动分享；尚无真机侧信道检查 | Android 私密页截图保护作为纵深；iOS 录屏检测/遮罩；成功/失败等时反馈；默认低亮私密布局；明确现场提示；读屏仅显式揭示 | 不采集秘密选择遥测；以真机人工/录屏审查验证，不记录玩家行为 | 高：线下同桌天然可观察 | 中：影响当前一局，不能远程扩大 | medium |
+| `TM-010` | 同桌旁观者、录屏/系统预览 | 玩家在揭示身份、投票、任务、终止投票或攻略时被观察；UI 行为因选择不同 | 通过屏幕、后台预览、动画、触觉或停留时间推断身份/选择 | 单局秘密泄漏和现场争议 | 角色、私密知识、任务行动、投票 | 微信端已实现中性入口、全屏私密层、600ms 按住揭示/读屏点按模式、二次确认、提交后中性等待；后台、暂停、阶段/投影版本变化立即关闭并清空选择；暂停层覆盖全部动作 | 平台截图能力不同，无法阻止主动分享；微信、iOS、Android 真机侧信道和读屏仍需人工证据 | 保持成功/失败等时反馈、默认低亮私密布局与明确现场提示；系统中断先遮罩再断连；任何失败不恢复旧选择 | 不采集秘密选择遥测；以真机任务切换器、录屏、最大字体和读屏审查验证，不记录玩家行为 | 高：线下同桌天然可观察 | 中：影响当前一局，不能远程扩大 | medium |
 
 ## Criticality calibration
 
@@ -206,19 +206,19 @@ flowchart LR
 | `docs/api-contract.zh-CN.md` | 认证、错误、幂等、实时恢复和限流的规范源 | `TM-001`–`TM-007` |
 | `docs/contracts/` | 必须阻止未知/秘密字段跨边界 | `TM-001`、`TM-004`、`TM-007` |
 | `docs/architecture/ADR-003-room-persistence-concurrency.md` | 事务、去重、Outbox 与删除生命周期 | `TM-003`、`TM-006`、`TM-009` |
-| `apps/server/src/auth/` | token 摘要、轮换、撤销和 SessionContext（计划路径） | `TM-001`、`TM-002` |
-| `apps/server/src/realtime/` | Socket 鉴权、重连、速率和逐连接发送（计划路径） | `TM-001`、`TM-003`、`TM-006` |
-| `apps/server/src/projections/` | 最敏感的角色/玩家隔离点（计划路径） | `TM-001`、`TM-004` |
+| `apps/server/src/auth/`、`apps/server/src/wechat-auth.ts` | token 摘要、轮换、撤销、微信 code2Session 与 SessionContext | `TM-001`、`TM-002` |
+| `apps/server/src/realtime/` | Socket 鉴权、重连、速率和逐连接发送 | `TM-001`、`TM-003`、`TM-006` |
+| `apps/server/src/projections/` | 最敏感的角色/玩家隔离点 | `TM-001`、`TM-004` |
 | `apps/server/src/outbox-worker.ts`、`apps/server/src/session-presence.ts` | 行锁、终局在线会话冻结、收据、ACK/超时清除 | `TM-003`、`TM-009` |
-| `apps/server/src/observability/` | 日志/指标字段允许列表和 SDK redaction（计划路径） | `TM-002`、`TM-004` |
-| `packages/game-engine/` | 权限后的确定性裁决和善方动作限制（计划路径） | `TM-003` |
-| `packages/protocol/` | 运行时 Schema 和生成投影契约（计划路径） | `TM-001`、`TM-004`、`TM-007` |
+| `apps/server/src/observability/` | 日志/指标字段允许列表和 SDK redaction | `TM-002`、`TM-004` |
+| `packages/game-engine/` | 权限后的确定性裁决和善方动作限制 | `TM-003` |
+| `packages/protocol/` | 运行时 Schema 和生成投影契约 | `TM-001`、`TM-004`、`TM-007` |
 | `apps/mobile/src/session/` | SecureStore、token 清理、终局内存保留和恢复 | `TM-002`、`TM-009` |
-| `apps/wechat-mini/src/session/` | 微信沙箱 token、轮换、终局清理和前后台遮罩 | `TM-002`、`TM-009`、`TM-010` |
+| `apps/wechat-mini/src/session/`、`apps/wechat-mini/src/api/client.ts` | 微信沙箱 SessionToken、内存身份令牌、轮换、终局清理和前后台遮罩 | `TM-002`、`TM-009`、`TM-010` |
 | `apps/wechat-mini/src/realtime/` | `SocketTask` transport 必须保持握手鉴权、ACK 与重连语义 | `TM-001`、`TM-003`、`TM-006` |
-| `apps/mobile/src/features/private/` | 身份/任务/刺杀遮罩和侧信道（计划路径） | `TM-010` |
-| `apps/mobile/app.config.*` | deep link、平台权限、截图/录屏和 EAS 配置（计划路径） | `TM-007`、`TM-008`、`TM-010` |
-| `.github/workflows/`、`eas.json` | 供应链权限、签名和发布环境（计划路径） | `TM-008` |
+| `apps/mobile/src/features/private/` | 身份/任务/刺杀遮罩和侧信道 | `TM-010` |
+| `apps/mobile/app.config.*` | deep link、平台权限、截图/录屏和 EAS 配置 | `TM-007`、`TM-008`、`TM-010` |
+| `.github/workflows/`、`eas.json` | 供应链权限、签名和发布环境 | `TM-008` |
 
 ## Mitigation milestones
 
@@ -238,6 +238,12 @@ flowchart LR
 - `TM-008`：基础镜像固定 tag+digest，CI 生成 OCI SBOM/provenance；EAS/云端凭证仍是人工门槛。
 - `TM-009`：终局用同 eventId 每 2 秒重投至全部 ACK 或 60 秒清除；ACK 未命中不再取得房间锁。
 - `TM-010`：根 AppState 中性遮罩覆盖所有路由；真机任务切换器与录屏证据仍待 iOS/Android 执行。
+
+## 微信公开候选复核（2026-08-20）
+
+- `TM-002`：`wx.login + SessionToken` 双因子已覆盖 REST 与 Socket.IO；身份 token 仅内存 5 分钟，OpenID 只存 HMAC，原生客户端保持兼容；公开环境必须使用 `required`。
+- `TM-010`：微信身份揭示、组队票、任务行动、暂停终止投票和角色攻略均进入可清空的全屏私密层；后台、暂停与投影变化关闭选择，提交后回到中性等待。
+- 剩余人工风险：真实微信上游与生产秘密存储、两个账号错用复制 token、低端 Android/iPhone 后台预览、最大字体、读屏和音频中断必须在发布授权前完成真机验收。
 
 剩余风险：入口私网和覆盖转发头、真实 DDoS/WAF、Sentry DE 出站、供应商备份/WAL 残余、30 分钟容量与真机隐私/音频均需真实 Preview 人工验证；延期的无障碍要求不视为已缓解。
 

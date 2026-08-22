@@ -276,6 +276,10 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       sessionTokenPepper: 'integration-session-pepper-material-0001',
       idempotencyEncryptionSecret: 'integration-idempotency-encryption-0001',
       sessionTtlSeconds: 1_800,
+      wechatAppId: 'wx0240d55d0f3e4811',
+      wechatAppSecret: 'integration-wechat-app-secret-0001',
+      wechatIdentityPepper: 'integration-wechat-identity-pepper-0001',
+      wechatAuthEnforcement: 'required',
       realtimePublicUrl: 'wss://localhost.invalid/game-v2',
       trustedProxyCidrs: [],
       handshakeIpRateLimit: 30,
@@ -338,6 +342,14 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       column_name: 'token_digest',
     });
     expect(columns).toContainEqual({
+      table_name: 'sessions',
+      column_name: 'client_platform',
+    });
+    expect(columns).toContainEqual({
+      table_name: 'sessions',
+      column_name: 'wechat_subject_digest',
+    });
+    expect(columns).toContainEqual({
       table_name: 'rooms',
       column_name: 'pause_vote_expires_at',
     });
@@ -369,7 +381,7 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
       databaseUrl,
       dir: migrationsDirectory,
       direction: 'down',
-      count: 4,
+      count: 5,
       migrationsTable: 'pgmigrations',
       log: () => undefined,
     });
@@ -501,6 +513,169 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     }
   });
 
+  it('AC-019 exchanges wx.login and requires the identity proof on WeChat HTTP flows', async () => {
+    const dependencies = createDependencyChecks(config);
+    const server = await createServer(config, dependencies, {
+      ports: createTestPorts().ports,
+      startBackgroundWorkers: false,
+      wechatLoginPort: {
+        exchange: (loginCode) => {
+          expect(['one-use-login-code', 'other-account-code']).toContain(
+            loginCode,
+          );
+          return Promise.resolve({
+            openid:
+              loginCode === 'one-use-login-code'
+                ? 'raw-open-id-never-persisted'
+                : 'other-raw-open-id-never-persisted',
+            sessionKey: 'raw-session-key-never-persisted',
+          });
+        },
+      },
+    });
+    let socket: Socket | undefined;
+    try {
+      await server.app.listen({ host: '127.0.0.1', port: 0 });
+      const address = server.app.server.address();
+      if (address === null || typeof address === 'string') {
+        throw new Error('WeChat integration server address was unavailable');
+      }
+      const socketOrigin = `http://127.0.0.1:${String(address.port)}`;
+      const auth = await server.app.inject({
+        method: 'POST',
+        url: '/v2/auth/wechat',
+        headers: { 'x-protocol-version': '2' },
+        payload: { loginCode: 'one-use-login-code' },
+      });
+      expect(auth.statusCode).toBe(200);
+      expect(auth.body).not.toContain('raw-open-id');
+      expect(auth.body).not.toContain('raw-session-key');
+      const identityToken = auth.json<{ wechatIdentityToken: string }>()
+        .wechatIdentityToken;
+      const otherAuth = await server.app.inject({
+        method: 'POST',
+        url: '/v2/auth/wechat',
+        headers: { 'x-protocol-version': '2' },
+        payload: { loginCode: 'other-account-code' },
+      });
+      expect(otherAuth.statusCode).toBe(200);
+      const otherIdentityToken = otherAuth.json<{
+        wechatIdentityToken: string;
+      }>().wechatIdentityToken;
+
+      const request = {
+        ...createRequest('微信玩家'),
+        client: {
+          ...createRequest().client,
+          platform: 'WECHAT_MINIPROGRAM' as const,
+        },
+      };
+      const withoutIdentity = await server.app.inject({
+        method: 'POST',
+        url: '/v2/rooms',
+        headers: {
+          'idempotency-key': id(36),
+          'x-protocol-version': '2',
+        },
+        payload: request,
+      });
+      expect(withoutIdentity.statusCode).toBe(401);
+      expect(withoutIdentity.json()).toMatchObject({
+        error: { code: 'WECHAT_AUTH_INVALID' },
+      });
+
+      const created = await server.app.inject({
+        method: 'POST',
+        url: '/v2/rooms',
+        headers: {
+          'idempotency-key': id(37),
+          'x-protocol-version': '2',
+          'x-wechat-identity': identityToken,
+        },
+        payload: request,
+      });
+      expect(created.statusCode).toBe(201);
+      const sessionToken = created.json<{ sessionToken: string }>()
+        .sessionToken;
+
+      const connectError = async (
+        wechatIdentityToken?: string,
+      ): Promise<string> => {
+        const rejected = createSocketClient(`${socketOrigin}/game-v2`, {
+          transports: ['websocket'],
+          reconnection: false,
+          auth: {
+            protocolVersion: 2,
+            sessionToken,
+            ...(wechatIdentityToken === undefined
+              ? {}
+              : { wechatIdentityToken }),
+            lastStateVersion: 0,
+          },
+        });
+        try {
+          return await new Promise<string>((resolveError) => {
+            rejected.once('connect_error', (error) => {
+              resolveError(error.message);
+            });
+          });
+        } finally {
+          rejected.disconnect();
+        }
+      };
+      await expect(connectError()).resolves.toBe('WECHAT_AUTH_INVALID');
+      await expect(connectError(otherIdentityToken)).resolves.toBe(
+        'WECHAT_AUTH_INVALID',
+      );
+
+      socket = createSocketClient(`${socketOrigin}/game-v2`, {
+        transports: ['websocket'],
+        reconnection: false,
+        auth: {
+          protocolVersion: 2,
+          sessionToken,
+          wechatIdentityToken: identityToken,
+          lastStateVersion: 0,
+        },
+      });
+      await expect(
+        new Promise((resolveReady, rejectReady) => {
+          socket?.once('session.ready', resolveReady);
+          socket?.once('connect_error', rejectReady);
+        }),
+      ).resolves.toMatchObject({ delivery: 'RESYNC' });
+
+      const validation = await server.app.inject({
+        method: 'POST',
+        url: '/v2/room-config/validate',
+        headers: { 'x-protocol-version': '2' },
+        payload: { playerCount: 5, roleIds: [] },
+      });
+      expect(validation.statusCode).toBe(200);
+      const validationBody: {
+        readonly protocolVersion: number;
+        readonly valid: boolean;
+        readonly errors: ReadonlyArray<{ readonly code: string }>;
+      } = validation.json();
+      expect(validationBody.protocolVersion).toBe(2);
+      expect(validationBody.valid).toBe(false);
+      expect(validationBody.errors).toContainEqual({
+        code: 'ROLE_COUNT_MISMATCH',
+      });
+
+      const databaseDump = JSON.stringify(
+        await sql`select * from avalon_runtime.sessions`,
+      );
+      expect(databaseDump).not.toContain('raw-open-id-never-persisted');
+      expect(databaseDump).not.toContain('raw-session-key-never-persisted');
+      expect(databaseDump).not.toContain(identityToken);
+      expect(databaseDump).not.toContain(otherIdentityToken);
+    } finally {
+      socket?.disconnect();
+      await server.close();
+    }
+  });
+
   it('SM-003 stores only digests, atomically rotates, replays its key, and permits one concurrent recovery', async () => {
     const rotations: Array<{
       readonly sessionId: string;
@@ -570,6 +745,96 @@ describe('M2-001–M2-006 PostgreSQL/Redis integration', () => {
     ).toHaveLength(1);
     expect(rotations).toHaveLength(2);
     expect(rotations[1]?.credentialGeneration).toBe(3);
+  });
+
+  it('AC-019 binds WeChat sessions to one account and one seat per room', async () => {
+    const service = new RoomService(sql, config, createTestPorts().ports);
+    const subjectA = 'a'.repeat(64);
+    const subjectB = 'b'.repeat(64);
+    const asWechat = (request: CreateRoomRequest): CreateRoomRequest => ({
+      ...request,
+      client: { ...request.client, platform: 'WECHAT_MINIPROGRAM' },
+    });
+    const identityA = {
+      clientPlatform: 'WECHAT_MINIPROGRAM' as const,
+      wechatSubjectDigest: subjectA,
+    };
+    const created = await service.createRoom(
+      id(60),
+      asWechat(createRequest('微信房主')),
+      identityA,
+    );
+
+    await expect(
+      service.authenticate(created.body.sessionToken),
+    ).rejects.toMatchObject({
+      code: 'WECHAT_AUTH_INVALID',
+    });
+    await expect(
+      service.authenticate(created.body.sessionToken, subjectB),
+    ).rejects.toMatchObject({ code: 'WECHAT_AUTH_INVALID' });
+    await expect(
+      service.authenticate(created.body.sessionToken, subjectA),
+    ).resolves.toMatchObject({
+      clientPlatform: 'WECHAT_MINIPROGRAM',
+      wechatSubjectDigest: subjectA,
+    });
+
+    const wechatJoinRequest = {
+      ...joinRequest('同账号第二座位'),
+      client: {
+        ...joinRequest('unused').client,
+        platform: 'WECHAT_MINIPROGRAM' as const,
+      },
+    };
+    await expect(
+      service.joinRoom(
+        id(61),
+        created.body.roomCode,
+        wechatJoinRequest,
+        identityA,
+      ),
+    ).rejects.toMatchObject({ code: 'WECHAT_IDENTITY_CONFLICT' });
+    await expect(
+      service.joinRoom(
+        id(62),
+        created.body.roomCode,
+        { ...wechatJoinRequest, nickname: '另一个微信账号' },
+        {
+          clientPlatform: 'WECHAT_MINIPROGRAM',
+          wechatSubjectDigest: subjectB,
+        },
+      ),
+    ).resolves.toMatchObject({ body: { roomCode: created.body.roomCode } });
+
+    await expect(
+      service.createRoom(
+        id(63),
+        asWechat(createRequest('另一个房间')),
+        identityA,
+      ),
+    ).resolves.toMatchObject({ status: 201 });
+
+    await expect(
+      service.resumeSession(
+        id(64),
+        created.body.sessionToken,
+        { client: asWechat(createRequest()).client },
+        {
+          clientPlatform: 'WECHAT_MINIPROGRAM',
+          wechatSubjectDigest: subjectB,
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'WECHAT_AUTH_INVALID' });
+    const resumed = await service.resumeSession(
+      id(65),
+      created.body.sessionToken,
+      { client: asWechat(createRequest()).client },
+      identityA,
+    );
+    await expect(
+      service.authenticate(resumed.body.sessionToken, subjectA),
+    ).resolves.toMatchObject({ wechatSubjectDigest: subjectA });
   });
 
   it('M2-004 commits state, processed response, and Outbox atomically; ack retry has one effect', async () => {

@@ -22,6 +22,12 @@
       "pattern": "^[A-Za-z0-9_-]{43}$",
       "type": "string"
     },
+    "WechatIdentityToken": {
+      "minLength": 43,
+      "maxLength": 43,
+      "pattern": "^[A-Za-z0-9_-]{43}$",
+      "type": "string"
+    },
     "RulesVersion": {
       "const": "CLASSIC_AVALON_V1",
       "type": "string"
@@ -438,6 +444,18 @@
         },
         {
           "const": "PAYLOAD_TOO_LARGE",
+          "type": "string"
+        },
+        {
+          "const": "WECHAT_AUTH_INVALID",
+          "type": "string"
+        },
+        {
+          "const": "WECHAT_AUTH_UNAVAILABLE",
+          "type": "string"
+        },
+        {
+          "const": "WECHAT_IDENTITY_CONFLICT",
           "type": "string"
         },
         {

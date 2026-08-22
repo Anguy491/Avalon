@@ -2,6 +2,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Pressable, Text, View } from 'react-native';
 
+import { useI18n } from '@/localization/localization-provider';
 import { useSession } from '@/session/session-provider';
 import { spacing, touchTarget, typography } from '@/theme/tokens';
 import { useAppTheme } from '@/theme/use-app-theme';
@@ -12,6 +13,7 @@ import {
   audioSourceFor,
   type VoicePackKey,
 } from './voice-pack.generated';
+import { AUDIO_SUBTITLE_KEYS } from './audio-subtitles';
 import { audioPreferenceStore } from './audio-preference-store';
 import {
   cueFromLiveProjection,
@@ -24,6 +26,7 @@ const DEFAULT_VOLUME = 0.8;
 
 export function HostAudioControl() {
   const { color } = useAppTheme();
+  const { t } = useI18n();
   const session = useSession();
   const cue = session.roomView?.public.currentAudioCue;
   const player = useAudioPlayer();
@@ -121,7 +124,7 @@ export function HostAudioControl() {
         selectable
         style={{ color: color.text.primary, fontSize: typography.body }}
       >
-        {entry.subtitle}
+        {t(AUDIO_SUBTITLE_KEYS[cue.subtitleKey as VoicePackKey])}
       </Text>
       {hostControls ? (
         <View
@@ -137,7 +140,7 @@ export function HostAudioControl() {
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >
             <Text selectable style={{ color: color.action.primary }}>
-              {muted ? '取消静音' : '静音主持'}
+              {muted ? t('audioUnmute') : t('audioMute')}
             </Text>
           </Pressable>
           <Pressable
@@ -151,7 +154,7 @@ export function HostAudioControl() {
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >
             <Text selectable style={{ color: color.action.primary }}>
-              音量−
+              {t('audioVolumeDown')}
             </Text>
           </Pressable>
           <Pressable
@@ -165,7 +168,7 @@ export function HostAudioControl() {
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >
             <Text selectable style={{ color: color.action.primary }}>
-              音量+（{Math.round(volume * 100)}%）
+              {t('audioVolumeUp', { percent: Math.round(volume * 100) })}
             </Text>
           </Pressable>
           <Pressable
@@ -180,7 +183,7 @@ export function HostAudioControl() {
             style={{ minHeight: touchTarget.minimum, justifyContent: 'center' }}
           >
             <Text selectable style={{ color: color.action.primary }}>
-              重播当前提示
+              {t('audioReplay')}
             </Text>
           </Pressable>
         </View>

@@ -1,33 +1,22 @@
 import type { RoomView } from '@avalon/protocol/mobile';
 
-import { ROLE_PRESENTATION } from '../roles/role-reveal-state';
-
 type Outcome = NonNullable<RoomView['public']['gameOutcome']>;
 type PlayerSummary = RoomView['public']['players'][number];
-
-const REASON_LABELS: Readonly<Record<Outcome['reason'], string>> = {
-  THREE_QUEST_FAILURES: '三项任务失败，邪恶方赢得对局。',
-  FIVE_REJECTED_TEAMS: '同一任务连续五次组队被否决，邪恶方赢得对局。',
-  MERLIN_ASSASSINATED: '刺客成功找出梅林，邪恶方翻盘获胜。',
-  MERLIN_SURVIVED: '刺客未能找出梅林，善良方守住胜利。',
-  ABORTED: '对局已中止，不判定阵营胜负。',
-};
 
 export interface RevealedPlayer {
   readonly playerId: string;
   readonly nickname: string;
   readonly seat: number;
-  readonly roleLabel: string;
+  readonly roleId: NonNullable<
+    RoomView['public']['revealedAssignments']
+  >[number]['roleId'];
   readonly alignment: 'GOOD' | 'EVIL';
-  readonly alignmentLabel: '善良阵营' | '邪恶阵营';
   readonly wasAssassinationTarget: boolean;
 }
 
 export interface ResultState {
   readonly winner: Outcome['winner'];
-  readonly winnerLabel: string;
   readonly reason: Outcome['reason'];
-  readonly reasonLabel: string;
   readonly assassinationTarget?: PlayerSummary;
   readonly revealedPlayers: readonly RevealedPlayer[];
   readonly successCount: number;
@@ -63,32 +52,21 @@ export function deriveResultState(roomView: RoomView): ResultState | undefined {
 
   return {
     winner: outcome.winner,
-    winnerLabel:
-      outcome.winner === 'GOOD'
-        ? '善良方获胜'
-        : outcome.winner === 'EVIL'
-          ? '邪恶方获胜'
-          : '对局中止',
     reason: outcome.reason,
-    reasonLabel: REASON_LABELS[outcome.reason] ?? '对局已结束。',
     ...(assassinationTarget === undefined ? {} : { assassinationTarget }),
     revealedPlayers: players.flatMap<RevealedPlayer>((player) => {
       const assignment = assignments.get(player.playerId);
       if (assignment === undefined) return [];
-      const presentation = ROLE_PRESENTATION[assignment.roleId];
-      if (presentation === undefined) return [];
       return [
         {
           playerId: player.playerId,
           nickname: player.nickname,
           seat: player.seat,
-          roleLabel: presentation.label,
+          roleId: assignment.roleId,
           alignment:
             assignment.alignment === 'GOOD'
               ? ('GOOD' as const)
               : ('EVIL' as const),
-          alignmentLabel:
-            assignment.alignment === 'GOOD' ? '善良阵营' : '邪恶阵营',
           wasAssassinationTarget: player.playerId === targetId,
         },
       ];

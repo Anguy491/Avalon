@@ -84,6 +84,7 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       tokenDigest: 'digest-only',
       credentialGeneration: 1,
       expiresAt: new Date('2026-08-14T12:00:00.000Z'),
+      clientPlatform: 'IOS' as const,
     };
     await presence.markOnline(context);
     await expect(presence.onlineSessionIds(context.roomId)).resolves.toEqual([
@@ -114,6 +115,7 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       tokenDigest: 'digest-only',
       credentialGeneration: 1,
       expiresAt: new Date('2026-08-14T12:30:00.000Z'),
+      clientPlatform: 'IOS' as const,
     };
     const connectedAt = new Date('2026-08-14T12:00:00.000Z');
     await presence.markOnline(context, 'old-socket', connectedAt);
@@ -163,6 +165,7 @@ describe('M0-006 PostgreSQL and Redis test containers', () => {
       tokenDigest: 'digest-only',
       credentialGeneration: 1,
       expiresAt: new Date('2026-08-14T12:30:00.000Z'),
+      clientPlatform: 'IOS' as const,
     };
     const connectedAt = new Date('2026-08-14T12:00:00.000Z');
     await expect(

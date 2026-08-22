@@ -5,6 +5,10 @@ import { useState } from 'react';
 
 import { PublicDraftProvider } from '@/session/public-draft-provider';
 import { HostAudioControl } from '@/audio/host-audio-control';
+import {
+  LocalizationProvider,
+  useI18n,
+} from '@/localization/localization-provider';
 import { initializeSentry } from '@/observability/sentry';
 import { AppPrivacyShield } from '@/privacy/app-privacy-shield';
 import { HostPauseControl } from '@/session/host-pause-control';
@@ -16,6 +20,7 @@ initializeSentry();
 
 function RootNavigator() {
   const { color, isDark } = useAppTheme();
+  const { t } = useI18n();
   return (
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
@@ -31,7 +36,7 @@ function RootNavigator() {
         <Stack.Screen name="(public)" options={{ headerShown: false }} />
         <Stack.Screen name="(room)" options={{ headerShown: false }} />
         <Stack.Screen name="(game)" options={{ headerShown: false }} />
-        <Stack.Screen name="+not-found" options={{ title: '页面不存在' }} />
+        <Stack.Screen name="+not-found" options={{ title: t('navNotFound') }} />
       </Stack>
     </>
   );
@@ -48,17 +53,19 @@ export default function RootLayout() {
       }),
   );
   return (
-    <QueryClientProvider client={queryClient}>
-      <PublicDraftProvider>
-        <SessionProvider>
-          <AppPrivacyShield>
-            <RootNavigator />
-            <HostPauseControl />
-            <HostAudioControl />
-            <SessionStatusLayer />
-          </AppPrivacyShield>
-        </SessionProvider>
-      </PublicDraftProvider>
-    </QueryClientProvider>
+    <LocalizationProvider>
+      <QueryClientProvider client={queryClient}>
+        <PublicDraftProvider>
+          <SessionProvider>
+            <AppPrivacyShield>
+              <RootNavigator />
+              <HostPauseControl />
+              <HostAudioControl />
+              <SessionStatusLayer />
+            </AppPrivacyShield>
+          </SessionProvider>
+        </PublicDraftProvider>
+      </QueryClientProvider>
+    </LocalizationProvider>
   );
 }
